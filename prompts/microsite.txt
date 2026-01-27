@@ -1,0 +1,15 @@
+Generate a kidney donor website for {name}.
+
+BEFORE KIDNEY DISEASE:
+{before}
+
+LIFE DURING DIALYSIS:
+{during}
+
+WHAT TRANSPLANT MEANS:
+{hope}
+
+Return ONLY valid JSON with these fields (no markdown, no explanation):
+{{"headline": "One compelling sentence summarizing their story", "my_story": "2-3 sentences about who they are", "my_struggle": "2-3 sentences about living with kidney disease", "my_hope": "2-3 sentences - emotional appeal for why they need help"}}
+
+Keep it personal, warm, and compelling. Use first person voice.

@@ -1,0 +1,8 @@
+{
+  "custom_messages": {
+    "introduction_text": "Hello! I can answer questions about dialysis and kidney health",
+    "completion_text": "Thank you for chatting. Take care!",
+    "end_session_text": "Goodbye!"
+  },
+  "units": []
+}

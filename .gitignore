@@ -146,6 +146,7 @@ users.txt
 *.pyc
 *.txt
 !requirements.txt
+!prompts/*.txt
 *.env
 *.csv
 
@@ -161,3 +162,7 @@ language_models/custom/resources/
 !*README.md
 !language_models/gensim/resources/README.md
 !language_models/custom/resources/README.md
+
+# AI assistant files - never commit
+claude.md
+CLAUDE.md

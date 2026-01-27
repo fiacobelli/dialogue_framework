@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Your Donor Page</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        h1 { color: #2c5282; text-align: center; }
+
+        .container { display: flex; flex-direction: column; gap: 20px; }
+
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        /* Language and Voice Selectors */
+        .settings-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .language-selector { display: flex; gap: 8px; }
+        .lang-btn { width: 50px; height: 50px; font-size: 28px; border: 2px solid #e2e8f0; border-radius: 12px; background: white; cursor: pointer; transition: all 0.2s; }
+        .lang-btn:hover { transform: scale(1.1); }
+        .lang-btn.active { border-color: #3182ce; background: #ebf8ff; }
+        .voice-selector { display: flex; align-items: center; gap: 8px; }
+        .voice-selector label { font-size: 14px; color: #64748b; }
+        #voiceSelect { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; min-width: 150px; }
+
+        .phase-indicator { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .phase { padding: 8px 16px; border-radius: 20px; background: #e2e8f0; color: #64748b; font-size: 14px; }
+        .phase.active { background: #3182ce; color: white; }
+        .phase.done { background: #38a169; color: white; }
+
+        /* Phase dots for low-literacy - shown on mobile */
+        .phase-dots { display: none; justify-content: center; gap: 12px; margin-bottom: 15px; }
+        .dot { width: 16px; height: 16px; border-radius: 50%; background: #e2e8f0; }
+        .dot.active { background: #3182ce; }
+        .dot.done { background: #38a169; }
+
+        #messages { height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fafafa; }
+        .msg { margin: 10px 0; line-height: 1.5; }
+        .user { color: #2c5282; }
+        .bot { color: #1a202c; font-size: 18px; }
+
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        #input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 16px; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        #sendBtn { background: #3182ce; color: white; }
+
+        /* Big mic button for voice-first interaction */
+        #micBtn { width: 70px; height: 70px; font-size: 32px; background: #38a169; color: white; border-radius: 50%; flex-shrink: 0; }
+        #micBtn.listening { background: #e53e3e; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+
+        /* Mobile optimizations */
+        @media (max-width: 600px) {
+            .phase-indicator { display: none; }
+            .phase-dots { display: flex; }
+            #micBtn { width: 80px; height: 80px; font-size: 40px; }
+            .lang-btn { width: 60px; height: 60px; font-size: 32px; }
+            .bot { font-size: 20px; }
+        }
+
+        .photo-section { display: none; }
+        .photo-section.visible { display: block; }
+        .photo-grid { display: flex; gap: 10px; margin: 15px 0; }
+        .photo-slot { width: 100px; height: 100px; border: 2px dashed #cbd5e0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #a0aec0; overflow: hidden; }
+        .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+
+        #generateBtn { background: #805ad5; color: white; width: 100%; padding: 15px; font-size: 18px; display: none; }
+        #generateBtn.visible { display: block; }
+
+        .microsite-preview { display: none; }
+        .microsite-preview.visible { display: block; }
+        .microsite-preview h2 { color: #2c5282; }
+        .microsite-content { white-space: pre-wrap; line-height: 1.6; }
+
+        /* Share buttons */
+        .share-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+        .share-section h4 { color: #4a5568; margin-bottom: 12px; font-size: 14px; }
+        .share-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .share-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: white; border: none; cursor: pointer; }
+        .share-btn:hover { opacity: 0.9; }
+        .share-btn.fb { background: #1877f2; }
+        .share-btn.wa { background: #25d366; }
+        .share-btn.email { background: #6b7280; }
+        .share-btn.copy { background: #3182ce; }
+        .share-btn.view { background: #805ad5; }
+
+        .microsite-url { margin-top: 15px; padding: 10px; background: #f7fafc; border-radius: 8px; font-family: monospace; font-size: 14px; word-break: break-all; }
+
+        #status { font-size: 12px; color: #718096; margin-top: 10px; }
+
+        .name-input { margin-bottom: 15px; }
+        .name-input input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Create Your Donor Page</h1>
+
+    <div class="container">
+        <div class="card">
+            <!-- Language and Voice Settings -->
+            <div class="settings-row">
+                <div class="language-selector">
+                    <button class="lang-btn active" id="lang-en" onclick="setLanguage('en')" title="English">🇺🇸</button>
+                    <button class="lang-btn" id="lang-es" onclick="setLanguage('es')" title="Español">🇪🇸</button>
+                    <button class="lang-btn" id="lang-ar" onclick="setLanguage('ar')" title="العربية">🇸🇦</button>
+                </div>
+                <div class="voice-selector">
+                    <label for="voiceSelect">Voice:</label>
+                    <select id="voiceSelect" onchange="saveVoicePreference()"></select>
+                </div>
+            </div>
+
+            <div class="phase-indicator">
+                <span class="phase" id="phase-before">1. Your Story</span>
+                <span class="phase" id="phase-during">2. Your Journey</span>
+                <span class="phase" id="phase-hope">3. Your Hope</span>
+                <span class="phase" id="phase-photos">4. Photos</span>
+            </div>
+
+            <!-- Phase dots for low-literacy users (mobile) -->
+            <div class="phase-dots">
+                <span class="dot" id="dot-before"></span>
+                <span class="dot" id="dot-during"></span>
+                <span class="dot" id="dot-hope"></span>
+                <span class="dot" id="dot-photos"></span>
+            </div>
+
+            <div id="messages"></div>
+
+            <div class="input-row">
+                <input type="text" id="input" placeholder="Share your story..." autofocus>
+                <button id="micBtn" onclick="toggleMic()">🎤</button>
+                <button id="sendBtn" onclick="send()">Send</button>
+            </div>
+            <div id="status"></div>
+        </div>
+
+        <div class="card photo-section" id="photoSection">
+            <h3>Add Your Photos</h3>
+            <p>Upload 3 photos for your donor page</p>
+            <div class="photo-grid">
+                <div class="photo-slot" id="photo0">+</div>
+                <div class="photo-slot" id="photo1">+</div>
+                <div class="photo-slot" id="photo2">+</div>
+            </div>
+            <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="uploadPhoto()">
+            <button onclick="document.getElementById('photoInput').click()" style="background:#38a169;color:white;">Upload Photo</button>
+        </div>
+
+        <div class="card" id="generateSection" style="display:none;">
+            <div class="name-input">
+                <label>Your Name for the Website:</label>
+                <input type="text" id="patientName" placeholder="Enter your name">
+            </div>
+            <button id="generateBtn" class="visible" onclick="generate()">Generate My Donor Page</button>
+        </div>
+
+        <div class="card microsite-preview" id="micrositePreview">
+            <h2 id="siteName"></h2>
+            <div class="photo-grid" id="sitePhotos"></div>
+            <div class="microsite-content" id="siteContent"></div>
+
+            <div class="microsite-url" id="micrositeUrl"></div>
+
+            <div class="share-section">
+                <h4>Share Your Page</h4>
+                <div class="share-buttons">
+                    <a href="#" target="_blank" class="share-btn view" id="viewBtn">View Full Page</a>
+                    <a href="#" target="_blank" class="share-btn fb" id="shareFb">Facebook</a>
+                    <a href="#" target="_blank" class="share-btn wa" id="shareWa">WhatsApp</a>
+                    <a href="#" class="share-btn email" id="shareEmail">Email</a>
+                    <button onclick="copyMicrositeLink()" class="share-btn copy" id="copyLinkBtn">Copy Link</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let currentPhase = 'BEFORE';
+        let photoCount = 0;
+
+        // Language configuration
+        const LANGUAGES = {
+            'en': { name: 'English', flag: '🇺🇸', recognition: 'en-US', voicePrefix: 'en' },
+            'es': { name: 'Español', flag: '🇪🇸', recognition: 'es-ES', voicePrefix: 'es' },
+            'ar': { name: 'العربية', flag: '🇸🇦', recognition: 'ar-SA', voicePrefix: 'ar' }
+        };
+        let currentLang = localStorage.getItem('language') || 'en';
+
+        const messages = document.getElementById('messages');
+        const input = document.getElementById('input');
+        const micBtn = document.getElementById('micBtn');
+        const status = document.getElementById('status');
+
+        // Speech Recognition - manual control
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+        let finalTranscript = '';
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = LANGUAGES[currentLang].recognition;
+
+            recognition.onresult = (e) => {
+                let interim = '';
+
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    if (e.results[i].isFinal) {
+                        finalTranscript += e.results[i][0].transcript + ' ';
+                    } else {
+                        interim += e.results[i][0].transcript;
+                    }
+                }
+
+                input.value = finalTranscript + interim;
+            };
+
+            recognition.onerror = (e) => { setStatus('Error: ' + e.error); stopListening(); };
+            recognition.onend = () => stopListening();
+        }
+
+        // Voice selection
+        function loadVoices() {
+            const voices = speechSynthesis.getVoices();
+            const langPrefix = LANGUAGES[currentLang].voicePrefix;
+            const filtered = voices.filter(v => v.lang.startsWith(langPrefix));
+
+            const select = document.getElementById('voiceSelect');
+            select.innerHTML = '';
+
+            // Add default option
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = 'Default Voice';
+            select.appendChild(defaultOpt);
+
+            filtered.forEach(voice => {
+                // Detect gender from voice name
+                const isFemale = /female|mujer|femenin|woman|zira|eva|monica|lucia|paulina/i.test(voice.name);
+                const gender = isFemale ? '♀' : '♂';
+                const opt = document.createElement('option');
+                opt.value = voice.name;
+                opt.textContent = `${gender} ${voice.name.replace(/Microsoft |Google |Apple /gi, '')}`;
+                select.appendChild(opt);
+            });
+
+            // Restore saved preference
+            const savedVoice = localStorage.getItem('voiceName_' + currentLang);
+            if (savedVoice) {
+                select.value = savedVoice;
+            }
+        }
+
+        function saveVoicePreference() {
+            const voiceName = document.getElementById('voiceSelect').value;
+            localStorage.setItem('voiceName_' + currentLang, voiceName);
+        }
+
+        // Load voices when available
+        speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        // Language selection
+        async function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('language', lang);
+
+            // Update UI
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lang-' + lang).classList.add('active');
+
+            // Update speech recognition
+            if (recognition) {
+                recognition.lang = LANGUAGES[lang].recognition;
+            }
+
+            // Reload voices for new language
+            loadVoices();
+
+            // Start new session with selected language
+            if (sessionId) {
+                messages.innerHTML = '';
+                const res = await fetch('/api/session?lang=' + lang);
+                const data = await res.json();
+                sessionId = data.session_id;
+                addMessage('bot', data.prompt);
+                updatePhaseUI(data.phase);
+                speak(data.prompt);
+            }
+        }
+
+        // Initialize language UI
+        function initLanguageUI() {
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lang-' + currentLang).classList.add('active');
+        }
+
+        function toggleMic() {
+            if (isListening) {
+                // Stop and send
+                recognition.stop();
+                if (finalTranscript.trim()) {
+                    input.value = finalTranscript.trim();
+                    send();
+                }
+                finalTranscript = '';
+            } else {
+                // Start listening
+                finalTranscript = '';
+                input.value = '';
+                recognition.start();
+                isListening = true;
+                micBtn.classList.add('listening');
+                setStatus('Listening... click mic when done');
+            }
+        }
+
+        function stopListening() {
+            isListening = false;
+            micBtn.classList.remove('listening');
+            setStatus('');
+        }
+
+        function setStatus(msg) { status.textContent = msg; }
+
+        function updatePhaseUI(phase) {
+            currentPhase = phase;
+            document.querySelectorAll('.phase').forEach(el => el.classList.remove('active', 'done'));
+            document.querySelectorAll('.dot').forEach(el => el.classList.remove('active', 'done'));
+
+            const phases = ['BEFORE', 'DURING', 'HOPE', 'PHOTOS'];
+            const idx = phases.indexOf(phase);
+
+            for (let i = 0; i < idx; i++) {
+                document.getElementById('phase-' + phases[i].toLowerCase()).classList.add('done');
+                document.getElementById('dot-' + phases[i].toLowerCase()).classList.add('done');
+            }
+            if (idx >= 0 && idx < phases.length) {
+                document.getElementById('phase-' + phases[idx].toLowerCase()).classList.add('active');
+                document.getElementById('dot-' + phases[idx].toLowerCase()).classList.add('active');
+            }
+
+            if (phase === 'PHOTOS' || phase === 'COMPLETE') {
+                document.getElementById('photoSection').classList.add('visible');
+            }
+        }
+
+        async function init() {
+            initLanguageUI();
+
+            const res = await fetch('/api/session?lang=' + currentLang);
+            const data = await res.json();
+            sessionId = data.session_id;
+            addMessage('bot', data.prompt);
+            updatePhaseUI(data.phase);
+
+            // Store greeting for when user clicks (browser blocks autoplay)
+            window.pendingGreeting = data.prompt;
+            setStatus('Click anywhere to hear greeting');
+        }
+
+        async function send() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            input.value = '';
+            setStatus('Processing...');
+
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, input: text })
+            });
+            const data = await res.json();
+            addMessage('bot', data.prompt);
+            updatePhaseUI(data.phase);
+            speak(data.prompt);
+            setStatus('');
+        }
+
+        async function uploadPhoto() {
+            const fileInput = document.getElementById('photoInput');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('session_id', sessionId);
+            formData.append('photo', file);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.status === 'ok') {
+                const slot = document.getElementById('photo' + (data.photo_count - 1));
+                slot.innerHTML = '<img src="' + URL.createObjectURL(file) + '">';
+                photoCount = data.photo_count;
+
+                if (data.ready) {
+                    document.getElementById('generateSection').style.display = 'block';
+                }
+            }
+            fileInput.value = '';
+        }
+
+        let micrositeUrl = '';
+
+        async function generate() {
+            const name = document.getElementById('patientName').value || 'Patient';
+            setStatus('Generating your donor page...');
+
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, name: name })
+            });
+            const data = await res.json();
+
+            document.getElementById('siteName').textContent = data.name + "'s Story";
+
+            // Show structured content if available
+            const contentDiv = document.getElementById('siteContent');
+            if (data.my_story) {
+                contentDiv.innerHTML = `<strong>My Story:</strong> ${data.my_story}<br><br><strong>Living with Kidney Disease:</strong> ${data.my_struggle}<br><br><strong>Why I Need Your Help:</strong> ${data.my_hope}`;
+            } else {
+                contentDiv.textContent = data.content;
+            }
+
+            const photosDiv = document.getElementById('sitePhotos');
+            photosDiv.innerHTML = data.photos.map(p => '<div class="photo-slot"><img src="' + p + '"></div>').join('');
+
+            // Set up share links
+            micrositeUrl = window.location.origin + data.microsite_url;
+            document.getElementById('micrositeUrl').textContent = micrositeUrl;
+            document.getElementById('viewBtn').href = data.microsite_url;
+            document.getElementById('shareFb').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(micrositeUrl);
+            document.getElementById('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(name + "'s Story - Please help find a kidney donor: " + micrositeUrl);
+            document.getElementById('shareEmail').href = 'mailto:?subject=' + encodeURIComponent(name + "'s Story - Help Find a Kidney Donor") + '&body=' + encodeURIComponent("Please read and share " + name + "'s story: " + micrositeUrl);
+
+            document.getElementById('micrositePreview').classList.add('visible');
+            setStatus('Done!');
+        }
+
+        function copyMicrositeLink() {
+            navigator.clipboard.writeText(micrositeUrl).then(() => {
+                const btn = document.getElementById('copyLinkBtn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+            });
+        }
+
+        function addMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = 'msg ' + role;
+            div.textContent = (role === 'user' ? 'You: ' : 'Assistant: ') + text;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function speak(text) {
+            window.speechSynthesis.cancel();
+            // Add slight pause at start to prevent first word clipping
+            const utterance = new SpeechSynthesisUtterance('... ' + text);
+            utterance.rate = 0.9;
+
+            // Use selected voice
+            const voiceName = document.getElementById('voiceSelect')?.value;
+            if (voiceName) {
+                const voice = speechSynthesis.getVoices().find(v => v.name === voiceName);
+                if (voice) utterance.voice = voice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        input.addEventListener('keypress', e => { if (e.key === 'Enter') send(); });
+
+        // Handle browser autoplay restrictions
+        document.addEventListener('click', function initSpeech() {
+            if (window.pendingGreeting) {
+                speak(window.pendingGreeting);
+                window.pendingGreeting = null;
+            }
+            document.removeEventListener('click', initSpeech);
+        }, { once: true });
+
+        init();
+    </script>
+</body>
+</html>
