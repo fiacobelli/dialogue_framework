@@ -166,3 +166,14 @@ language_models/custom/resources/
 # AI assistant files - never commit
 claude.md
 CLAUDE.md
+.claude/
+
+# User data - runtime generated
+photos/
+user_models/
+static/microsites/
+
+# Development files - not production
+tests/
+docs/
+run.sh

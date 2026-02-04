@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from goal_manager import GoalManager
+# from goal_manager import GoalManager  # Commented out - requires missing goal_bc module, unused by RuleManager
 from information_state import InformationState, Belief
 from strings import MSG, BELSTR, RUSTR
 import logging

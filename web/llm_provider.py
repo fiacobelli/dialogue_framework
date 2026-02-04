@@ -1,10 +1,11 @@
 import requests
+from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
 
 
 class OllamaProvider:
-    def __init__(self, model: str = "mistral:7b-instruct", base_url: str = "http://localhost:11434"):
+    def __init__(self, model: str = "mistral:7b-instruct", base_url: str = None):
         self.model = model
-        self.base_url = base_url
+        self.base_url = base_url or OLLAMA_BASE_URL
 
     def generate(self, messages: list, system_prompt: str = None) -> str:
         all_messages = []
@@ -21,7 +22,7 @@ class OllamaProvider:
             resp.raise_for_status()
             return resp.json()["message"]["content"]
         except Exception:
-            return "I'm having trouble responding right now."
+            return LLM_ERROR_MESSAGE
 
 
 class GroqProvider:
@@ -37,14 +38,14 @@ class GroqProvider:
 
         try:
             resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                GROQ_API_URL,
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={"model": self.model, "messages": all_messages}
             )
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
         except Exception:
-            return "I'm having trouble responding right now."
+            return LLM_ERROR_MESSAGE
 
 
 def get_provider(name: str, **kwargs):

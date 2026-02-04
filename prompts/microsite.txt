@@ -1,15 +1,11 @@
 Generate a kidney donor website for {name}.
 
-BEFORE KIDNEY DISEASE:
-{before}
+INTERVIEW TRANSCRIPT:
+{conversation}
 
-LIFE DURING DIALYSIS:
-{during}
-
-WHAT TRANSPLANT MEANS:
-{hope}
+Based on the interview above, extract the most compelling details to create a donor website.
 
 Return ONLY valid JSON with these fields (no markdown, no explanation):
-{{"headline": "One compelling sentence summarizing their story", "my_story": "2-3 sentences about who they are", "my_struggle": "2-3 sentences about living with kidney disease", "my_hope": "2-3 sentences - emotional appeal for why they need help"}}
+{{"headline": "One compelling sentence summarizing their story", "my_story": "2-3 sentences about who they are and their life before kidney disease", "my_struggle": "2-3 sentences about living with kidney disease and dialysis", "my_hope": "2-3 sentences - emotional appeal for why they need a transplant"}}
 
-Keep it personal, warm, and compelling. Use first person voice.
+Keep it personal, warm, and compelling. Use first person voice. Use specific details from the interview.

@@ -27,4 +27,5 @@ google-cloud-speech
 urllib3
 python-decouple
 gensim
-
+flask>=3.0.0
+requests>=2.31.0

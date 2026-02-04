@@ -1,4 +1,3 @@
-from copyreg import pickle
 import json
 from strings import KBSTR, BELSTR, SPTEXTSTR # external strings
 import pickle
