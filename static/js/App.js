@@ -253,9 +253,6 @@ class App {
 
             // Use speechManager for proper turn handling (returns Promise)
             await speechManager.speak(message);
-
-            // Show preview after speech completes
-            ui.showMicrositePreview(data);
             ui.setStatus('');
         } catch (err) {
             console.error('Auto-generation failed:', err);
