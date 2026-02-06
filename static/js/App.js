@@ -6,8 +6,11 @@
 class App {
     constructor() {
         this.micrositeUrl = '';
+        this.photoPollingInterval = null;
+        this.generationInProgress = false;
     }
 
+    /** Initialize app and start conversation. */
     async init() {
         ui.init();
         this._setupTurnStateHandlers();
@@ -100,7 +103,9 @@ class App {
         ui.setStatus('Connecting...');
 
         try {
-            const data = await conversationAPI.startSession('en', 'sitepal');
+            const urlParams = new URLSearchParams(window.location.search);
+            const avatarId = urlParams.get('avatar') || 'mary';
+            const data = await conversationAPI.startSession('en', avatarId);
             ui.updatePhase(data.phase);
             ui.showMessage(data.prompt);
             ui.setStatus('Tap anywhere to hear greeting');
@@ -116,6 +121,7 @@ class App {
         }
     }
 
+    /** Toggle microphone on/off based on current turn state. */
     toggleMic() {
         const state = turnManager.getState();
         if (state === TurnState.USER_SPEAKING) {
@@ -125,6 +131,7 @@ class App {
         }
     }
 
+    /** Send text input to backend and process response. */
     async sendTextInput() {
         const input = document.getElementById('input');
         const text = input.value.trim();
@@ -140,6 +147,7 @@ class App {
         await this._processUserInput(text);
     }
 
+    /** Process user input through the dialogue system. */
     async _processUserInput(text) {
         if (!conversationAPI.getSessionId()) {
             ui.setStatus('No active session.');
@@ -152,12 +160,54 @@ class App {
             ui.showMessage(data.prompt);
             ui.updatePhase(data.phase);
             ui.setStatus('');
+
+            // Start QR/photo flow when entering PHOTOS phase
+            if (data.phase === 'PHOTOS') {
+                this.startPhotoFlow();
+            }
+
             await speechManager.speak(data.prompt);
         } catch (err) {
             ui.setStatus('Failed to send. Please try again.');
             console.error(err);
             ui.showIdle();
             turnManager.reset();
+        }
+    }
+
+    /** Start QR code display and photo polling. */
+    async startPhotoFlow() {
+        try {
+            const qrData = await conversationAPI.getQRCode();
+            ui.setQRCode(qrData.qr_image, qrData.upload_url);
+            this.startPhotoPolling();
+        } catch (err) {
+            console.error('Failed to get QR code:', err);
+        }
+    }
+
+    startPhotoPolling() {
+        if (this.photoPollingInterval) return;
+
+        this.photoPollingInterval = setInterval(async () => {
+            try {
+                const status = await conversationAPI.getPhotoStatus();
+                ui.updatePhotoProgress(status.photo_count, status.max_photos);
+
+                if (status.ready) {
+                    this.stopPhotoPolling();
+                    this.autoGenerate();
+                }
+            } catch (err) {
+                console.error('Photo polling error:', err);
+            }
+        }, 3000);
+    }
+
+    stopPhotoPolling() {
+        if (this.photoPollingInterval) {
+            clearInterval(this.photoPollingInterval);
+            this.photoPollingInterval = null;
         }
     }
 
@@ -170,13 +220,50 @@ class App {
             const data = await conversationAPI.uploadPhoto(file);
             if (data.status === 'ok') {
                 ui.showPhotoSlot(data.photo_count - 1, URL.createObjectURL(file));
-                if (data.ready) ui.showGenerateSection();
+                if (data.ready) {
+                    this.stopPhotoPolling();
+                    this.autoGenerate();
+                }
             }
         } catch (err) {
             ui.setStatus('Upload failed: ' + err.message);
             console.error(err);
         }
         fileInput.value = '';
+    }
+
+    /** Auto-generate microsite after photos are uploaded. */
+    async autoGenerate() {
+        if (this.generationInProgress) return;
+        this.generationInProgress = true;
+        ui.showGenerating();
+
+        try {
+            const data = await conversationAPI.generateMicrosite('Patient');
+
+            // Build full URL for consistency
+            const fullUrl = window.location.origin + data.microsite_url;
+            this.micrositeUrl = fullUrl;
+
+            // Avatar celebration message
+            const message = `Wonderful news, ${data.name}! Your donor page is ready! Click the button below to see it and share it with your loved ones.`;
+            ui.showMessage(message);
+            ui.showCelebration(fullUrl);
+
+            // Use speechManager for proper turn handling (returns Promise)
+            await speechManager.speak(message);
+
+            // Show preview after speech completes
+            ui.showMicrositePreview(data);
+            ui.setStatus('');
+        } catch (err) {
+            console.error('Auto-generation failed:', err);
+            ui.showGenerateSection();
+            ui.setStatus('Generation failed. Please try again.');
+        } finally {
+            // Always reset flag
+            this.generationInProgress = false;
+        }
     }
 
     async generate() {

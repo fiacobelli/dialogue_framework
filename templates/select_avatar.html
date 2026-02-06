@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Choose Your Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/interview.css">
+    <style>
+        .avatar-selection { max-width: 700px; margin: 0 auto; padding: 20px; }
+        .avatar-selection h1 { text-align: center; margin-bottom: 10px; }
+        .avatar-selection > p { text-align: center; color: #666; margin-bottom: 20px; }
+
+        .preview-area {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .preview-frame {
+            border: none;
+            width: 260px;
+            height: 310px;
+            margin: 0 auto;
+            display: block;
+        }
+        .preview-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .avatar-options {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .avatar-option {
+            border: 3px solid #ddd;
+            border-radius: 12px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+        .avatar-option:hover { border-color: #4CAF50; }
+        .avatar-option.selected { border-color: #4CAF50; background: #e8f5e9; }
+        .avatar-option h3 { margin: 0; font-size: 1.1em; }
+
+        .start-btn {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 25px auto 0;
+            padding: 15px;
+            font-size: 1.1em;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .start-btn:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="avatar-selection">
+        <div class="card">
+            <h1>Choose Your Assistant</h1>
+            <p>Select who you'd like to guide you through creating your donor page</p>
+
+            <div class="preview-area">
+                <iframe id="previewFrame" class="preview-frame"></iframe>
+                <div class="preview-name" id="previewName">Assistant</div>
+            </div>
+
+            <div class="avatar-options" id="avatarOptions"></div>
+
+            <button class="start-btn" id="startBtn">Start Interview</button>
+        </div>
+    </div>
+
+    <script>
+        const avatars = {{ avatars | tojson }};
+        let selectedAvatar = 'mary';
+
+        function selectAvatar(id) {
+            selectedAvatar = id;
+            const profile = avatars[id];
+
+            document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`[data-avatar="${id}"]`).classList.add('selected');
+
+            document.getElementById('previewFrame').src = '/avatar-preview/' + profile.scene_id;
+            document.getElementById('previewName').textContent = profile.name;
+        }
+
+        // Build option buttons
+        const optionsContainer = document.getElementById('avatarOptions');
+        Object.entries(avatars).forEach(([id, profile]) => {
+            const btn = document.createElement('div');
+            btn.className = 'avatar-option' + (id === selectedAvatar ? ' selected' : '');
+            btn.dataset.avatar = id;
+            btn.innerHTML = `<h3>${profile.name}</h3>`;
+            btn.onclick = () => selectAvatar(id);
+            optionsContainer.appendChild(btn);
+        });
+
+        // Load initial avatar
+        selectAvatar(selectedAvatar);
+
+        document.getElementById('startBtn').onclick = () => {
+            window.location.href = '/interview?avatar=' + selectedAvatar;
+        };
+    </script>
+</body>
+</html>

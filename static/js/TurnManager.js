@@ -1,6 +1,7 @@
 /**
- * TurnManager - Handles conversational turn-taking state machine
- * States: IDLE, USER_SPEAKING, PROCESSING, SYSTEM_SPEAKING
+ * TurnManager - Handles conversational turn-taking state machine.
+ * Ensures only one party (user or system) speaks at a time.
+ * States: IDLE -> USER_SPEAKING -> PROCESSING -> SYSTEM_SPEAKING -> IDLE
  */
 
 const TurnState = {

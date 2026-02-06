@@ -47,12 +47,12 @@
                     <span class="dot" id="dot-photos"></span>
                 </div>
 
-                <!-- SitePal embed - copied exactly from Prof's index.html -->
+                <!-- SitePal embed - copied exactly from index.html -->
                 <div class="avatar-container">
                     <div id="avatar">
                         <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                         <script type="text/javascript">
-                            AC_VHost_Embed(8688641, 300, 400, "", 1, 0, 2756814, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                            AC_VHost_Embed(8688641, 300, 400, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
                         </script>
                     </div>
                 </div>
@@ -72,6 +72,18 @@
             <div class="card photo-section" id="photoSection">
                 <h3>Add Your Photos</h3>
                 <p>Upload 3 photos for your donor page</p>
+
+                <!-- QR Code for mobile upload -->
+                <div id="qrSection" style="display:none; text-align:center; margin:20px 0;">
+                    <p>Scan with your phone to upload photos:</p>
+                    <img id="qrCode" style="max-width:200px; margin:10px auto;">
+                    <p style="font-size:0.9em; color:#666;">
+                        Or open: <a id="uploadLink" href="#" target="_blank"></a>
+                    </p>
+                    <p id="photoProgress" style="font-weight:bold; margin-top:15px;">0/3 photos uploaded</p>
+                </div>
+
+                <p style="margin-top:15px; color:#888;">Or upload directly from this device:</p>
                 <div class="photo-grid">
                     <div class="photo-slot" id="photo0">+</div>
                     <div class="photo-slot" id="photo1">+</div>
@@ -81,12 +93,20 @@
                 <button class="upload-btn" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
             </div>
 
-            <div class="card" id="generateSection">
+            <div class="card" id="generateSection" style="display:none;">
                 <div class="name-input">
                     <label>Your Name for the Website:</label>
                     <input type="text" id="patientName" placeholder="Enter your name">
                 </div>
                 <button id="generateBtn">Generate My Donor Page</button>
+            </div>
+
+            <div class="card celebration-section" id="celebrationSection" style="display:none;">
+                <h2>Your Page is Ready!</h2>
+                <a href="javascript:void(0)" target="_blank" class="view-page-cta" id="viewPageCTA">
+                    View Your Donor Page
+                </a>
+                <p class="cta-hint">Opens in a new tab</p>
             </div>
 
             <div class="card microsite-preview" id="micrositePreview">

@@ -9,6 +9,7 @@ class ConversationAPI {
         this.sessionId = null;
     }
 
+    /** Start new session and get opening prompt. */
     async startSession(lang, avatarId) {
         const res = await fetch(`${this.baseUrl}/api/session?lang=${lang}&avatar=${avatarId}`);
         if (!res.ok) throw new Error('Failed to start session');
@@ -22,6 +23,7 @@ class ConversationAPI {
         };
     }
 
+    /** Send user message and get response. */
     async sendMessage(text) {
         if (!this.sessionId) throw new Error('No active session');
 
@@ -38,6 +40,7 @@ class ConversationAPI {
         return await res.json();
     }
 
+    /** Upload photo file to server. */
     async uploadPhoto(file) {
         if (!this.sessionId) throw new Error('No active session');
 
@@ -55,6 +58,7 @@ class ConversationAPI {
         return data;
     }
 
+    /** Generate microsite from conversation. */
     async generateMicrosite(name) {
         if (!this.sessionId) throw new Error('No active session');
 
@@ -68,6 +72,20 @@ class ConversationAPI {
         });
 
         if (!res.ok) throw new Error('Failed to generate microsite');
+        return await res.json();
+    }
+
+    async getQRCode() {
+        if (!this.sessionId) throw new Error('No active session');
+        const res = await fetch(`${this.baseUrl}/api/qr/${this.sessionId}`);
+        if (!res.ok) throw new Error('Failed to get QR code');
+        return await res.json();
+    }
+
+    async getPhotoStatus() {
+        if (!this.sessionId) throw new Error('No active session');
+        const res = await fetch(`${this.baseUrl}/api/photos/${this.sessionId}`);
+        if (!res.ok) throw new Error('Failed to get photo status');
         return await res.json();
     }
 

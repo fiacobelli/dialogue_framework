@@ -14,6 +14,7 @@ from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE
 
 
 def load_prompt(filepath: str) -> str:
+    """Load system prompt from file, with fallback."""
     try:
         with open(filepath, 'r') as f:
             return f.read().strip()
@@ -22,9 +23,11 @@ def load_prompt(filepath: str) -> str:
 
 
 def create_session(session_id: str) -> dict:
+    """Initialize a new dialogue session with all required components."""
     user_file = os.path.join(USER_MODELS_DIR, f'{session_id}.pkl')
     info_state = InformationState(user_file, KB_FILE)
     info_state.bel.add(BELSTR.DONE, False)
+    info_state.user.update('session_id', session_id)
 
     nlu = NLUWeb()
     nlg = NLG()

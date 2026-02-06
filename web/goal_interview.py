@@ -1,7 +1,20 @@
 """Interview goal - LLM-driven interview using system prompt."""
+import os
+from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import PHOTOS_PROMPT, LANGUAGE_NAMES
+
+LOGS_DIR = 'logs'
+
+
+def log_interview(session_id: str, entry: str):
+    """Append a log entry for debugging interviews."""
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    filepath = os.path.join(LOGS_DIR, f'interview_{session_id}.txt')
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open(filepath, 'a', encoding='utf-8') as f:
+        f.write(f"[{timestamp}] {entry}\n")
 
 
 class InterviewGoal(Goal):
@@ -16,33 +29,46 @@ class InterviewGoal(Goal):
         history = info_state.user.query('conversation_history') or []
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
+        session_id = info_state.user.query('session_id') or 'unknown'
 
         # Add user message to history
         if user_input:
             history.append({"role": "user", "content": user_input})
             info_state.user.update('conversation_history', history)
+            log_interview(session_id, f"USER: {user_input}")
 
-        # Generate response using LLM with Prof's system prompt
+        # Generate response using LLM with system prompt
         prompt = self.system_prompt
         if language != 'en':
             lang_name = LANGUAGE_NAMES.get(language, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
 
         response = self.llm.generate(history, prompt)
+        log_interview(session_id, f"LLM: {response}")
 
         # Check if LLM said goodbye (interview complete) - check AFTER generating
-        if self._is_goodbye(response):
+        is_ending = self._is_goodbye(response)
+        log_interview(session_id, f"_is_goodbye check: {is_ending}")
+
+        if is_ending:
             info_state.user.update('interview_phase', 'PHOTOS')
+            log_interview(session_id, "PHASE CHANGED TO: PHOTOS")
 
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
         msg[MSG.RESPONSE] = response
 
     def _is_goodbye(self, text: str) -> bool:
-        """Check if the response is a goodbye."""
+        """Check if the response signals end of interview."""
         text_lower = text.lower()
-        goodbye_phrases = ['goodbye', 'bye', 'thank you for sharing', 'take care']
-        return any(phrase in text_lower for phrase in goodbye_phrases)
+        # Match specific ending phrases, not broad keywords like "microsite"
+        # which can appear in questions (e.g., "what tone for your microsite?")
+        end_phrases = [
+            'goodbye', 'take care',
+            'i will now generate a microsite',  # Specific phrase from prompt
+            'please upload',  # Photo instruction indicator
+        ]
+        return any(phrase in text_lower for phrase in end_phrases)
 
     def get_next_prompt(self, msg, info_state) -> dict:
         msg[MSG.PROMPT] = msg.get(MSG.RESPONSE, '')

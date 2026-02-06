@@ -1,13 +1,20 @@
+"""LLM provider abstraction layer.
+
+Supports multiple backends (Ollama, Groq) with a common interface.
+"""
+
 import requests
 from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
 
 
 class OllamaProvider:
+    """Local Ollama LLM provider for development."""
     def __init__(self, model: str = "mistral:7b-instruct", base_url: str = None):
         self.model = model
         self.base_url = base_url or OLLAMA_BASE_URL
 
     def generate(self, messages: list, system_prompt: str = None) -> str:
+        """Generate response from message history."""
         all_messages = []
         if system_prompt:
             all_messages.append({"role": "system", "content": system_prompt})
@@ -26,11 +33,14 @@ class OllamaProvider:
 
 
 class GroqProvider:
+    """Groq cloud LLM provider for production."""
+
     def __init__(self, model: str = "llama-3.1-8b-instant", api_key: str = None):
         self.model = model
         self.api_key = api_key
 
     def generate(self, messages: list, system_prompt: str = None) -> str:
+        """Generate response from message history."""
         all_messages = []
         if system_prompt:
             all_messages.append({"role": "system", "content": system_prompt})
@@ -49,6 +59,7 @@ class GroqProvider:
 
 
 def get_provider(name: str, **kwargs):
+    """Factory function to get configured LLM provider."""
     providers = {"ollama": OllamaProvider, "groq": GroqProvider}
     if name not in providers:
         raise ValueError(f"Unknown provider: {name}")

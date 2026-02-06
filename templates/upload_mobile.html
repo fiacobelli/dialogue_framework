@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Upload Photos - Donor Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/interview.css">
+    <style>
+        .upload-container { max-width: 400px; margin: 0 auto; padding: 20px; }
+        .upload-prompt { text-align: center; margin-bottom: 20px; color: #555; }
+        .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+        .photo-slot {
+            aspect-ratio: 1; border: 2px dashed #ccc; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2em; color: #ccc; cursor: pointer; overflow: hidden;
+        }
+        .photo-slot.filled { border-style: solid; border-color: #4CAF50; }
+        .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+        .status { text-align: center; margin: 15px 0; font-weight: bold; }
+        .status.success { color: #4CAF50; }
+        .status.error { color: #f44336; }
+        .submit-btn {
+            width: 100%; padding: 15px; font-size: 1.1em;
+            background: #4CAF50; color: white; border: none; border-radius: 8px;
+            cursor: pointer; margin-top: 20px;
+        }
+        .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <div class="card">
+            <h2>Upload Your Photos</h2>
+            <p class="upload-prompt">
+                Upload three pictures that represent what a new kidney could do for you.
+                These could be photos of family, hobbies, or dreams you want to pursue.
+            </p>
+
+            <div class="photo-grid">
+                <div class="photo-slot" id="photo0" onclick="selectPhoto(0)">+</div>
+                <div class="photo-slot" id="photo1" onclick="selectPhoto(1)">+</div>
+                <div class="photo-slot" id="photo2" onclick="selectPhoto(2)">+</div>
+            </div>
+
+            <input type="file" id="photoInput" accept="image/*" capture="environment">
+
+            <div class="status" id="status"></div>
+
+            <button class="submit-btn" id="submitBtn" disabled>
+                Upload Complete - Close This Page
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = '{{ session_id }}';
+        let currentSlot = 0;
+        let uploadedCount = 0;
+
+        function selectPhoto(slot) {
+            currentSlot = slot;
+            document.getElementById('photoInput').click();
+        }
+
+        document.getElementById('photoInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('session_id', sessionId);
+            formData.append('photo', file);
+
+            setStatus('Uploading...', '');
+
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.error) {
+                    setStatus(data.error, 'error');
+                    return;
+                }
+
+                // Show preview
+                const slot = document.getElementById(`photo${currentSlot}`);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    slot.innerHTML = `<img src="${e.target.result}">`;
+                    slot.classList.add('filled');
+                };
+                reader.readAsDataURL(file);
+
+                uploadedCount = data.photo_count;
+                setStatus(`${uploadedCount}/3 photos uploaded`, 'success');
+
+                if (data.ready) {
+                    document.getElementById('submitBtn').disabled = false;
+                    setStatus('All photos uploaded! You can close this page.', 'success');
+                }
+            } catch (err) {
+                setStatus('Upload failed. Try again.', 'error');
+            }
+
+            e.target.value = '';
+        });
+
+        document.getElementById('submitBtn').addEventListener('click', () => {
+            window.close();
+        });
+
+        function setStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+        }
+
+        // Check existing photos on load
+        fetch(`/api/photos/${sessionId}`)
+            .then(r => r.json())
+            .then(data => {
+                uploadedCount = data.photo_count || 0;
+                if (uploadedCount > 0) {
+                    setStatus(`${uploadedCount}/3 photos already uploaded`, 'success');
+                }
+                if (data.ready) {
+                    document.getElementById('submitBtn').disabled = false;
+                }
+            });
+    </script>
+</body>
+</html>

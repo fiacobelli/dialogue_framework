@@ -1,4 +1,66 @@
-# Intelligent Tutoring System for Breast Cancer Survivors (Python)
+# Dialogue Framework
+
+A modular dialogue system framework implementing the Traum & Larsson information-state architecture. Supports multiple applications through swappable components.
+
+---
+
+## Kidney Transplant Microsite Builder (Web App)
+
+A voice-enabled web application that interviews kidney transplant patients and generates personalized donor appeal microsites.
+
+### Features
+- Conversational interview with animated avatar (SitePal)
+- Voice input/output with speech recognition
+- Photo upload via QR code (mobile-friendly)
+- LLM-powered microsite generation
+- Multi-language support (English, Spanish, Arabic)
+
+### Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   python -m spacy download en_core_web_sm
+   ```
+
+2. **Configure environment:**
+   Create a `.env` file with:
+   ```
+   LLM_PROVIDER=groq
+   LLM_MODEL=llama-3.1-8b-instant
+   GROQ_API_KEY=your_api_key_here
+   FLASK_SECRET_KEY=your_secret_key
+   ```
+
+3. **Run the web app:**
+   ```bash
+   export PYTHONPATH=.
+   python -m web.app
+   ```
+
+   Open http://localhost:5000 in your browser.
+
+### Project Structure
+
+```
+web/                  # Flask application
+├── app.py            # Entry point and routes
+├── routes_api.py     # API endpoints
+├── routes_photos.py  # Photo upload handling
+├── session.py        # Session management
+├── microsite.py      # Microsite generation
+├── goal_interview.py # Interview goal logic
+└── llm_provider.py   # LLM abstraction (Ollama/Groq)
+
+templates/            # HTML templates
+static/               # CSS, JS, images
+prompts/              # System prompts
+domains/              # Knowledge base JSON
+```
+
+---
+
+# CLI Tutoring System (Original)
 
 This project engages users by voice in a question and answer dialogue. Sessions begin with custom messages from the Tutoring System, then moves on to ask questions related to breast cancer and breast cancer survivorship. After asking a question, the system waits for a response from the user, and the system can be configured to utilize a sentence detection algorithm which enables the user to pause while speaking. Answers are evaluated for completeness, and the system's behavior to incomplete answers can be configured.
 

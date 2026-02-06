@@ -5,6 +5,7 @@ class NLUWeb:
     """Simplified NLU for web/text chat."""
 
     def check(self, msg: dict) -> bool:
+        """Parse user input and populate message dict with tokens."""
         possible = msg.get(MSG.POSSIBLE_RESPONSES, [])
         if not possible:
             return False

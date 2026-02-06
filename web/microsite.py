@@ -39,6 +39,29 @@ def format_conversation(history: list) -> str:
     return "\n\n".join(lines)
 
 
+def extract_name_from_conversation(history: list, provider) -> str:
+    """Extract patient name from conversation using LLM."""
+    if not history:
+        return "Patient"
+
+    conversation = format_conversation(history)
+    prompt = """From this conversation, extract ONLY the patient's first name.
+Return just the name, nothing else. If no name is found, return "Patient".
+
+Conversation:
+""" + conversation
+
+    try:
+        name = provider.generate([{"role": "user", "content": prompt}])
+        name = name.strip().split()[0] if name else "Patient"  # Take first word only
+        # Validate it looks like a name (capitalized, reasonable length)
+        if name and 2 <= len(name) <= 20 and name[0].isupper():
+            return name
+    except Exception:
+        pass
+    return "Patient"
+
+
 def generate(info_state, provider, name: str, base_url: str, session_id: str) -> dict:
     """Generate microsite content and save HTML file."""
     # Get conversation history

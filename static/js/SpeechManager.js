@@ -117,6 +117,7 @@ class SpeechManager {
         this.voiceConfig = { ...this.voiceConfig, ...config };
     }
 
+    /** Start listening for speech input. */
     startListening() {
         if (!this.recognition) {
             this._emit('error', { type: 'unsupported' });
@@ -131,10 +132,12 @@ class SpeechManager {
         return true;
     }
 
+    /** Stop listening and process final transcript. */
     stopListening() {
         this._finishListening();
     }
 
+    /** Speak text using SitePal or Web Speech fallback. */
     speak(text) {
         if (!text) return Promise.resolve();
         if (!this.turnManager.startSystemTurn()) {

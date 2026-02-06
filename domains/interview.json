@@ -1,0 +1,8 @@
+{
+  "custom_messages": {
+    "introduction_text": "Hello! I'm here to help create your donor website.",
+    "completion_text": "Thank you for sharing your story!",
+    "end_session_text": "Goodbye!"
+  },
+  "units": []
+}

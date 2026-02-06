@@ -7,13 +7,17 @@ PHOTOS_DIR = config('PHOTOS_DIR', default='photos')
 MICROSITES_DIR = config('MICROSITES_DIR', default='static/microsites')
 SYSTEM_PROMPT_FILE = config('SYSTEM_PROMPT_FILE', default='prompts/interviewer.txt')
 MICROSITE_PROMPT_FILE = config('MICROSITE_PROMPT_FILE', default='prompts/microsite.txt')
+KB_FILE = config('KB_FILE', default='domains/interview.json')
 
 # Language names for LLM instruction
 LANGUAGE_NAMES = {'en': 'English'} #, 'es': 'Spanish', 'ar': 'Arabic'}
 
-# Avatar profile for SitePal assistant
+# Avatar profiles for SitePal assistant
+# scene_id is the SitePal scene identifier for each avatar
 AVATAR_PROFILES = {
-    'sitepal': {'name': 'Assistant', 'gender': 'female', 'lang': 'en'},
+    'mary': {'name': 'Mary', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
+    'jane': {'name': 'Jane', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
+    'laura': {'name': 'Laura', 'scene_id': 2768650, 'gender': 'female', 'lang': 'en'},
 }
 
 # Server Configuration
