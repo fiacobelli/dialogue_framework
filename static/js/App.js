@@ -55,6 +55,7 @@ class App {
         });
 
         speechManager.on('speakEnd', () => {
+            ui.stopMessageAnimation();
             ui.showIdle();
             ui.setStatus('');
         });
@@ -107,7 +108,7 @@ class App {
             const avatarId = urlParams.get('avatar') || 'mary';
             const data = await conversationAPI.startSession('en', avatarId);
             ui.updatePhase(data.phase);
-            ui.showMessage(data.prompt);
+            ui.showMessageAnimated(data.prompt);
             ui.setStatus('Tap anywhere to hear greeting');
 
             // Play greeting on first click
@@ -157,7 +158,7 @@ class App {
 
         try {
             const data = await conversationAPI.sendMessage(text);
-            ui.showMessage(data.prompt);
+            ui.showMessageAnimated(data.prompt);
             ui.updatePhase(data.phase);
             ui.setStatus('');
 
@@ -247,7 +248,7 @@ class App {
 
             // Avatar celebration message
             const message = `Wonderful news, ${data.name}! Your donor page is ready! Click the button below to see it and share it with your loved ones.`;
-            ui.showMessage(message);
+            ui.showMessageAnimated(message);
             ui.showCelebration(fullUrl);
 
             // Use speechManager for proper turn handling (returns Promise)

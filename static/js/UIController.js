@@ -8,6 +8,9 @@ class UIController {
         this.elements = {};
         this.currentPhase = null;
         this.phases = ['WELCOME', 'INTRO', 'RAPPORT', 'BEFORE', 'DURING', 'HOPE', 'PHOTOS'];
+        this.wordRevealInterval = null;
+        this.pendingWords = [];
+        this.currentWordIndex = 0;
     }
 
     /** Initialize DOM element references. */
@@ -32,6 +35,40 @@ class UIController {
     /** Display message in the avatar speech bubble. */
     showMessage(text) {
         this.elements.messageBubble.textContent = text;
+    }
+
+    /** Display message word-by-word synchronized with speech. */
+    showMessageAnimated(text, wordsPerMinute = 150) {
+        this.stopMessageAnimation();
+
+        this.pendingWords = text.split(/\s+/);
+        this.currentWordIndex = 0;
+        const msPerWord = Math.round(60000 / wordsPerMinute);
+
+        this.elements.messageBubble.textContent = '';
+
+        this.wordRevealInterval = setInterval(() => {
+            if (this.currentWordIndex < this.pendingWords.length) {
+                const visibleText = this.pendingWords.slice(0, this.currentWordIndex + 1).join(' ');
+                this.elements.messageBubble.textContent = visibleText;
+                this.currentWordIndex++;
+            } else {
+                this.stopMessageAnimation();
+            }
+        }, msPerWord);
+    }
+
+    /** Stop animation and show all remaining text. */
+    stopMessageAnimation() {
+        if (this.wordRevealInterval) {
+            clearInterval(this.wordRevealInterval);
+            this.wordRevealInterval = null;
+        }
+        if (this.pendingWords.length > 0) {
+            this.elements.messageBubble.textContent = this.pendingWords.join(' ');
+            this.pendingWords = [];
+            this.currentWordIndex = 0;
+        }
     }
 
     setStatus(msg) {
