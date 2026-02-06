@@ -64,9 +64,9 @@ class InterviewGoal(Goal):
         # Match specific ending phrases, not broad keywords like "microsite"
         # which can appear in questions (e.g., "what tone for your microsite?")
         end_phrases = [
-            'goodbye', 'take care',
-            'i will now generate a microsite',  # Specific phrase from prompt
-            'please upload',  # Photo instruction indicator
+            'thank you for sharing your story',  # Specific phrase from prompt
+            'i will now generate a microsite',
+            'please upload 3 photos',
         ]
         return any(phrase in text_lower for phrase in end_phrases)
 
