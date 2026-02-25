@@ -3,28 +3,11 @@
 <head>
     <title>Choose Your Assistant</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/interview.css">
+    <link rel="stylesheet" href="/static/css/screening.css">
     <style>
         .avatar-selection { max-width: 700px; margin: 0 auto; padding: 20px; }
         .avatar-selection h1 { text-align: center; margin-bottom: 10px; }
         .avatar-selection > p { text-align: center; color: #666; margin-bottom: 20px; }
-
-        .preview-area {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .preview-frame {
-            border: none;
-            width: 260px;
-            height: 310px;
-            margin: 0 auto;
-            display: block;
-        }
-        .preview-name {
-            font-size: 1.3em;
-            font-weight: bold;
-            margin-top: 10px;
-        }
 
         .avatar-options {
             display: flex;
@@ -36,14 +19,31 @@
         .avatar-option {
             border: 3px solid #ddd;
             border-radius: 12px;
-            padding: 12px 20px;
+            padding: 12px;
             cursor: pointer;
             transition: all 0.2s;
             background: white;
+            width: 160px;
+            text-align: center;
         }
         .avatar-option:hover { border-color: #4CAF50; }
         .avatar-option.selected { border-color: #4CAF50; background: #e8f5e9; }
-        .avatar-option h3 { margin: 0; font-size: 1.1em; }
+        .avatar-option h3 { margin: 8px 0 0; font-size: 1.1em; }
+
+        .avatar-thumb {
+            width: 140px;
+            height: 165px;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        .avatar-thumb iframe {
+            width: 250px;
+            height: 300px;
+            border: none;
+            pointer-events: none;
+            transform: scale(0.55);
+            transform-origin: top left;
+        }
 
         .start-btn {
             display: block;
@@ -58,57 +58,52 @@
             border-radius: 8px;
             cursor: pointer;
         }
-        .start-btn:hover { background: #45a049; }
+        .start-btn:hover:not(:disabled) { background: #45a049; }
+        .start-btn:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div class="avatar-selection">
         <div class="card">
             <h1>Choose Your Assistant</h1>
-            <p>Select who you'd like to guide you through creating your donor page</p>
-
-            <div class="preview-area">
-                <iframe id="previewFrame" class="preview-frame"></iframe>
-                <div class="preview-name" id="previewName">Assistant</div>
-            </div>
+            <p>Select who you'd like to guide you through your health screening</p>
 
             <div class="avatar-options" id="avatarOptions"></div>
 
-            <button class="start-btn" id="startBtn">Start Interview</button>
+            <button class="start-btn" id="startBtn" disabled>Start Screening</button>
         </div>
     </div>
 
     <script>
         const avatars = {{ avatars | tojson }};
-        let selectedAvatar = 'mary';
+        let selectedAvatar = null;
 
         function selectAvatar(id) {
             selectedAvatar = id;
-            const profile = avatars[id];
-
             document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
             document.querySelector(`[data-avatar="${id}"]`).classList.add('selected');
-
-            document.getElementById('previewFrame').src = '/avatar-preview/' + profile.scene_id;
-            document.getElementById('previewName').textContent = profile.name;
+            document.getElementById('startBtn').disabled = false;
         }
 
-        // Build option buttons
+        // Build option cards with scaled iframe thumbnails
         const optionsContainer = document.getElementById('avatarOptions');
-        Object.entries(avatars).forEach(([id, profile]) => {
-            const btn = document.createElement('div');
-            btn.className = 'avatar-option' + (id === selectedAvatar ? ' selected' : '');
-            btn.dataset.avatar = id;
-            btn.innerHTML = `<h3>${profile.name}</h3>`;
-            btn.onclick = () => selectAvatar(id);
-            optionsContainer.appendChild(btn);
+        Object.entries(avatars).forEach(([id, profile], index) => {
+            const card = document.createElement('div');
+            card.className = 'avatar-option';
+            card.dataset.avatar = id;
+            card.innerHTML = `
+                <div class="avatar-thumb">
+                    <iframe src="/avatar-preview/${profile.scene_id}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
+                </div>
+                <h3>${profile.name}</h3>`;
+            card.onclick = () => selectAvatar(id);
+            optionsContainer.appendChild(card);
         });
 
-        // Load initial avatar
-        selectAvatar(selectedAvatar);
-
         document.getElementById('startBtn').onclick = () => {
-            window.location.href = '/interview?avatar=' + selectedAvatar;
+            if (selectedAvatar) {
+                window.location.href = '/screening?avatar=' + selectedAvatar;
+            }
         };
     </script>
 </body>

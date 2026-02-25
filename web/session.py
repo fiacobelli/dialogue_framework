@@ -7,7 +7,7 @@ from dialogue_manager_passive import DialogueManagerPassive
 from .nlu_web import NLUWeb
 from nlg import NLG
 from rules import RuleManager
-from .goal_interview import InterviewGoalManager
+from .goal_screening import ScreeningGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
 from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE
@@ -41,7 +41,7 @@ def create_session(session_id: str) -> dict:
     if provider_name == 'groq':
         provider_kwargs['api_key'] = config('GROQ_API_KEY')
     provider = get_provider(provider_name, **provider_kwargs)
-    goal_mgr = InterviewGoalManager(provider, load_prompt(SYSTEM_PROMPT_FILE))
+    goal_mgr = ScreeningGoalManager(provider, load_prompt(SYSTEM_PROMPT_FILE))
 
     dialogue_mgr = DialogueManagerPassive()
     dialogue_mgr.setup(info_state, rule_mgr, goal_mgr)

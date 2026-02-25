@@ -3,8 +3,11 @@
 Supports multiple backends (Ollama, Groq) with a common interface.
 """
 
+import logging
 import requests
 from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaProvider:
@@ -28,7 +31,8 @@ class OllamaProvider:
             })
             resp.raise_for_status()
             return resp.json()["message"]["content"]
-        except Exception:
+        except Exception as e:
+            logger.error("Ollama LLM call failed: %s", e)
             return LLM_ERROR_MESSAGE
 
 
@@ -54,7 +58,8 @@ class GroqProvider:
             )
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
-        except Exception:
+        except Exception as e:
+            logger.error("Groq LLM call failed: %s", e)
             return LLM_ERROR_MESSAGE
 
 

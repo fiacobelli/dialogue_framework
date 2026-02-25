@@ -40,52 +40,17 @@ class ConversationAPI {
         return await res.json();
     }
 
-    /** Upload photo file to server. */
-    async uploadPhoto(file) {
+    /** Classify screening responses into professional buckets. */
+    async classifyResponses() {
         if (!this.sessionId) throw new Error('No active session');
 
-        const formData = new FormData();
-        formData.append('session_id', this.sessionId);
-        formData.append('photo', file);
-
-        const res = await fetch(`${this.baseUrl}/api/upload`, {
-            method: 'POST',
-            body: formData
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to upload photo');
-        return data;
-    }
-
-    /** Generate microsite from conversation. */
-    async generateMicrosite(name) {
-        if (!this.sessionId) throw new Error('No active session');
-
-        const res = await fetch(`${this.baseUrl}/api/generate`, {
+        const res = await fetch(`${this.baseUrl}/api/classify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: this.sessionId,
-                name: name
-            })
+            body: JSON.stringify({ session_id: this.sessionId })
         });
 
-        if (!res.ok) throw new Error('Failed to generate microsite');
-        return await res.json();
-    }
-
-    async getQRCode() {
-        if (!this.sessionId) throw new Error('No active session');
-        const res = await fetch(`${this.baseUrl}/api/qr/${this.sessionId}`);
-        if (!res.ok) throw new Error('Failed to get QR code');
-        return await res.json();
-    }
-
-    async getPhotoStatus() {
-        if (!this.sessionId) throw new Error('No active session');
-        const res = await fetch(`${this.baseUrl}/api/photos/${this.sessionId}`);
-        if (!res.ok) throw new Error('Failed to get photo status');
+        if (!res.ok) throw new Error('Failed to classify responses');
         return await res.json();
     }
 

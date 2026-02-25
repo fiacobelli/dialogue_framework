@@ -1,13 +1,16 @@
-"""Core API routes blueprint for the dialogue framework."""
+"""Core API routes blueprint for the SDoH screening framework."""
 
+import logging
 from flask import Blueprint, request, jsonify
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK
 from .session import create_session
 from .session_store import get_session, set_session, has_session
-from . import microsite
+from . import report
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -40,7 +43,7 @@ def new_session():
     info_state.user.update('avatar_profile', avatar_profile)
     info_state.save_user_model()
 
-    phase = info_state.user.query('interview_phase') or 'WELCOME'
+    phase = info_state.user.query('screening_phase') or 'WELCOME'
     is_returning = phase != 'WELCOME'
 
     avatar_name = avatar_profile.get('name', 'Assistant')
@@ -85,8 +88,8 @@ def chat():
     if nlu.check(msg):
         dialogue_mgr.manage(msg)
 
-    phase = info_state.user.query('interview_phase') or 'WELCOME'
-    done = phase in ['PHOTOS', 'COMPLETE']
+    phase = info_state.user.query('screening_phase') or 'WELCOME'
+    done = phase in ['REPORT', 'COMPLETE']
     prompt = nlg.get_prompt(msg)
 
     info_state.save_user_model()
@@ -98,9 +101,9 @@ def chat():
     })
 
 
-@api_bp.route('/generate', methods=['POST'])
-def generate_microsite():
-    """Generate microsite from conversation and photos."""
+@api_bp.route('/classify', methods=['POST'])
+def classify_responses():
+    """Classify screening responses into professional referral buckets."""
     data = request.json
     session_id = data.get('session_id')
 
@@ -110,18 +113,17 @@ def generate_microsite():
     s = get_session(session_id)
     info_state = s['info_state']
     provider = s['goal_mgr'].goal.llm
-    name = data.get('name', '').strip()
-    base_url = request.host_url.rstrip('/')
-
-    # Extract name from conversation if not provided or default
-    if not name or name.lower() == 'patient':
-        history = info_state.user.query('conversation_history') or []
-        name = microsite.extract_name_from_conversation(history, provider)
 
     try:
-        result = microsite.generate(info_state, provider, name, base_url, session_id)
+        result = report.classify(info_state, provider)
+        logger.info("Classification complete for session %s", session_id)
         return jsonify(result)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        logger.error("Classification failed for session %s: %s", session_id, e, exc_info=True)
+        return jsonify({
+            'social_worker': 'Unable to classify — please review manually.',
+            'dietitian': 'Unable to classify — please review manually.',
+            'nephrologist': 'Unable to classify — please review manually.',
+            'nurse_practitioner': 'Unable to classify — please review manually.',
+            'verbal_summary': 'We will share your answers with your care team. Thank you for your time today, and take care of yourself.'
+        })

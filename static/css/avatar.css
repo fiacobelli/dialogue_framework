@@ -89,3 +89,22 @@
     font-size: 16px;
     color: #64748b;
 }
+
+/* Begin Screening overlay */
+.begin-overlay {
+    display: flex;
+    justify-content: center;
+    padding: 40px 0;
+}
+.begin-btn {
+    padding: 16px 48px;
+    font-size: 20px;
+    background: #3182ce;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4);
+    transition: all 0.2s;
+}
+.begin-btn:hover { transform: scale(1.03); background: #2b6cb0; }

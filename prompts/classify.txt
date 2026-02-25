@@ -1,0 +1,13 @@
+You are a clinical classifier. Read the following screening conversation between a health screener and a dialysis patient. Classify the patient's responses into concerns for four members of the dialysis care team.
+
+Conversation:
+{conversation}
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{{
+    "social_worker": "Brief description of housing, safety, or emotional concerns, or 'No concerns identified'",
+    "dietitian": "Brief description of food insecurity or nutrition concerns, or 'No concerns identified'",
+    "nephrologist": "Brief description of physical health or medical concerns, or 'No concerns identified'",
+    "nurse_practitioner": "Brief description of daily living or medication management concerns, or 'No concerns identified'",
+    "verbal_summary": "2-3 sentences thanking the patient and letting them know you will share their answers with their dialysis care team so they can connect them with any helpful services. Address the patient directly using 'you'. Do NOT promise that specific people will follow up. Do NOT use phrases like 'you will be hearing from'. End with 'Thank you for your time today, and take care of yourself.'"
+}}

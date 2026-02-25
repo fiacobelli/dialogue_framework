@@ -163,17 +163,14 @@ language_models/custom/resources/
 !language_models/gensim/resources/README.md
 !language_models/custom/resources/README.md
 
-# AI assistant files - never commit
+# Local development files
 claude.md
 CLAUDE.md
 .claude/
-
-# User data - runtime generated
+tests/
+run.sh
+docs/
 photos/
 user_models/
 static/microsites/
-
-# Development files - not production
-tests/
-docs/
-run.sh
+logs/

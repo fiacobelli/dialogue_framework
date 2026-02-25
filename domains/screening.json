@@ -1,0 +1,8 @@
+{
+  "custom_messages": {
+    "introduction_text": "Hello! I'm here to ask you a few questions about your daily life and wellbeing.",
+    "completion_text": "Thank you for completing the screening!",
+    "end_session_text": "Take care!"
+  },
+  "units": []
+}

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Health Screening</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/screening.css">
+
+    <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
+    <script>
+        let language = 1;
+        let voice = 201;
+        let engine = 11;
+
+        function vh_sceneLoaded() {
+            console.log('SitePal loaded');
+            window.sitePalReady = true;
+            document.dispatchEvent(new Event('sitePalReady'));
+        }
+
+        function vh_talkEnded() {
+            console.log('SitePal talk ended');
+            document.dispatchEvent(new Event('sitePalTalkEnded'));
+        }
+
+        function speakText(text) {
+            if (window.sitePalReady && typeof sayText === 'function') {
+                sayText(text, voice, language, engine);
+            } else {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
+                speechSynthesis.speak(utterance);
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div id="conversation-screen">
+            <div class="card">
+                <h1>Health Screening</h1>
+
+                <!-- SitePal embed -->
+                <div class="avatar-container">
+                    <div id="avatar">
+                        <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
+                        <script type="text/javascript">
+                            AC_VHost_Embed(8688641, 300, 400, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                        </script>
+                    </div>
+                </div>
+
+                <div id="beginOverlay" class="begin-overlay">
+                    <button id="beginBtn" class="begin-btn">Begin Screening</button>
+                </div>
+                <div id="conversationUI" style="display:none;">
+                    <div class="message-bubble" id="messageBubble"></div>
+                    <div class="mic-container">
+                        <button id="micBtn">🎤</button>
+                        <span class="mic-hint" id="micHint">Speak when ready</span>
+                    </div>
+                    <div class="input-row">
+                        <input type="text" id="input" placeholder="Or type here...">
+                        <button id="sendBtn">Send</button>
+                    </div>
+                    <div id="status"></div>
+                </div>
+            </div>
+
+            <div class="card report-section" id="reportSection" style="display:none;">
+                <h2>Screening Summary</h2>
+                <div class="report-item"><h3>Social Worker</h3><p id="swConcerns"></p></div>
+                <div class="report-item"><h3>Dietitian</h3><p id="dietConcerns"></p></div>
+                <div class="report-item"><h3>Nephrologist</h3><p id="nephConcerns"></p></div>
+                <div class="report-item"><h3>Nurse Practitioner</h3><p id="nurseConcerns"></p></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/TurnManager.js"></script>
+    <script src="/static/js/SpeechManager.js"></script>
+    <script src="/static/js/ConversationAPI.js"></script>
+    <script src="/static/js/UIController.js"></script>
+    <script src="/static/js/App.js"></script>
+</body>
+</html>

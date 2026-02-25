@@ -11,7 +11,7 @@ class SpeechManager {
         this.voices = [];
         this.transcript = '';
         this.silenceTimeout = null;
-        this.silenceDelay = 2000; // 2 seconds of silence = done
+        this.silenceDelay = 5000; // 5 seconds of silence = done (elderly/dialysis patients need more time)
         this.listeners = {};
         this.lang = 'en-US';
         this.voiceConfig = { lang: 'en', gender: 'female' };
@@ -74,6 +74,8 @@ class SpeechManager {
         this._clearSilenceTimer();
         if (this.turnManager.getState() === 'user_speaking') {
             this._finishListening();
+        } else {
+            this._emit('recognitionEnded', {});
         }
     }
 
