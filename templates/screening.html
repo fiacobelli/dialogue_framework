@@ -23,14 +23,10 @@
         }
 
         function speakText(text) {
-            if (window.sitePalReady && typeof sayText === 'function') {
-                sayText(text, voice, language, engine);
-            } else {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 0.9;
-                utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
-                speechSynthesis.speak(utterance);
-            }
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
+            speechSynthesis.speak(utterance);
         }
     </script>
 </head>
