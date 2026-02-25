@@ -38,7 +38,9 @@ class InterviewGoal(Goal):
             log_interview(session_id, f"USER: {user_input}")
 
         # Generate response using LLM with system prompt
-        prompt = self.system_prompt
+        avatar_profile = info_state.user.query('avatar_profile') or {}
+        avatar_name = avatar_profile.get('name', 'Assistant')
+        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
         if language != 'en':
             lang_name = LANGUAGE_NAMES.get(language, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
@@ -64,8 +66,8 @@ class InterviewGoal(Goal):
         # Match specific ending phrases, not broad keywords like "microsite"
         # which can appear in questions (e.g., "what tone for your microsite?")
         end_phrases = [
-            'thank you for sharing your story',  # Specific phrase from prompt
-            'i will now generate a microsite',
+            'thank you for sharing your story',
+            'let me put together your page',
             'please upload 3 photos',
         ]
         return any(phrase in text_lower for phrase in end_phrases)
@@ -89,7 +91,7 @@ class InterviewGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant') -> str:
         """Generate opening greeting using LLM."""
-        prompt = self.system_prompt
+        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
         if lang != 'en':
             lang_name = LANGUAGE_NAMES.get(lang, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
