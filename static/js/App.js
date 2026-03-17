@@ -2,6 +2,11 @@
 class App {
     constructor() {
         this.conversationActive = false;
+        this.patientPin = '';
+        this.capturingPin = false;
+        this.pinPrompted = false;
+        this.pinInputEl = null;
+        this.pinHintEl = null;
     }
 
     async init() {
@@ -10,11 +15,81 @@ class App {
         this._setupSpeechHandlers();
         this._setupUIEvents();
 
-        document.getElementById('beginBtn').addEventListener('click', () => {
-            document.getElementById('beginOverlay').style.display = 'none';
-            document.getElementById('conversationUI').style.display = 'block';
-            this.startConversation();
+        this._setupBeginOverlay();
+    }
+
+    _setupBeginOverlay() {
+        const pinInput = document.getElementById('pinInput');
+        const beginBtn = document.getElementById('beginBtn');
+        const hint = document.getElementById('pinHint');
+        const micBtn = document.getElementById('micBtn');
+        micBtn?.classList.add('hidden');
+
+        this.pinInputEl = pinInput;
+        this.pinHintEl = hint;
+
+        const validate = () => {
+            const value = pinInput.value.trim();
+            const valid = /^\d{4}$/.test(value);
+            beginBtn.disabled = !valid;
+            hint.textContent = valid ? '' : 'Enter a 4-digit PIN';
+            return valid;
+        };
+
+        pinInput.addEventListener('input', validate);
+
+        beginBtn.addEventListener('click', () => {
+            if (validate()) {
+                this._beginScreeningWithPin(pinInput.value.trim());
+            } else {
+                this._promptForPin(pinInput, hint);
+            }
         });
+
+        document.addEventListener('sitePalReady', () => {
+            if (!this.pinPrompted && !this.patientPin) {
+                this._promptForPin(pinInput, hint);
+            }
+        }, { once: true });
+    }
+
+    _promptForPin(pinInput, hint) {
+        if (this.capturingPin) return;
+        this.pinPrompted = true;
+        const instruction = 'Before we start, please say the last four digits of your phone number.';
+        hint.textContent = 'Hold on, I will listen for your PIN...';
+        this._waitForSitePal()
+            .then(() => speechManager.speak(instruction))
+            .catch(() => {})
+            .finally(() => this._startPinCapture(pinInput, hint));
+    }
+
+    _startPinCapture(pinInput, hint) {
+        if (this.capturingPin) return;
+        this.capturingPin = true;
+        hint.textContent = 'Listening for your PIN...';
+        speechManager.once('pinResult', ({ digits }) => {
+            this.capturingPin = false;
+            if (digits) {
+                pinInput.value = digits;
+                const confirmLine = `I heard ${digits}. If that is correct, I will begin your screening.`;
+                hint.textContent = confirmLine;
+                this._waitForSitePal()
+                    .then(() => speechManager.speak(confirmLine))
+                    .catch(() => {});
+                pinInput.dispatchEvent(new Event('input'));
+            } else {
+                hint.textContent = 'Sorry, I could not hear it. Please try again or type it.';
+            }
+        });
+        speechManager.captureDigits(4);
+    }
+
+    _beginScreeningWithPin(pin) {
+        this.patientPin = pin;
+        document.getElementById('beginOverlay').style.display = 'none';
+        document.getElementById('conversationUI').style.display = 'block';
+        this.startConversation();
     }
 
     _setupTurnStateHandlers() {
@@ -104,13 +179,14 @@ class App {
         speechManager.setVoiceConfig({ lang: 'en', gender: 'female' });
 
         ui.showConversation();
+        document.getElementById('micBtn')?.classList.remove('hidden');
         ui.setStatus('Loading...');
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const avatarId = urlParams.get('avatar') || 'mary';
             const [data] = await Promise.all([
-                conversationAPI.startSession('en', avatarId),
+                conversationAPI.startSession('en', avatarId, this.patientPin),
                 this._waitForSitePal()
             ]);
             this.conversationActive = true;

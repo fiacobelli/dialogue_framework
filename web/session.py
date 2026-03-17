@@ -11,6 +11,7 @@ from .goal_screening import ScreeningGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
 from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE
+from . import database as db
 
 
 def load_prompt(filepath: str) -> str:
@@ -28,6 +29,13 @@ def create_session(session_id: str) -> dict:
     info_state = InformationState(user_file, KB_FILE)
     info_state.bel.add(BELSTR.DONE, False)
     info_state.user.update('session_id', session_id)
+
+    saved = db.load_info_state(session_id)
+    if saved:
+        for k, v in saved['beliefs'].items():
+            info_state.bel.beliefs[k] = v
+        for k, v in saved['common_ground'].items():
+            info_state.cg.beliefs[k] = v
 
     nlu = NLUWeb()
     nlg = NLG()

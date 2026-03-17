@@ -10,6 +10,26 @@ h1 { color: #2c5282; text-align: center; margin-bottom: 8px; }
 .subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: 18px; }
 .container { display: flex; flex-direction: column; gap: 20px; }
 .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.begin-overlay { text-align: center; }
+.pin-prompt input {
+    width: 160px;
+    text-align: center;
+    font-size: 28px;
+    letter-spacing: 6px;
+    padding: 12px;
+    margin: 12px auto;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    display: block;
+}
+.pin-prompt button {
+    display: block;
+    width: 100%;
+    max-width: 240px;
+    margin: 8px auto;
+}
+.pin-hint { color: #c53030; font-size: 14px; min-height: 20px; }
+.hidden { display: none !important; }
 
 /* Input elements */
 .input-row { display: flex; gap: 10px; margin-top: 20px; }

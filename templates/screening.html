@@ -8,8 +8,8 @@
     <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
     <script>
         let language = 1;
-        let voice = 201;
-        let engine = 11;
+        let voice = 11; //201;
+        let engine =  4 ;// 11;
 
         function vh_sceneLoaded() {
             console.log('SitePal loaded');
@@ -23,10 +23,14 @@
         }
 
         function speakText(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.9;
-            utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
-            speechSynthesis.speak(utterance);
+            if (window.sitePalReady && typeof sayText === 'function') {
+                sayText(text, voice, language, engine);
+            } else {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
+                speechSynthesis.speak(utterance);
+            }
         }
     </script>
 </head>
@@ -47,7 +51,12 @@
                 </div>
 
                 <div id="beginOverlay" class="begin-overlay">
-                    <button id="beginBtn" class="begin-btn">Begin Screening</button>
+                    <div class="pin-prompt">
+                        <p>Please enter the last 4 digits of your phone number to begin.</p>
+                        <input id="pinInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="1234">
+                        <button id="beginBtn" class="begin-btn" disabled>Begin Screening</button>
+                        <p class="pin-hint" id="pinHint"></p>
+                    </div>
                 </div>
                 <div id="conversationUI" style="display:none;">
                     <div class="message-bubble" id="messageBubble"></div>

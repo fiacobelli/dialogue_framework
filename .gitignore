@@ -174,3 +174,4 @@ photos/
 user_models/
 static/microsites/
 logs/
+db/

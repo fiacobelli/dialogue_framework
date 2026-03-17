@@ -15,6 +15,7 @@ class SpeechManager {
         this.listeners = {};
         this.lang = 'en-US';
         this.voiceConfig = { lang: 'en', gender: 'female' };
+        this._digitRecognizer = null;
 
         this._initRecognition();
         this._loadVoices();
@@ -174,10 +175,58 @@ class SpeechManager {
         return matching.find(v => genderPattern.test(v.name)) || matching[0];
     }
 
+    captureDigits(maxDigits = 4) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            this._emit('pinResult', { digits: '' });
+            return;
+        }
+        if (this._digitRecognizer) {
+            this._digitRecognizer.onresult = null;
+            this._digitRecognizer.onerror = null;
+            this._digitRecognizer.onend = null;
+            try { this._digitRecognizer.stop(); } catch (_) { /* noop */ }
+        }
+        const recognizer = new SR();
+        this._digitRecognizer = recognizer;
+        recognizer.lang = this.lang;
+        recognizer.interimResults = false;
+        recognizer.maxAlternatives = 1;
+
+        let handled = false;
+        const finish = (digits) => {
+            if (handled) return;
+            handled = true;
+            this._emit('pinResult', { digits });
+        };
+
+        recognizer.onresult = (e) => {
+            const text = e.results[0][0].transcript || '';
+            const digits = (text.match(/\d/g) || []).join('').slice(-maxDigits);
+            finish(digits);
+        };
+        recognizer.onerror = () => finish('');
+        recognizer.onend = () => finish('');
+        recognizer.start();
+    }
+
     // Event system
     on(event, callback) {
         if (!this.listeners[event]) this.listeners[event] = [];
         this.listeners[event].push(callback);
+    }
+
+    off(event, callback) {
+        if (!this.listeners[event]) return;
+        this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    }
+
+    once(event, callback) {
+        const wrapper = (data) => {
+            this.off(event, wrapper);
+            callback(data);
+        };
+        this.on(event, wrapper);
     }
 
     _emit(event, data) {

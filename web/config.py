@@ -12,9 +12,12 @@ LANGUAGE_NAMES = {'en': 'English'}
 
 # Avatar profiles for SitePal assistant
 AVATAR_PROFILES = {
-    'mary': {'name': 'Mary', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
-    'jane': {'name': 'Jane', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
-    'laura': {'name': 'Laura', 'scene_id': 2768650, 'gender': 'female', 'lang': 'en'},
+    'mary':    {'name': 'Mary',    'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
+    'jane':    {'name': 'Jane',    'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
+    'carlos':  {'name': 'Carlos',  'scene_id': 2774645, 'gender': 'male',   'lang': 'en'},
+    'gloria':  {'name': 'Gloria',  'scene_id': 2774646, 'gender': 'female', 'lang': 'en'},
+    'james':   {'name': 'James',   'scene_id': 2774647, 'gender': 'male',   'lang': 'en'},
+    'natasha': {'name': 'Natasha', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en'},
 }
 
 # Server Configuration
@@ -32,3 +35,6 @@ WELCOME_BACK = {
 }
 
 FALLBACK_PROMPT = 'You are a helpful assistant.'
+
+# Database
+DB_PATH = config('DB_PATH', default='db/sdoh.db')

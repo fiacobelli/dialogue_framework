@@ -10,8 +10,12 @@ class ConversationAPI {
     }
 
     /** Start new session and get opening prompt. */
-    async startSession(lang, avatarId) {
-        const res = await fetch(`${this.baseUrl}/api/session?lang=${lang}&avatar=${avatarId}`);
+    async startSession(lang, avatarId, patientId) {
+        const res = await fetch(`${this.baseUrl}/api/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lang, avatar: avatarId, patient_id: patientId })
+        });
         if (!res.ok) throw new Error('Failed to start session');
 
         const data = await res.json();

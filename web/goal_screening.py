@@ -4,6 +4,7 @@ from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
+from . import database as db
 
 LOGS_DIR = 'logs'
 
@@ -38,7 +39,9 @@ class ScreeningGoal(Goal):
 
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
+        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
         prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
+        prompt = prompt.replace('{question_instructions}', question_block)
         if language != 'en':
             lang_name = LANGUAGE_NAMES.get(language, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
@@ -56,6 +59,20 @@ class ScreeningGoal(Goal):
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
         msg[MSG.RESPONSE] = response
+
+        visit_id = info_state.user.query('visit_id')
+        phone_pin = info_state.user.query('patient_pin')
+        phase = info_state.user.query('screening_phase') or 'WELCOME'
+        agent = info_state.user.query('avatar') or 'unknown'
+        voice = avatar_profile.get('lang', language)
+        if visit_id:
+            turn = len(history)
+            if user_input:
+                db.save_message(visit_id, 'user', user_input, turn - 2, agent, voice)
+            db.save_message(visit_id, 'assistant', response, turn - 1, agent, voice)
+            db.update_visit_phase(visit_id, phase)
+        if phone_pin:
+            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs)
 
     def _is_goodbye(self, text: str) -> bool:
         """Check if the response signals end of screening."""
@@ -88,14 +105,30 @@ class ScreeningGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant') -> str:
         """Generate opening greeting using LLM."""
+        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
         prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
+        prompt = prompt.replace('{question_instructions}', question_block)
         if lang != 'en':
             lang_name = LANGUAGE_NAMES.get(lang, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
 
-        opening = self.goal.llm.generate([], prompt)
+        existing = info_state.user.query('conversation_history') or []
+        opening = self.goal.llm.generate(existing, prompt)
+        existing.append({"role": "assistant", "content": opening})
+        info_state.user.update('conversation_history', existing)
 
-        history = [{"role": "assistant", "content": opening}]
-        info_state.user.update('conversation_history', history)
+        phone_pin = info_state.user.query('patient_pin')
+        if phone_pin:
+            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs)
 
         return opening
+
+
+DEFAULT_QUESTION_BLOCK = "\n".join([
+    '1. "What is your living situation today? Do you have a steady place to live?"',
+    '2. "Within the past 12 months, have you worried that your food would run out before you got money to buy more?"',
+    '3. "Over the past 2 weeks, how often have you felt down, depressed, or hopeless?"',
+    '4. "Do you feel physically and emotionally safe where you currently live?"',
+    '5. "In a typical week, how many days do you do any physical activity like walking or exercise?"',
+    '6. "Do you need help with daily activities such as bathing, preparing meals, shopping, or managing medications?"',
+])
