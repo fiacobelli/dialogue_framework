@@ -36,6 +36,8 @@ def create_session(session_id: str) -> dict:
             info_state.bel.beliefs[k] = v
         for k, v in saved['common_ground'].items():
             info_state.cg.beliefs[k] = v
+        for k, v in saved['user_model'].items():
+            info_state.user.beliefs[k] = v
 
     nlu = NLUWeb()
     nlg = NLG()

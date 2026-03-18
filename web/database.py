@@ -139,11 +139,14 @@ def update_visit_phase(visit_id: str, phase: str) -> None:
         )
 
 
-def save_info_state(phone_pin: str, beliefs: dict, common_ground: dict) -> None:
+def save_info_state(phone_pin, beliefs, common_ground, user_model=None):
     import json
     now = datetime.utcnow().isoformat()
+    pairs = [('belief', beliefs), ('common_ground', common_ground)]
+    if user_model is not None:
+        pairs.append(('user_model', user_model))
     with _conn() as c:
-        for type_, data in (('belief', beliefs), ('common_ground', common_ground)):
+        for type_, data in pairs:
             c.execute(
                 """
                 INSERT INTO info_state(phone_pin, data, type, updated_at)
@@ -156,7 +159,7 @@ def save_info_state(phone_pin: str, beliefs: dict, common_ground: dict) -> None:
             )
 
 
-def load_info_state(phone_pin: str) -> dict | None:
+def load_info_state(phone_pin):
     import json
     with _conn() as c:
         rows = c.execute(
@@ -169,6 +172,7 @@ def load_info_state(phone_pin: str) -> dict | None:
         return {
             'beliefs': typed.get('belief', {}),
             'common_ground': typed.get('common_ground', {}),
+            'user_model': typed.get('user_model', {}),
         }
 
 
@@ -186,13 +190,7 @@ def save_referrals(visit_id: str, result: dict) -> None:
                 verbal_summary = excluded.verbal_summary,
                 classified_at = excluded.classified_at
             """,
-            (
-                visit_id,
-                result.get('social_worker'),
-                result.get('dietitian'),
-                result.get('nephrologist'),
-                result.get('nurse_practitioner'),
-                result.get('verbal_summary'),
-                datetime.utcnow().isoformat(),
-            ),
+            (visit_id, result.get('social_worker'), result.get('dietitian'),
+             result.get('nephrologist'), result.get('nurse_practitioner'),
+             result.get('verbal_summary'), datetime.utcnow().isoformat()),
         )

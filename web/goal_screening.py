@@ -72,7 +72,7 @@ class ScreeningGoal(Goal):
             db.save_message(visit_id, 'assistant', response, turn - 1, agent, voice)
             db.update_visit_phase(visit_id, phase)
         if phone_pin:
-            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs)
+            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
     def _is_goodbye(self, text: str) -> bool:
         """Check if the response signals end of screening."""
@@ -119,7 +119,7 @@ class ScreeningGoalManager:
 
         phone_pin = info_state.user.query('patient_pin')
         if phone_pin:
-            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs)
+            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
         return opening
 

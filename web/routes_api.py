@@ -6,7 +6,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from strings import MSG
+from strings import MSG, BELSTR
 from .config import AVATAR_PROFILES, WELCOME_BACK
 from .session import create_session
 from .session_store import get_session, set_session, has_session
@@ -49,10 +49,13 @@ def new_session():
         info_state.user.update('visit_number', visit_number)
     question_block = build_question_instructions(visit_number)
     info_state.user.update('question_instructions', question_block)
+
+    is_returning = visit_number > 1
+    info_state.user.update('screening_phase', 'WELCOME')
+    info_state.bel.add(BELSTR.DONE, False)
     info_state.save_user_model()
 
-    phase = info_state.user.query('screening_phase') or 'WELCOME'
-    is_returning = phase != 'WELCOME'
+    phase = 'WELCOME'
 
     avatar_name = avatar_profile.get('name', 'Assistant')
     opening = goal_mgr.get_opening(info_state, lang, avatar_name)
