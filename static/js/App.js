@@ -19,30 +19,33 @@ class App {
     }
 
     _setupBeginOverlay() {
-        const pinInput = document.getElementById('pinInput');
+        const lastNameInput = document.getElementById('lastNameInput');
+        const dobInput = document.getElementById('dobInput');
         const beginBtn = document.getElementById('beginBtn');
         const hint = document.getElementById('pinHint');
         const micBtn = document.getElementById('micBtn');
         micBtn?.classList.add('hidden');
 
-        this.pinInputEl = pinInput;
         this.pinHintEl = hint;
 
         const validate = () => {
-            const value = pinInput.value.trim();
-            const valid = value.length >= 6;
+            const name = lastNameInput.value.trim();
+            const dob = dobInput.value.trim();
+            const valid = name.length >= 2 && /^\d{2}\/\d{2}\/\d{4}$/.test(dob);
             beginBtn.disabled = !valid;
-            hint.textContent = valid ? '' : 'Enter at least 6 characters';
+            if (!name) hint.textContent = 'Enter your last name';
+            else if (!dob || !/^\d{2}\/\d{2}\/\d{4}$/.test(dob)) hint.textContent = 'Enter date of birth as MM/DD/YYYY';
+            else hint.textContent = '';
             return valid;
         };
 
-        pinInput.addEventListener('input', validate);
+        lastNameInput.addEventListener('input', validate);
+        dobInput.addEventListener('input', validate);
 
         beginBtn.addEventListener('click', () => {
             if (validate()) {
-                this._beginScreeningWithPin(pinInput.value.trim());
-            } else {
-                this._promptForPin(pinInput, hint);
+                const patientId = lastNameInput.value.trim().toLowerCase() + '-' + dobInput.value.trim().replace(/\//g, '');
+                this._beginScreeningWithPin(patientId);
             }
         });
 
