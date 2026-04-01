@@ -52,6 +52,7 @@ def new_session():
 
     is_returning = visit_number > 1
     info_state.user.update('screening_phase', 'WELCOME')
+    info_state.user.update('conversation_history', [])
     info_state.bel.add(BELSTR.DONE, False)
     info_state.save_user_model()
 
