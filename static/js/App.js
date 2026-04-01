@@ -149,8 +149,7 @@ class App {
         ui.setStatus('Loading...');
 
         try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const avatarId = urlParams.get('avatar') || 'mary';
+            const avatarId = window.AVATAR_ID || 'mary';
             const [data] = await Promise.all([
                 conversationAPI.startSession('en', avatarId, this.patientPin),
                 this._waitForSitePal()

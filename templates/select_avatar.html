@@ -104,7 +104,7 @@
 
         document.getElementById('startBtn').onclick = () => {
             if (selectedAvatar) {
-                window.location.href = '/screening?avatar=' + selectedAvatar;
+                window.location.href = '/screening?a=' + avatars[selectedAvatar].scene_id;
             }
         };
     </script>

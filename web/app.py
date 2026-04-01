@@ -34,9 +34,10 @@ def index():
 @app.route('/screening')
 def screening():
     """Render screening page with selected avatar."""
-    avatar_id = request.args.get('avatar', 'mary')
-    avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['mary'])
-    return render_template('screening.html', avatar_scene_id=avatar_profile['scene_id'])
+    scene_id = request.args.get('a', '2756814')
+    # Find avatar_id by scene_id for session tracking
+    avatar_id = next((k for k, v in AVATAR_PROFILES.items() if str(v['scene_id']) == scene_id), 'mary')
+    return render_template('screening.html', avatar_scene_id=int(scene_id), avatar_id=avatar_id)
 
 
 @app.route('/avatar-preview/<int:scene_id>')
