@@ -94,8 +94,7 @@
             card.innerHTML = `
                 <div class="avatar-thumb">
                     <iframe src="/avatar-preview/${profile.scene_id}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
-                </div>
-                <h3>${profile.name}</h3>`;
+                </div>`;
             card.onclick = () => selectAvatar(id);
             optionsContainer.appendChild(card);
         });
