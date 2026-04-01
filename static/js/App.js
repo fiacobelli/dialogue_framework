@@ -30,9 +30,9 @@ class App {
 
         const validate = () => {
             const value = pinInput.value.trim();
-            const valid = /^\d{4}$/.test(value);
+            const valid = value.length >= 6;
             beginBtn.disabled = !valid;
-            hint.textContent = valid ? '' : 'Enter a 4-digit PIN';
+            hint.textContent = valid ? '' : 'Enter at least 6 characters';
             return valid;
         };
 
@@ -46,43 +46,6 @@ class App {
             }
         });
 
-        document.addEventListener('sitePalReady', () => {
-            if (!this.pinPrompted && !this.patientPin) {
-                this._promptForPin(pinInput, hint);
-            }
-        }, { once: true });
-    }
-
-    _promptForPin(pinInput, hint) {
-        if (this.capturingPin) return;
-        this.pinPrompted = true;
-        const instruction = 'Before we start, please say the last four digits of your phone number.';
-        hint.textContent = 'Hold on, I will listen for your PIN...';
-        this._waitForSitePal()
-            .then(() => speechManager.speak(instruction))
-            .catch(() => {})
-            .finally(() => this._startPinCapture(pinInput, hint));
-    }
-
-    _startPinCapture(pinInput, hint) {
-        if (this.capturingPin) return;
-        this.capturingPin = true;
-        hint.textContent = 'Listening for your PIN...';
-        speechManager.once('pinResult', ({ digits }) => {
-            this.capturingPin = false;
-            if (digits) {
-                pinInput.value = digits;
-                const confirmLine = `I heard ${digits}. If that is correct, I will begin your screening.`;
-                hint.textContent = confirmLine;
-                this._waitForSitePal()
-                    .then(() => speechManager.speak(confirmLine))
-                    .catch(() => {});
-                pinInput.dispatchEvent(new Event('input'));
-            } else {
-                hint.textContent = 'Sorry, I could not hear it. Please try again or type it.';
-            }
-        });
-        speechManager.captureDigits(4);
     }
 
     _beginScreeningWithPin(pin) {
