@@ -85,9 +85,14 @@
             document.getElementById('startBtn').disabled = false;
         }
 
-        // Build option cards with scaled iframe thumbnails
+        // Shuffle and build option cards
         const optionsContainer = document.getElementById('avatarOptions');
-        Object.entries(avatars).forEach(([id, profile], index) => {
+        const entries = Object.entries(avatars);
+        for (let i = entries.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [entries[i], entries[j]] = [entries[j], entries[i]];
+        }
+        entries.forEach(([id, profile], index) => {
             const card = document.createElement('div');
             card.className = 'avatar-option';
             card.dataset.avatar = id;
