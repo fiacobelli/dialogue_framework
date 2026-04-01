@@ -32,17 +32,15 @@
 
         .avatar-thumb {
             width: 140px;
-            height: 165px;
+            height: 168px;
             overflow: hidden;
             margin: 0 auto;
         }
-        .avatar-thumb iframe {
-            width: 250px;
-            height: 300px;
-            border: none;
-            pointer-events: none;
-            transform: scale(0.55);
-            transform-origin: top left;
+        .avatar-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
         }
 
         .start-btn {
@@ -98,7 +96,7 @@
             card.dataset.avatar = id;
             card.innerHTML = `
                 <div class="avatar-thumb">
-                    <iframe src="/avatar-preview/${profile.scene_id}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
+                    <img src="/static/photos/avatars/${profile.scene_id}.png" alt="Avatar">
                 </div>`;
             card.onclick = () => selectAvatar(id);
             optionsContainer.appendChild(card);
