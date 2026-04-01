@@ -42,6 +42,9 @@ class ScreeningGoal(Goal):
         question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
         prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
         prompt = prompt.replace('{question_instructions}', question_block)
+        last_summary = info_state.user.query('last_summary')
+        if last_summary:
+            prompt += f"\n\nThe patient has visited before. Summary of last session:\n{last_summary}\nAsk about any lingering issues from that session."
         if language != 'en':
             lang_name = LANGUAGE_NAMES.get(language, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
@@ -55,6 +58,11 @@ class ScreeningGoal(Goal):
         if is_ending:
             info_state.user.update('screening_phase', 'REPORT')
             log_screening(session_id, "PHASE CHANGED TO: REPORT")
+            summary = self.llm.generate(
+                history + [{"role": "assistant", "content": response}],
+                "Summarize this conversation in one paragraph, focusing on the patient's concerns and any unresolved issues.")
+            info_state.user.update('last_summary', summary)
+            log_screening(session_id, f"SUMMARY: {summary}")
 
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
@@ -108,6 +116,9 @@ class ScreeningGoalManager:
         question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
         prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
         prompt = prompt.replace('{question_instructions}', question_block)
+        last_summary = info_state.user.query('last_summary')
+        if last_summary:
+            prompt += f"\n\nThe patient has visited before. Summary of last session:\n{last_summary}\nAsk about any lingering issues from that session."
         if lang != 'en':
             lang_name = LANGUAGE_NAMES.get(lang, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
