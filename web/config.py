@@ -12,12 +12,12 @@ LANGUAGE_NAMES = {'en': 'English'}
 
 # Avatar profiles for SitePal assistant
 AVATAR_PROFILES = {
-    'mary':    {'name': 'Mary',    'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
-    'jane':    {'name': 'Jane',    'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
-    'daniel':  {'name': 'Daniel',  'scene_id': 2774645, 'gender': 'male',   'lang': 'en'},
-    'robert':  {'name': 'Robert',  'scene_id': 2774646, 'gender': 'male', 'lang': 'en'},
-    'james':   {'name': 'James',   'scene_id': 2774647, 'gender': 'male',   'lang': 'en'},
-    'natasha': {'name': 'Natasha', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en'},
+    'mary':    {'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
+    'jane':    {'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
+    'daniel':  {'name': 'Ludi', 'scene_id': 2774645, 'gender': 'male',   'lang': 'en'},
+    'robert':  {'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male',   'lang': 'en'},
+    'james':   {'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male',   'lang': 'en'},
+    'natasha': {'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en'},
 }
 
 # Server Configuration
