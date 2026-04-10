@@ -15,7 +15,7 @@ AVATAR_PROFILES = {
     # Race mapping provided by Prof (W=White, L=Latino, B=Black)
     'mary': {
         'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en',
-        'race': 'W', 'engine': 11, 'language': 1, 'voice': 187,
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 202,
     },
     'jane': {
         'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en',
@@ -27,15 +27,15 @@ AVATAR_PROFILES = {
     },
     'robert': {
         'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 197,
     },
     'james': {
         'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 197,
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
     },
     'natasha': {
         'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 202,
+        'race': 'W', 'engine': 11, 'language': 1, 'voice': 187,
     },
 }
 
