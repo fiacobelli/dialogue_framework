@@ -7,9 +7,10 @@
 
     <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
     <script>
-        let language = 1;
-        let voice = 11; //201;
-        let engine =  4 ;// 11;
+        const avatarProfile = {{ avatar_profile | tojson }};
+        let language = avatarProfile.language || 1;
+        let voice = avatarProfile.voice || 11;
+        let engine = avatarProfile.engine || 4;
 
         function vh_sceneLoaded() {
             console.log('SitePal loaded');
@@ -83,7 +84,10 @@
         </div>
     </div>
 
-    <script>window.AVATAR_ID = '{{ avatar_id }}';</script>
+    <script>
+        window.AVATAR_ID = '{{ avatar_id }}';
+        window.AVATAR_PROFILE = {{ avatar_profile | tojson }};
+    </script>
     <script src="/static/js/config.js"></script>
     <script src="/static/js/TurnManager.js"></script>
     <script src="/static/js/SpeechManager.js"></script>

@@ -141,8 +141,12 @@ class App {
     }
 
     async startConversation() {
+        const avatarProfile = window.AVATAR_PROFILE || {};
         speechManager.setLanguage('en-US');
-        speechManager.setVoiceConfig({ lang: 'en', gender: 'female' });
+        speechManager.setVoiceConfig({
+            lang: avatarProfile.lang || 'en',
+            gender: avatarProfile.gender || 'female'
+        });
 
         ui.showConversation();
         document.getElementById('micBtn')?.classList.remove('hidden');
