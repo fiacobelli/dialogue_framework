@@ -57,7 +57,7 @@ def classify(info_state, provider) -> dict:
     prompt_template = load_prompt(CLASSIFY_PROMPT_FILE)
     prompt = prompt_template.format(conversation=conversation)
 
-    raw = provider.generate([{"role": "user", "content": prompt}])
+    raw = provider.generate([{"role": "user", "content": prompt}], json_mode=True)
     logger.debug("Classify raw LLM response: %s", raw)
 
     try:
