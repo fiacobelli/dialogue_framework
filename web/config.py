@@ -13,27 +13,27 @@ LANGUAGE_NAMES = {'en': 'English'}
 # Avatar profiles for SitePal assistant
 AVATAR_PROFILES = {
     # Race mapping provided by Prof (W=White, L=Latino, B=Black)
-    'mary': {
+    'black_female': {
         'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en',
         'race': 'B', 'engine': 11, 'language': 1, 'voice': 202,
     },
-    'jane': {
+    'latina_female': {
         'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 186,
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
     },
-    'daniel': {
+    'white_male': {
         'name': 'Ludi', 'scene_id': 2774645, 'gender': 'male', 'lang': 'en',
         'race': 'W', 'engine': 11, 'language': 1, 'voice': 192,
     },
-    'robert': {
+    'black_male': {
         'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 197,
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 215,
     },
-    'james': {
+    'latino_male': {
         'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 186,
     },
-    'natasha': {
+    'white_female': {
         'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en',
         'race': 'W', 'engine': 11, 'language': 1, 'voice': 187,
     },

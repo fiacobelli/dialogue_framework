@@ -36,7 +36,7 @@ def screening():
     """Render screening page with selected avatar."""
     scene_id = request.args.get('a', '2756814')
     # Find avatar_id by scene_id for session tracking
-    avatar_id = next((k for k, v in AVATAR_PROFILES.items() if str(v['scene_id']) == scene_id), 'mary')
+    avatar_id = next((k for k, v in AVATAR_PROFILES.items() if str(v['scene_id']) == scene_id), 'black_female')
     avatar_profile = AVATAR_PROFILES[avatar_id]
     return render_template(
         'screening.html',

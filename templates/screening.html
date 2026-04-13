@@ -54,8 +54,11 @@
                 <div id="beginOverlay" class="begin-overlay">
                     <div class="pin-prompt">
                         <p>Please enter your details to begin.</p>
-                        <input id="lastNameInput" type="text" placeholder="Last name" style="margin-bottom:8px;">
-                        <input id="dobInput" type="text" placeholder="Date of birth (MM/DD/YYYY)" maxlength="10">
+                        <label for="lastNameInput">Last name (letters only)</label>
+                        <input id="lastNameInput" type="text" inputmode="text" autocomplete="family-name" placeholder="e.g., Thompson" style="margin-bottom:8px;">
+                        <label for="dobInput">Date of birth</label>
+                        <input id="dobInput" type="text" inputmode="numeric" placeholder="MM/DD/YYYY" maxlength="10">
+                        <small>Format: two digits for month and day, four digits for year.</small>
                         <button id="beginBtn" class="begin-btn" disabled>Begin Screening</button>
                         <p class="pin-hint" id="pinHint"></p>
                     </div>

@@ -1,13 +1,14 @@
 """Core API routes blueprint for the SDoH screening framework."""
 
 import logging
+import re
 from flask import Blueprint, request, jsonify
 import uuid
 
 logger = logging.getLogger(__name__)
 
 from strings import MSG, BELSTR
-from .config import AVATAR_PROFILES, WELCOME_BACK
+from .config import AVATAR_PROFILES
 from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import report
@@ -20,9 +21,9 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 def new_session():
     """Create or resume a session. Returns opening prompt and phase."""
     data = request.json or {}
-    patient_id = (data.get('patient_id') or '').strip()
+    patient_id = _sanitize_patient_id(data.get('patient_id'))
     lang = data.get('lang', 'en')
-    avatar_id = data.get('avatar', 'mary')
+    avatar_id = data.get('avatar', 'black_female')
 
     session_id = patient_id or str(uuid.uuid4())
     set_session(session_id, create_session(session_id))
@@ -31,7 +32,7 @@ def new_session():
     info_state = s['info_state']
     goal_mgr = s['goal_mgr']
 
-    avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['mary'])
+    avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['black_female'])
     if lang == 'en' and avatar_profile['lang'] != 'en':
         lang = avatar_profile['lang']
 
@@ -59,9 +60,7 @@ def new_session():
     phase = 'WELCOME'
 
     avatar_name = avatar_profile.get('name', 'Assistant')
-    opening = goal_mgr.get_opening(info_state, lang, avatar_name)
-    if is_returning:
-        opening = f"{WELCOME_BACK.get(lang, WELCOME_BACK['en'])} {opening}"
+    opening = goal_mgr.get_opening(info_state, lang, avatar_name, is_returning=is_returning)
 
     return jsonify({
         'session_id': session_id,
@@ -178,3 +177,15 @@ def build_question_instructions(visit_number: int) -> str:
         number = base + idx
         lines.append(f"{number}. \"{question}\"")
     return "\n".join(lines)
+
+
+def _sanitize_patient_id(value: str | None) -> str:
+    if not value:
+        return ''
+    raw = value.strip().lower()
+    name_part, sep, dob_part = raw.partition('-')
+    safe_name = re.sub(r'[^a-z]', '', name_part)
+    safe_dob = re.sub(r'[^0-9]', '', dob_part)
+    if safe_name and safe_dob:
+        return f"{safe_name}-{safe_dob}"
+    return ''

@@ -28,23 +28,49 @@ class App {
 
         this.pinHintEl = hint;
 
+        const sanitizeName = (value) => value.trim().toLowerCase().replace(/[^a-z]/g, '');
+        const extractDobDigits = (value) => value.replace(/\D/g, '').slice(0, 8);
+        const formatDob = (digits) => {
+            const mm = digits.slice(0, 2);
+            const dd = digits.slice(2, 4);
+            const yyyy = digits.slice(4, 8);
+            let formatted = '';
+            if (mm) formatted = mm;
+            if (dd) formatted += (formatted ? '/' : '') + dd;
+            if (yyyy) formatted += (formatted ? '/' : '') + yyyy;
+            return formatted;
+        };
+        const buildPatientId = () => {
+            const safeName = sanitizeName(lastNameInput.value);
+            const dobDigits = extractDobDigits(dobInput.value);
+            return `${safeName}-${dobDigits}`;
+        };
+
         const validate = () => {
-            const name = lastNameInput.value.trim();
-            const dob = dobInput.value.trim();
-            const valid = name.length >= 2 && /^\d{2}\/\d{2}\/\d{4}$/.test(dob);
+            const safeName = sanitizeName(lastNameInput.value);
+            const dobDigits = extractDobDigits(dobInput.value);
+            dobInput.value = formatDob(dobDigits);
+
+            const validName = safeName.length >= 2;
+            const validDob = dobDigits.length === 8;
+            const valid = validName && validDob;
             beginBtn.disabled = !valid;
-            if (!name) hint.textContent = 'Enter your last name';
-            else if (!dob || !/^\d{2}\/\d{2}\/\d{4}$/.test(dob)) hint.textContent = 'Enter date of birth as MM/DD/YYYY';
+            if (!validName) hint.textContent = 'Enter at least two letters for your last name';
+            else if (!validDob) hint.textContent = 'Enter date of birth as MM/DD/YYYY';
             else hint.textContent = '';
             return valid;
         };
 
         lastNameInput.addEventListener('input', validate);
-        dobInput.addEventListener('input', validate);
+        dobInput.addEventListener('input', (e) => {
+            const digits = extractDobDigits(e.target.value);
+            e.target.value = formatDob(digits);
+            validate();
+        });
 
         beginBtn.addEventListener('click', () => {
             if (validate()) {
-                const patientId = lastNameInput.value.trim().toLowerCase() + '-' + dobInput.value.trim().replace(/\//g, '');
+                const patientId = buildPatientId();
                 this._beginScreeningWithPin(patientId);
             }
         });
@@ -153,7 +179,7 @@ class App {
         ui.setStatus('Loading...');
 
         try {
-            const avatarId = window.AVATAR_ID || 'mary';
+            const avatarId = window.AVATAR_ID || 'black_female';
             const [data] = await Promise.all([
                 conversationAPI.startSession('en', avatarId, this.patientPin),
                 this._waitForSitePal()

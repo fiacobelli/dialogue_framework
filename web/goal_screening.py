@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import LANGUAGE_NAMES
+from .config import LANGUAGE_NAMES, WELCOME_BACK
 from . import database as db
 
 LOGS_DIR = 'logs'
@@ -111,7 +111,7 @@ class ScreeningGoalManager:
         self.goal.execute_goal(msg, info_state)
         self.goal.get_next_prompt(msg, info_state)
 
-    def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant') -> str:
+    def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant', is_returning: bool = False) -> str:
         """Generate opening greeting using LLM."""
         question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
         prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
@@ -124,7 +124,15 @@ class ScreeningGoalManager:
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
 
         existing = info_state.user.query('conversation_history') or []
-        opening = self.goal.llm.generate(existing, prompt)
+        if is_returning:
+            question_text = _extract_first_question(question_block)
+            greeting = WELCOME_BACK.get(lang, WELCOME_BACK['en'])
+            if question_text:
+                opening = f"{greeting} {question_text}"
+            else:
+                opening = f"{greeting} Let's continue."
+        else:
+            opening = self.goal.llm.generate(existing, prompt)
         existing.append({"role": "assistant", "content": opening})
         info_state.user.update('conversation_history', existing)
 
@@ -133,6 +141,25 @@ class ScreeningGoalManager:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
         return opening
+
+
+def _extract_first_question(question_block: str) -> str | None:
+    """Return the text of the first numbered question from the block."""
+    if not question_block:
+        return None
+    for line in question_block.splitlines():
+        line = line.strip()
+        if not line or not line[0].isdigit():
+            continue
+        # Expect format like: 7. "Question text"
+        parts = line.split('.', 1)
+        if len(parts) != 2:
+            continue
+        remainder = parts[1].strip()
+        if remainder.startswith('"') and remainder.endswith('"') and len(remainder) > 2:
+            return remainder[1:-1]
+        return remainder
+    return None
 
 
 DEFAULT_QUESTION_BLOCK = "\n".join([
