@@ -1,0 +1,5 @@
+This is a returning patient. A summary of the previous session is provided below. Do NOT ask their name again. Greet them warmly and ask how they are doing with respect to the previous interaction.
+
+For example: "In our last conversation, you told me that you were having problems paying the rent. Is that still the case? How are things in that regard?"
+
+Once you finish that follow-up conversation, begin asking the screening questions below.

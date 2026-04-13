@@ -4,6 +4,9 @@ from decouple import config
 # File paths
 USER_MODELS_DIR = config('USER_MODELS_DIR', default='user_models')
 SYSTEM_PROMPT_FILE = config('SYSTEM_PROMPT_FILE', default='prompts/screener.txt')
+FIRST_TIME_PROMPT_FILE = config('FIRST_TIME_PROMPT_FILE', default='prompts/first_time.txt')
+SUBSEQUENT_PROMPT_FILE = config('SUBSEQUENT_PROMPT_FILE', default='prompts/subsequent.txt')
+QUESTIONS_FILE = config('QUESTIONS_FILE', default='prompts/questions.txt')
 CLASSIFY_PROMPT_FILE = config('CLASSIFY_PROMPT_FILE', default='prompts/classify.txt')
 KB_FILE = config('KB_FILE', default='domains/screening.json')
 

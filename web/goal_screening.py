@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import LANGUAGE_NAMES, WELCOME_BACK
+from .config import LANGUAGE_NAMES
 from . import database as db
 
 LOGS_DIR = 'logs'
@@ -19,12 +19,32 @@ def log_screening(session_id: str, entry: str):
 
 
 class ScreeningGoal(Goal):
-    def __init__(self, llm_provider, system_prompt: str):
+    def __init__(self, llm_provider, system_prompt: str, first_time_prompt: str = '', subsequent_prompt: str = ''):
         self.llm = llm_provider
         self.system_prompt = system_prompt
+        self.first_time_prompt = first_time_prompt
+        self.subsequent_prompt = subsequent_prompt
 
     def is_complete(self, info_state) -> bool:
         return info_state.user.query('screening_phase') == 'REPORT'
+
+    def _build_prompt(self, info_state, avatar_name: str, language: str) -> str:
+        """Concatenate the right intro + shared screener + runtime values."""
+        visit_number = info_state.user.query('visit_number') or 1
+        is_returning = visit_number > 1
+        intro = self.subsequent_prompt if is_returning else self.first_time_prompt
+        full = f"{intro}\n\n{self.system_prompt}" if intro else self.system_prompt
+
+        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
+        prompt = full.replace('{avatar_name}', avatar_name)
+        prompt = prompt.replace('{question_instructions}', question_block)
+        last_summary = info_state.user.query('last_summary')
+        if is_returning and last_summary:
+            prompt += f"\n\nSummary of last session:\n{last_summary}"
+        if language != 'en':
+            lang_name = LANGUAGE_NAMES.get(language, 'English')
+            prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
+        return prompt
 
     def execute_goal(self, msg, info_state):
         history = info_state.user.query('conversation_history') or []
@@ -39,15 +59,7 @@ class ScreeningGoal(Goal):
 
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
-        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
-        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
-        prompt = prompt.replace('{question_instructions}', question_block)
-        last_summary = info_state.user.query('last_summary')
-        if last_summary:
-            prompt += f"\n\nThe patient has visited before. Summary of last session:\n{last_summary}\nAsk about any lingering issues from that session."
-        if language != 'en':
-            lang_name = LANGUAGE_NAMES.get(language, 'English')
-            prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
+        prompt = self._build_prompt(info_state, avatar_name, language)
 
         response = self.llm.generate(history, prompt)
         log_screening(session_id, f"LLM: {response}")
@@ -100,9 +112,11 @@ class ScreeningGoal(Goal):
 
 
 class ScreeningGoalManager:
-    def __init__(self, llm_provider, system_prompt: str):
-        self.goal = ScreeningGoal(llm_provider, system_prompt)
+    def __init__(self, llm_provider, system_prompt: str, first_time_prompt: str = '', subsequent_prompt: str = ''):
+        self.goal = ScreeningGoal(llm_provider, system_prompt, first_time_prompt, subsequent_prompt)
         self.system_prompt = system_prompt
+        self.first_time_prompt = first_time_prompt
+        self.subsequent_prompt = subsequent_prompt
 
     def update(self, msg, info_state):
         if self.goal.is_complete(info_state):
@@ -113,26 +127,9 @@ class ScreeningGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant', is_returning: bool = False) -> str:
         """Generate opening greeting using LLM."""
-        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
-        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
-        prompt = prompt.replace('{question_instructions}', question_block)
-        last_summary = info_state.user.query('last_summary')
-        if last_summary:
-            prompt += f"\n\nThe patient has visited before. Summary of last session:\n{last_summary}\nAsk about any lingering issues from that session."
-        if lang != 'en':
-            lang_name = LANGUAGE_NAMES.get(lang, 'English')
-            prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
-
+        prompt = self.goal._build_prompt(info_state, avatar_name, lang)
         existing = info_state.user.query('conversation_history') or []
-        if is_returning:
-            question_text = _extract_first_question(question_block)
-            greeting = WELCOME_BACK.get(lang, WELCOME_BACK['en'])
-            if question_text:
-                opening = f"{greeting} {question_text}"
-            else:
-                opening = f"{greeting} Let's continue."
-        else:
-            opening = self.goal.llm.generate(existing, prompt)
+        opening = self.goal.llm.generate(existing, prompt)
         existing.append({"role": "assistant", "content": opening})
         info_state.user.update('conversation_history', existing)
 
@@ -143,30 +140,9 @@ class ScreeningGoalManager:
         return opening
 
 
-def _extract_first_question(question_block: str) -> str | None:
-    """Return the text of the first numbered question from the block."""
-    if not question_block:
-        return None
-    for line in question_block.splitlines():
-        line = line.strip()
-        if not line or not line[0].isdigit():
-            continue
-        # Expect format like: 7. "Question text"
-        parts = line.split('.', 1)
-        if len(parts) != 2:
-            continue
-        remainder = parts[1].strip()
-        if remainder.startswith('"') and remainder.endswith('"') and len(remainder) > 2:
-            return remainder[1:-1]
-        return remainder
-    return None
-
-
 DEFAULT_QUESTION_BLOCK = "\n".join([
-    '1. "What is your living situation today? Do you have a steady place to live?"',
-    '2. "Within the past 12 months, have you worried that your food would run out before you got money to buy more?"',
-    '3. "Over the past 2 weeks, how often have you felt down, depressed, or hopeless?"',
-    '4. "Do you feel physically and emotionally safe where you currently live?"',
-    '5. "In a typical week, how many days do you do any physical activity like walking or exercise?"',
-    '6. "Do you need help with daily activities such as bathing, preparing meals, shopping, or managing medications?"',
+    'Housing: "What is your living situation today? Do you have a steady place to live?"',
+    'Food: "Within the past 12 months, have you worried that your food would run out before you got money to buy more?"',
+    'Safety: "Do you feel physically and emotionally safe where you currently live?"',
+    'Daily Living: "Do you need help with daily activities such as bathing, preparing meals, shopping, or managing medications?"',
 ])

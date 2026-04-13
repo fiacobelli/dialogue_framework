@@ -8,7 +8,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 from strings import MSG, BELSTR
-from .config import AVATAR_PROFILES
+from .config import AVATAR_PROFILES, QUESTIONS_FILE
 from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import report
@@ -48,7 +48,7 @@ def new_session():
         info_state.user.update('visit_number', visit_number)
     else:
         info_state.user.update('visit_number', visit_number)
-    question_block = build_question_instructions(visit_number)
+    question_block = build_question_instructions()
     info_state.user.update('question_instructions', question_block)
 
     is_returning = visit_number > 1
@@ -141,42 +141,21 @@ def classify_responses():
             'nurse_practitioner': 'Unable to classify — please review manually.',
             'verbal_summary': 'We will share your answers with your care team. Thank you for your time today, and take care of yourself.'
         })
-VISIT_QUESTION_SETS = {
-    1: [
-        "What is your living situation today? Do you have a steady place to live?",
-        "Within the past 12 months, have you worried that your food would run out before you got money to buy more?",
-        "Over the past 2 weeks, how often have you felt down, depressed, or hopeless?",
-        "Do you feel physically and emotionally safe where you currently live?",
-        "In a typical week, how many days do you do any physical activity like walking or exercise?",
-        "Do you need help with daily activities such as bathing, preparing meals, shopping, or managing medications?",
-    ],
-    2: [
-        "Think about the place you live. Do you have problems with pests, mold, lead paint or pipes, lack of heat, appliances not working, smoke detectors missing, or water leaks?",
-        "Within the past 12 months, did the food you bought just not last and you didn’t have money to get more?",
-        "Has lack of transportation kept you from medical appointments, work, or getting the things you need?",
-        "Are you worried that your utilities—like electric, gas, oil, or water—might be shut off in the next month?",
-        "Within the past 12 months, has anyone hurt you or made you feel unsafe at home?",
-        "How hard is it for you to pay for the basics like food, housing, medical care, and heat?",
-    ],
-}
+def _load_questions() -> str:
+    """Load the question pool from prompts/questions.txt."""
+    try:
+        with open(QUESTIONS_FILE, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
 
 
-def build_question_instructions(visit_number: int) -> str:
-    questions = VISIT_QUESTION_SETS.get(visit_number)
-    if not questions:
-        # use the last defined set if visit exceeds configured ones
-        max_visit = max(VISIT_QUESTION_SETS)
-        questions = VISIT_QUESTION_SETS[max_visit]
-        visit_number = max_visit
+QUESTIONS_TEXT = _load_questions()
 
-    base = (visit_number - 1) * 6
-    lines = []
-    if visit_number > 1:
-        lines.append("You already completed the previous set of screening questions. Continue with the following ones and do not repeat earlier questions.")
-    for idx, question in enumerate(questions, start=1):
-        number = base + idx
-        lines.append(f"{number}. \"{question}\"")
-    return "\n".join(lines)
+
+def build_question_instructions() -> str:
+    """Return the full question pool loaded from the questions file."""
+    return QUESTIONS_TEXT
 
 
 def _sanitize_patient_id(value: str | None) -> str:

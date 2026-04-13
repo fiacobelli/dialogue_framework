@@ -10,7 +10,7 @@ from rules import RuleManager
 from .goal_screening import ScreeningGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
-from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE
+from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, FIRST_TIME_PROMPT_FILE, SUBSEQUENT_PROMPT_FILE
 from . import database as db
 
 
@@ -51,7 +51,12 @@ def create_session(session_id: str) -> dict:
     if provider_name == 'groq':
         provider_kwargs['api_key'] = config('GROQ_API_KEY')
     provider = get_provider(provider_name, **provider_kwargs)
-    goal_mgr = ScreeningGoalManager(provider, load_prompt(SYSTEM_PROMPT_FILE))
+    goal_mgr = ScreeningGoalManager(
+        provider,
+        load_prompt(SYSTEM_PROMPT_FILE),
+        load_prompt(FIRST_TIME_PROMPT_FILE),
+        load_prompt(SUBSEQUENT_PROMPT_FILE),
+    )
 
     dialogue_mgr = DialogueManagerPassive()
     dialogue_mgr.setup(info_state, rule_mgr, goal_mgr)

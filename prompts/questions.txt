@@ -1,0 +1,98 @@
+The following is the full pool of screening topics and questions drawn from the AHC HRSN Screening Tool and the KDQOL-SF Kidney Disease Quality of Life Short Form. Pick one question per category that you judge most relevant for this patient. Ask a maximum of six questions total across categories.
+
+Housing:
+  - "What is your living situation today? Do you have a steady place to live?"
+  - "Think about the place you live. Do you have problems with pests, mold, lead paint or pipes, lack of heat, appliances not working, smoke detectors missing, or water leaks?"
+
+Food:
+  - "Within the past 12 months, have you worried that your food would run out before you got money to buy more?"
+  - "Within the past 12 months, did the food you bought just not last and you didn't have money to get more?"
+
+Transportation:
+  - "In the past 12 months, has lack of reliable transportation kept you from medical appointments, meetings, work, or from getting things you need for daily living?"
+
+Utilities:
+  - "In the past 12 months, has the electric, gas, oil, or water company threatened to shut off services in your home?"
+
+Interpersonal Safety:
+  - "How often does anyone, including family and friends, physically hurt you?"
+  - "How often does anyone, including family and friends, insult or talk down to you?"
+  - "How often does anyone, including family and friends, threaten you with harm?"
+  - "How often does anyone, including family and friends, scream or curse at you?"
+
+Financial Strain:
+  - "How hard is it for you to pay for the very basics like food, housing, medical care, and heating?"
+
+Employment:
+  - "Do you want help finding or keeping work or a job?"
+
+Family and Community Support:
+  - "If for any reason you need help with day-to-day activities such as bathing, preparing meals, shopping, or managing finances, do you get the help you need?"
+  - "How often do you feel lonely or isolated from those around you?"
+
+Education:
+  - "Do you speak a language other than English at home?"
+  - "Do you want help with school or training, like starting or completing job training or getting a high school diploma, GED, or equivalent?"
+
+Physical Activity:
+  - "In the last 30 days, other than the activities you did for work, on average, how many days per week did you engage in moderate exercise like walking fast, running, jogging, dancing, swimming, biking, or other similar activities?"
+  - "On average, how many minutes did you usually spend exercising at this level on one of those days?"
+
+Substance Use:
+  - "In the past 12 months, how many times have you had five or more drinks in a day (for men) or four or more drinks in a day (for women)?"
+  - "In the past 12 months, how many times have you used tobacco products like cigarettes, cigars, snuff, chew, or electronic cigarettes?"
+  - "In the past year, how many times have you used prescription drugs for non-medical reasons?"
+  - "In the past year, how many times have you used illegal drugs?"
+
+Disabilities:
+  - "Because of a physical, mental, or emotional condition, do you have serious difficulty concentrating, remembering, or making decisions?"
+  - "Because of a physical, mental, or emotional condition, do you have difficulty doing errands alone such as visiting a doctor's office or shopping?"
+
+General Health:
+  - "In general, would you say your health is excellent, very good, good, fair, or poor?"
+  - "Compared to one year ago, how would you rate your health in general now?"
+
+Physical Functioning:
+  - "Does your health now limit you in activities like climbing several flights of stairs, walking more than a mile, or bathing and dressing yourself?"
+
+Pain:
+  - "How much bodily pain have you had during the past 4 weeks?"
+  - "During the past 4 weeks, how much did pain interfere with your normal work, including housework?"
+
+Sleep:
+  - "On a scale from very bad to very good, how would you rate your sleep overall?"
+  - "During the past 4 weeks, how often did you awaken during the night and have trouble falling back asleep?"
+  - "Do you usually get the amount of sleep you need?"
+
+Kidney Disease Burden:
+  - "Does your kidney disease interfere too much with your life?"
+  - "Do you feel that too much of your time is spent dealing with your kidney disease?"
+
+Kidney Symptoms:
+  - "How bothered have you been by soreness in your muscles during the past 4 weeks?"
+  - "How bothered have you been by cramps during the past 4 weeks?"
+  - "How bothered have you been by itchy or dry skin during the past 4 weeks?"
+  - "How bothered have you been by shortness of breath during the past 4 weeks?"
+  - "How bothered have you been by faintness or dizziness during the past 4 weeks?"
+  - "How bothered have you been by lack of appetite during the past 4 weeks?"
+  - "How bothered have you been by feeling washed out or drained during the past 4 weeks?"
+  - "How bothered have you been by nausea or upset stomach during the past 4 weeks?"
+
+Kidney Disease Daily Life Impact:
+  - "How much does fluid restriction bother you in your daily life?"
+  - "How much does dietary restriction bother you in your daily life?"
+  - "How much does kidney disease affect your ability to work around the house?"
+  - "How much does kidney disease affect your ability to travel?"
+
+Family and Friends Satisfaction:
+  - "How satisfied are you with the amount of time you are able to spend with family and friends?"
+  - "How satisfied are you with the support you receive from your family and friends?"
+
+Dialysis Care Satisfaction:
+  - "How would you rate the friendliness and interest shown in you as a person by the dialysis staff?"
+  - "Do the dialysis staff encourage you to be as independent as possible?"
+  - "Do the dialysis staff support you in coping with your kidney disease?"
+
+Work Status:
+  - "During the past 4 weeks, did you work at a paying job?"
+  - "Does your health keep you from working at a paying job?"
