@@ -108,8 +108,10 @@ class ScreeningGoal(Goal):
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
         instruction = (
-            "Write a one-paragraph summary of the conversation above, "
-            "focused on the patient's concerns and any unresolved issues. "
+            "Write a one-paragraph summary of the conversation above. "
+            "List the topics that were discussed (for example: housing, food, "
+            "transportation, financial strain, kidney disease burden, family support), "
+            "what the patient said about each, and any concerns or positive notes. "
             "Start directly with the content. Do NOT preface with phrases like "
             "'Here is a summary', 'I'll summarize', 'Sure', or similar."
         )
