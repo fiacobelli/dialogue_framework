@@ -147,14 +147,24 @@ class SpeechManager {
             return Promise.reject(new Error('Cannot speak now'));
         }
 
+        // Stop recognition BEFORE speaking to prevent the microphone
+        // from capturing the bot's own TTS output (feedback loop).
+        if (this.recognition) {
+            try { this.recognition.stop(); } catch (e) { /* noop */ }
+        }
+
         this._emit('speakStart', { text });
 
         return new Promise((resolve) => {
             const onEnd = () => {
                 document.removeEventListener('sitePalTalkEnded', onEnd);
                 this.turnManager.endSystemTurn();
-                this._emit('speakEnd', { text });
-                resolve();
+                // Delay before signalling end so residual TTS audio
+                // has time to die out before recognition restarts.
+                setTimeout(() => {
+                    this._emit('speakEnd', { text });
+                    resolve();
+                }, 400);
             };
             document.addEventListener('sitePalTalkEnded', onEnd);
 

@@ -1,5 +1,6 @@
 """Screening goal - LLM-driven health screening using system prompt."""
 import os
+import re
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
@@ -7,6 +8,13 @@ from .config import LANGUAGE_NAMES
 from . import database as db
 
 LOGS_DIR = 'logs'
+MAX_USER_TURNS = 7
+MIN_TURNS_FOR_GOODBYE = 4
+EXIT_PHRASE = "Thank you for sharing that with me. Let me review your answers."
+SUMMARY_PREAMBLE_RE = re.compile(
+    r"^\s*(I['\u2019]ll|I will|Here['\u2019]s|Here is|Sure|Okay|Of course|Certainly)[^.\n]*[.!?]\s*",
+    re.IGNORECASE,
+)
 
 
 def log_screening(session_id: str, entry: str):
@@ -57,6 +65,7 @@ class ScreeningGoal(Goal):
             info_state.user.update('conversation_history', history)
             log_screening(session_id, f"USER: {user_input}")
 
+        user_turn_count = sum(1 for m in history if m.get('role') == 'user')
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
         prompt = self._build_prompt(info_state, avatar_name, language)
@@ -64,15 +73,17 @@ class ScreeningGoal(Goal):
         response = self.llm.generate(history, prompt)
         log_screening(session_id, f"LLM: {response}")
 
-        is_ending = self._is_goodbye(response)
+        is_ending = self._is_goodbye(response, user_turn_count)
+        if not is_ending and user_turn_count >= MAX_USER_TURNS:
+            log_screening(session_id, f"FORCED ENDING at turn {user_turn_count}")
+            response = EXIT_PHRASE
+            is_ending = True
         log_screening(session_id, f"_is_goodbye check: {is_ending}")
 
         if is_ending:
             info_state.user.update('screening_phase', 'REPORT')
             log_screening(session_id, "PHASE CHANGED TO: REPORT")
-            summary = self.llm.generate(
-                history + [{"role": "assistant", "content": response}],
-                "Summarize this conversation in one paragraph, focusing on the patient's concerns and any unresolved issues.")
+            summary = self._generate_summary(history, response)
             info_state.user.update('last_summary', summary)
             log_screening(session_id, f"SUMMARY: {summary}")
 
@@ -94,8 +105,23 @@ class ScreeningGoal(Goal):
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
-    def _is_goodbye(self, text: str) -> bool:
-        """Check if the response signals end of screening."""
+    def _generate_summary(self, history: list, last_response: str) -> str:
+        """Ask the LLM for a one-paragraph summary. Strip any preamble."""
+        instruction = (
+            "Write a one-paragraph summary of the conversation above, "
+            "focused on the patient's concerns and any unresolved issues. "
+            "Start directly with the content. Do NOT preface with phrases like "
+            "'Here is a summary', 'I'll summarize', 'Sure', or similar."
+        )
+        full_history = history + [{"role": "assistant", "content": last_response}]
+        raw = self.llm.generate(full_history, instruction)
+        cleaned = SUMMARY_PREAMBLE_RE.sub('', raw or '', count=1)
+        return cleaned.strip()
+
+    def _is_goodbye(self, text: str, user_turn_count: int) -> bool:
+        """Check if the response signals end of screening (with min-turn guard)."""
+        if user_turn_count < MIN_TURNS_FOR_GOODBYE:
+            return False
         text_lower = text.lower()
         end_phrases = [
             'thank you for sharing that with me',

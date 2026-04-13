@@ -4,10 +4,14 @@ Supports multiple backends (Ollama, Groq) with a common interface.
 """
 
 import logging
+import time
 import requests
 from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 3
+BACKOFF_SECONDS = [0, 1, 2]
 
 
 class OllamaProvider:
@@ -27,13 +31,17 @@ class OllamaProvider:
         if json_mode:
             payload["format"] = "json"
 
-        try:
-            resp = requests.post(f"{self.base_url}/api/chat", json=payload)
-            resp.raise_for_status()
-            return resp.json()["message"]["content"]
-        except Exception as e:
-            logger.error("Ollama LLM call failed: %s", e)
-            return LLM_ERROR_MESSAGE
+        for attempt in range(MAX_RETRIES):
+            try:
+                if BACKOFF_SECONDS[attempt]:
+                    time.sleep(BACKOFF_SECONDS[attempt])
+                resp = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=30)
+                resp.raise_for_status()
+                return resp.json()["message"]["content"]
+            except Exception as e:
+                logger.warning("Ollama LLM attempt %d/%d failed: %s", attempt + 1, MAX_RETRIES, e)
+        logger.error("Ollama LLM call failed after %d attempts", MAX_RETRIES)
+        return LLM_ERROR_MESSAGE
 
 
 class GroqProvider:
@@ -54,17 +62,22 @@ class GroqProvider:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
-        try:
-            resp = requests.post(
-                GROQ_API_URL,
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json=payload
-            )
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.error("Groq LLM call failed: %s", e)
-            return LLM_ERROR_MESSAGE
+        for attempt in range(MAX_RETRIES):
+            try:
+                if BACKOFF_SECONDS[attempt]:
+                    time.sleep(BACKOFF_SECONDS[attempt])
+                resp = requests.post(
+                    GROQ_API_URL,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=payload,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                logger.warning("Groq LLM attempt %d/%d failed: %s", attempt + 1, MAX_RETRIES, e)
+        logger.error("Groq LLM call failed after %d attempts", MAX_RETRIES)
+        return LLM_ERROR_MESSAGE
 
 
 def get_provider(name: str, **kwargs):
