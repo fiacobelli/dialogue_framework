@@ -130,7 +130,17 @@ class SpeechManager {
 
         this.transcript = '';
         this.recognition.lang = this.lang;
-        this.recognition.start();
+        try {
+            this.recognition.start();
+        } catch (e) {
+            // InvalidStateError: recognition already started.
+            // Stop and retry once after a short delay.
+            console.debug('recognition.start() threw, retrying:', e.message);
+            try { this.recognition.stop(); } catch (_) { /* noop */ }
+            setTimeout(() => {
+                try { this.recognition.start(); } catch (_) { /* noop */ }
+            }, 300);
+        }
         this._emit('listening', {});
         return true;
     }

@@ -103,7 +103,8 @@ class App {
 
         speechManager.on('empty', () => {
             if (this.conversationActive) {
-                speechManager.startListening();
+                // Delay restart so recognition.stop() can complete before start()
+                setTimeout(() => speechManager.startListening(), 400);
             } else {
                 ui.setStatus('I didn\'t hear anything.');
             }
@@ -134,6 +135,12 @@ class App {
         });
 
         speechManager.on('error', ({ type, message }) => {
+            // no-speech is normal: browser heard nothing within its timeout.
+            // Just log silently and keep going; do not show an error to the user.
+            if (type === 'no-speech') {
+                console.debug('no-speech (silent retry)');
+                return;
+            }
             console.error('Speech error:', type, message);
             ui.setStatus('Error: ' + (message || type));
             turnManager.reset();
