@@ -11,7 +11,8 @@ from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-BACKOFF_SECONDS = [0, 1, 2]
+BACKOFF_SECONDS = [0, 2, 5]   # longer waits help with 429 rate limits
+RATE_LIMIT_BACKOFF = 15        # extra wait when Groq returns 429
 
 
 class OllamaProvider:
@@ -72,11 +73,24 @@ class GroqProvider:
                     json=payload,
                     timeout=30,
                 )
+                if resp.status_code == 429:
+                    logger.warning(
+                        "Groq rate limit (429) on attempt %d/%d — waiting %ds. Response: %s",
+                        attempt + 1, MAX_RETRIES, RATE_LIMIT_BACKOFF, resp.text[:200]
+                    )
+                    time.sleep(RATE_LIMIT_BACKOFF)
+                    continue
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
+            except requests.exceptions.Timeout:
+                logger.warning("Groq timeout on attempt %d/%d", attempt + 1, MAX_RETRIES)
+            except requests.exceptions.ConnectionError as e:
+                logger.warning("Groq connection error on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e)
+            except requests.exceptions.HTTPError as e:
+                logger.warning("Groq HTTP %s on attempt %d/%d: %s", resp.status_code, attempt + 1, MAX_RETRIES, e)
             except Exception as e:
-                logger.warning("Groq LLM attempt %d/%d failed: %s", attempt + 1, MAX_RETRIES, e)
-        logger.error("Groq LLM call failed after %d attempts", MAX_RETRIES)
+                logger.warning("Groq unexpected error on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e)
+        logger.error("Groq LLM call failed after %d attempts for model %s", MAX_RETRIES, self.model)
         return LLM_ERROR_MESSAGE
 
 

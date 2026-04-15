@@ -49,7 +49,13 @@ def create_session(session_id: str) -> dict:
     provider_name = config('LLM_PROVIDER', default='ollama')
     provider_kwargs = {'model': config('LLM_MODEL', default='mistral:7b-instruct')}
     if provider_name == 'groq':
-        provider_kwargs['api_key'] = config('GROQ_API_KEY')
+        api_key = config('GROQ_API_KEY', default=None)
+        if not api_key:
+            raise EnvironmentError(
+                "GROQ_API_KEY is not set. "
+                "Add it to your .env file or export it before starting the server."
+            )
+        provider_kwargs['api_key'] = api_key
     provider = get_provider(provider_name, **provider_kwargs)
     goal_mgr = ScreeningGoalManager(
         provider,
