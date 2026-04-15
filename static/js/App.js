@@ -178,6 +178,11 @@ class App {
         document.getElementById('micBtn')?.classList.remove('hidden');
         ui.setStatus('Loading...');
 
+        // Kick off VAD init in background. Called here (inside a click-handler chain)
+        // so the browser grants getUserMedia without a separate permission prompt.
+        // By the time the opening greeting finishes (~5-10 s), VAD will be ready.
+        speechManager.initVAD();
+
         try {
             const avatarId = window.AVATAR_ID || 'black_female';
             const [data] = await Promise.all([
@@ -259,6 +264,8 @@ class App {
         } catch (err) {
             console.error('Classification failed:', err);
             ui.setStatus('');
+        } finally {
+            speechManager.destroy(); // release VAD and mic resources
         }
     }
 }

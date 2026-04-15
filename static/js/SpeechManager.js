@@ -1,6 +1,11 @@
 /**
- * SpeechManager - Handles speech recognition and synthesis
- * Includes silence detection for natural turn-taking
+ * SpeechManager - Handles speech recognition and synthesis.
+ *
+ * Noise strategy: Silero VAD (ricky0123/vad-web) gates the Web Speech API.
+ * Recognition only starts when the VAD detects the patient is actually speaking,
+ * preventing ambient room chatter from being transcribed between turns.
+ *
+ * Fallback: if VAD fails to init, reverts to continuous recognition (original behaviour).
  */
 
 class SpeechManager {
@@ -11,15 +16,23 @@ class SpeechManager {
         this.voices = [];
         this.transcript = '';
         this.silenceTimeout = null;
-        this.silenceDelay = 5000; // 5 seconds of silence = done (elderly/dialysis patients need more time)
+        this.silenceDelay = 5000; // 5 s of silence = done (elderly patients need more time)
         this.listeners = {};
         this.lang = 'en-US';
         this.voiceConfig = { lang: 'en', gender: 'female' };
-        this._digitRecognizer = null;
+
+        // VAD state
+        this._vad = null;
+        this._vadReady = false;
+        this._recognitionActive = false; // true while recognition.start() is live
+        this._finishing = false;         // re-entry guard for _finishListening()
 
         this._initRecognition();
         this._loadVoices();
+        // NOTE: initVAD() is NOT called here — must be called after a user gesture.
     }
+
+    // ── Initialisation ────────────────────────────────────────────────────────
 
     _initRecognition() {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -27,41 +40,92 @@ class SpeechManager {
             this._emit('error', { type: 'unsupported', message: 'Speech recognition not supported' });
             return;
         }
-
         this.recognition = new SR();
         this.recognition.continuous = true;
         this.recognition.interimResults = true;
-
         this.recognition.onresult = (e) => this._handleResult(e);
-        this.recognition.onerror = (e) => this._handleError(e);
-        this.recognition.onend = () => this._handleEnd();
+        this.recognition.onerror  = (e) => this._handleError(e);
+        this.recognition.onend    = ()  => this._handleEnd();
     }
 
     _loadVoices() {
         this.voices = this.synthesis.getVoices();
-        this.synthesis.onvoiceschanged = () => {
-            this.voices = this.synthesis.getVoices();
-        };
+        this.synthesis.onvoiceschanged = () => { this.voices = this.synthesis.getVoices(); };
     }
+
+    /**
+     * Initialise Silero VAD. Must be called after a user gesture (e.g. from
+     * startConversation) so the browser permits getUserMedia.
+     * Safe to call without awaiting — falls back silently on failure.
+     */
+    async initVAD() {
+        if (!window.vad || !window.vad.MicVAD) {
+            console.warn('[SpeechManager] VAD library not loaded — using continuous recognition fallback');
+            return;
+        }
+        try {
+            this._vad = await window.vad.MicVAD.new({
+                baseAssetPath: '/static/js/vad/',    // worklet + model files (same-origin)
+                onnxWASMBasePath: '/static/js/vad/', // ONNX Runtime WASM files
+                model: 'legacy',
+                // onSpeechEnd is intentionally a no-op: the 5 s silence timer submits.
+                // This lets slow-speaking patients pause mid-sentence without being cut off.
+                onSpeechStart: () => this._onVADSpeechStart(),
+                onSpeechEnd:   () => {},
+                onVADMisfire:  () => this._onVADMisfire(),
+            });
+            this._vadReady = true;
+            console.log('[SpeechManager] VAD ready');
+        } catch (err) {
+            console.warn('[SpeechManager] VAD init failed — using continuous recognition fallback:', err);
+            this._vad = null;
+            this._vadReady = false;
+        }
+    }
+
+    // ── VAD callbacks ─────────────────────────────────────────────────────────
+
+    _onVADSpeechStart() {
+        if (this._recognitionActive) return;              // already recording
+        if (this.turnManager.getState() !== TurnState.IDLE) return; // not our turn
+        if (!this.turnManager.startUserTurn()) return;
+
+        this.transcript = '';
+        this._recognitionActive = true;
+        this.recognition.lang = this.lang;
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.warn('[SpeechManager] recognition.start() failed in VAD callback:', e);
+            this._recognitionActive = false;
+            this.turnManager.reset();
+        }
+    }
+
+    _onVADMisfire() {
+        if (!this._recognitionActive) return;
+        this._clearSilenceTimer();
+        this._recognitionActive = false;
+        if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
+        this.transcript = '';
+        this.turnManager.reset();
+    }
+
+    // ── Recognition event handlers ────────────────────────────────────────────
 
     _handleResult(e) {
         this._resetSilenceTimer();
-
-        let interim = '';
-        let final = '';
-
+        let interim = '', final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
             const text = e.results[i][0].transcript;
             if (e.results[i].isFinal) final += text + ' ';
             else interim += text;
         }
-
         if (final) this.transcript += final;
-
         this._emit('transcript', {
-            final: this.transcript.trim(),
+            final:   this.transcript.trim(),
             interim: interim,
-            full: (this.transcript + interim).trim()
+            full:    (this.transcript + interim).trim()
         });
     }
 
@@ -73,12 +137,14 @@ class SpeechManager {
 
     _handleEnd() {
         this._clearSilenceTimer();
-        if (this.turnManager.getState() === 'user_speaking') {
+        if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
             this._finishListening();
         } else {
             this._emit('recognitionEnded', {});
         }
     }
+
+    // ── Silence timer ─────────────────────────────────────────────────────────
 
     _resetSilenceTimer() {
         this._clearSilenceTimer();
@@ -89,28 +155,99 @@ class SpeechManager {
     }
 
     _clearSilenceTimer() {
-        if (this.silenceTimeout) {
-            clearTimeout(this.silenceTimeout);
-            this.silenceTimeout = null;
-        }
+        if (this.silenceTimeout) { clearTimeout(this.silenceTimeout); this.silenceTimeout = null; }
     }
+
+    // ── Core listen / speak ───────────────────────────────────────────────────
 
     _finishListening() {
-        this._clearSilenceTimer();
-        if (this.recognition) this.recognition.stop();
+        if (this._finishing) return; // prevent double-call (e.g. timer + onend race)
+        this._finishing = true;
+        try {
+            this._clearSilenceTimer();
+            if (this._vadReady && this._vad) this._vad.pause(); // stop VAD from re-triggering
+            this._recognitionActive = false;
+            if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
 
-        const text = this.transcript.trim();
-        if (text) {
-            this.turnManager.endUserTurn();
-            this._emit('complete', { transcript: text });
-        } else {
-            this.turnManager.reset();
-            this._emit('empty', {});
+            const text = this.transcript.trim();
+            this.transcript = '';
+
+            if (text) {
+                this.turnManager.endUserTurn();
+                this._emit('complete', { transcript: text });
+            } else {
+                this.turnManager.reset();
+                this._emit('empty', {});
+            }
+        } finally {
+            this._finishing = false;
         }
-        this.transcript = '';
     }
 
-    // Public API
+    /** Start listening. In VAD mode, starts the VAD monitor; recognition fires on speech. */
+    startListening() {
+        if (!this.recognition) {
+            this._emit('error', { type: 'unsupported' });
+            return false;
+        }
+        if (!this.turnManager.canUserSpeak()) return false;
+
+        this.transcript = '';
+
+        if (this._vadReady) {
+            // VAD mode: TurnManager stays IDLE until VAD fires onSpeechStart.
+            // UI transitions to USER_SPEAKING only when the patient actually speaks.
+            this._vad.start();
+            this._emit('listening', {});
+            return true;
+        }
+
+        // Fallback: continuous recognition (original behaviour)
+        if (!this.turnManager.startUserTurn()) return false;
+        this.recognition.lang = this.lang;
+        this.recognition.start();
+        this._emit('listening', {});
+        return true;
+    }
+
+    /** Stop listening immediately and submit whatever was captured. */
+    stopListening() {
+        if (this._vadReady && this._vad) this._vad.pause();
+        this._finishListening();
+    }
+
+    /** Speak text via SitePal / Web Speech fallback. Pauses VAD during TTS. */
+    speak(text) {
+        if (!text) return Promise.resolve();
+        if (!this.turnManager.startSystemTurn()) {
+            return Promise.reject(new Error('Cannot speak now'));
+        }
+
+        // Pause VAD so TTS audio coming through the room speakers doesn't
+        // trigger onSpeechStart and cause a false recognition session.
+        if (this._vadReady && this._vad) this._vad.pause();
+
+        if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
+
+        this._emit('speakStart', { text });
+
+        return new Promise((resolve) => {
+            const onEnd = () => {
+                document.removeEventListener('sitePalTalkEnded', onEnd);
+                this.turnManager.endSystemTurn();
+                // Brief delay lets residual TTS audio die before VAD/recognition restart.
+                setTimeout(() => {
+                    this._emit('speakEnd', { text });
+                    resolve();
+                }, 400);
+            };
+            document.addEventListener('sitePalTalkEnded', onEnd);
+            speakText(text);
+        });
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
     setLanguage(langCode) {
         this.lang = langCode;
         if (this.recognition) this.recognition.lang = langCode;
@@ -120,107 +257,15 @@ class SpeechManager {
         this.voiceConfig = { ...this.voiceConfig, ...config };
     }
 
-    /** Start listening for speech input. */
-    startListening() {
-        if (!this.recognition) {
-            this._emit('error', { type: 'unsupported' });
-            return false;
-        }
-        if (!this.turnManager.startUserTurn()) return false;
-
-        this.transcript = '';
-        this.recognition.lang = this.lang;
-        this.recognition.start();
-        this._emit('listening', {});
-        return true;
+    /** Clean up VAD and recognition at end of conversation. */
+    destroy() {
+        this._clearSilenceTimer();
+        if (this._vad) { this._vad.destroy(); this._vad = null; this._vadReady = false; }
+        if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
     }
 
-    /** Stop listening and process final transcript. */
-    stopListening() {
-        this._finishListening();
-    }
+    // ── Event system ──────────────────────────────────────────────────────────
 
-    /** Speak text using SitePal or Web Speech fallback. */
-    speak(text) {
-        if (!text) return Promise.resolve();
-        if (!this.turnManager.startSystemTurn()) {
-            return Promise.reject(new Error('Cannot speak now'));
-        }
-
-        // Stop recognition BEFORE speaking to prevent the microphone
-        // from capturing the bot's own TTS output (feedback loop).
-        if (this.recognition) {
-            try { this.recognition.stop(); } catch (e) { /* noop */ }
-        }
-
-        this._emit('speakStart', { text });
-
-        return new Promise((resolve) => {
-            const onEnd = () => {
-                document.removeEventListener('sitePalTalkEnded', onEnd);
-                this.turnManager.endSystemTurn();
-                // Delay before signalling end so residual TTS audio
-                // has time to die out before recognition restarts.
-                setTimeout(() => {
-                    this._emit('speakEnd', { text });
-                    resolve();
-                }, 400);
-            };
-            document.addEventListener('sitePalTalkEnded', onEnd);
-
-            // Use global speakText from interview.html (handles SitePal + fallback)
-            speakText(text);
-        });
-    }
-
-    _selectVoice() {
-        const { lang, gender } = this.voiceConfig;
-        const matching = this.voices.filter(v => v.lang.startsWith(lang));
-        if (matching.length === 0) return null;
-
-        const genderPattern = gender === 'female'
-            ? /female|woman|zira|eva|monica|lucia|samantha|karen/i
-            : /male|man|david|jorge|pablo|daniel|alex/i;
-
-        return matching.find(v => genderPattern.test(v.name)) || matching[0];
-    }
-
-    captureDigits(maxDigits = 4) {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-            this._emit('pinResult', { digits: '' });
-            return;
-        }
-        if (this._digitRecognizer) {
-            this._digitRecognizer.onresult = null;
-            this._digitRecognizer.onerror = null;
-            this._digitRecognizer.onend = null;
-            try { this._digitRecognizer.stop(); } catch (_) { /* noop */ }
-        }
-        const recognizer = new SR();
-        this._digitRecognizer = recognizer;
-        recognizer.lang = this.lang;
-        recognizer.interimResults = false;
-        recognizer.maxAlternatives = 1;
-
-        let handled = false;
-        const finish = (digits) => {
-            if (handled) return;
-            handled = true;
-            this._emit('pinResult', { digits });
-        };
-
-        recognizer.onresult = (e) => {
-            const text = e.results[0][0].transcript || '';
-            const digits = (text.match(/\d/g) || []).join('').slice(-maxDigits);
-            finish(digits);
-        };
-        recognizer.onerror = () => finish('');
-        recognizer.onend = () => finish('');
-        recognizer.start();
-    }
-
-    // Event system
     on(event, callback) {
         if (!this.listeners[event]) this.listeners[event] = [];
         this.listeners[event].push(callback);
@@ -232,16 +277,11 @@ class SpeechManager {
     }
 
     once(event, callback) {
-        const wrapper = (data) => {
-            this.off(event, wrapper);
-            callback(data);
-        };
+        const wrapper = (data) => { this.off(event, wrapper); callback(data); };
         this.on(event, wrapper);
     }
 
     _emit(event, data) {
-        if (this.listeners[event]) {
-            this.listeners[event].forEach(cb => cb(data));
-        }
+        if (this.listeners[event]) this.listeners[event].forEach(cb => cb(data));
     }
 }

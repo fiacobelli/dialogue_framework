@@ -91,6 +91,9 @@
         window.AVATAR_ID = '{{ avatar_id }}';
         window.AVATAR_PROFILE = {{ avatar_profile | tojson }};
     </script>
+    <!-- VAD bundle: Silero VAD via ONNX Runtime WASM. Assets served locally (same-origin
+         required for AudioWorklet). Falls back gracefully if unavailable. -->
+    <script src="/static/js/vad/bundle.min.js"></script>
     <script src="/static/js/config.js"></script>
     <script src="/static/js/TurnManager.js"></script>
     <script src="/static/js/SpeechManager.js"></script>
