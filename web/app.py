@@ -11,7 +11,7 @@ logging.basicConfig(
 
 from .config import FLASK_PORT, FLASK_DEBUG, AVATAR_PROFILES, DB_PATH
 from .routes_api import api_bp
-from .database import configure as db_configure, init_db
+from .database import configure as db_configure, init_db, migrate_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
@@ -23,6 +23,7 @@ import os
 os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
 db_configure(DB_PATH)
 init_db()
+migrate_db()
 
 
 @app.route('/')
