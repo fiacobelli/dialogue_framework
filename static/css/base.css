@@ -1,78 +1,64 @@
-* { box-sizing: border-box; }
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
-    font-family: system-ui, -apple-system, sans-serif;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: clamp(8px, 2vw, 16px);
-    background: #f5f5f5;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #FEF6EC;
+    color: #1C1917;
     min-height: 100vh;
 }
-h1 { color: #2c5282; text-align: center; margin-bottom: 6px; font-size: clamp(22px, 4vw, 32px); }
-.subtitle { text-align: center; color: #64748b; margin-bottom: 20px; font-size: clamp(16px, 2.5vw, 20px); }
-.container { display: flex; flex-direction: column; gap: 12px; }
-.card { background: white; border-radius: 16px; padding: clamp(12px, 2.5vw, 24px); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
-.begin-overlay { text-align: center; }
-.pin-prompt input {
-    width: 100%;
-    max-width: 320px;
-    text-align: left;
-    font-size: clamp(16px, 2.5vw, 20px);
-    letter-spacing: normal;
-    padding: 12px 16px;
-    margin: 8px auto;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    display: block;
-}
-.pin-prompt button {
-    display: block;
-    width: 100%;
-    max-width: 280px;
-    margin: 10px auto;
-}
-.pin-hint { color: #c53030; font-size: clamp(14px, 2vw, 16px); min-height: 20px; }
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+h1 { font-size: clamp(26px, 5vw, 38px); font-weight: 700; color: #1C1917; }
+h2 { font-size: clamp(20px, 3.5vw, 28px); font-weight: 600; color: #1C1917; }
+p  { line-height: 1.6; }
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
-/* Input elements */
-.input-row { display: flex; gap: 10px; margin-top: 16px; }
-#input {
-    flex: 1;
-    padding: clamp(12px, 2vw, 16px);
-    border: 2px solid #e2e8f0;
+/* ── Shared form controls ─────────────────────────────────────────────────── */
+input[type="text"] {
+    font-family: inherit;
+    font-size: clamp(15px, 2.2vw, 18px);
+    padding: 12px 16px;
+    border: 2px solid #E7DDD5;
     border-radius: 12px;
-    font-size: clamp(16px, 2.5vw, 20px);
+    background: #FFFDF9;
+    color: #1C1917;
+    outline: none;
+    transition: border-color 0.2s;
 }
-#input:focus { outline: none; border-color: #3182ce; }
-#input.interim { color: #718096; font-style: italic; }
-#sendBtn {
-    padding: clamp(12px, 2vw, 16px) clamp(20px, 3.5vw, 28px);
-    background: #3182ce;
-    color: white;
+input[type="text"]:focus { border-color: #E86F2C; }
+
+button {
+    font-family: inherit;
+    cursor: pointer;
     border: none;
     border-radius: 12px;
-    font-size: clamp(16px, 2.5vw, 20px);
-    cursor: pointer;
+    transition: all 0.15s ease-out;
 }
-#sendBtn:disabled { background: #a0aec0; cursor: not-allowed; }
-#status { font-size: clamp(15px, 2vw, 18px); color: #718096; margin-top: 10px; text-align: center; }
 
-/* Back button */
-.back-btn { background: none; border: none; color: #64748b; font-size: clamp(14px, 2vw, 17px); cursor: pointer; margin-bottom: 16px; }
-.back-btn:hover { color: #3182ce; }
-
-/* Report section */
-.report-section { margin-top: 16px; }
-.report-section h2 { color: #2c5282; margin-bottom: 14px; font-size: clamp(18px, 3vw, 24px); }
-.report-item { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+/* ── Report section ───────────────────────────────────────────────────────── */
+.report-section {
+    background: #FFFDF9;
+    border-radius: 20px;
+    padding: clamp(20px, 4vw, 36px);
+    margin: 20px clamp(12px, 3vw, 32px);
+    box-shadow: 0 4px 24px rgba(28, 25, 23, 0.08);
+}
+.report-section h2 { margin-bottom: 20px; color: #E86F2C; }
+.report-item { padding: 14px 0; border-bottom: 1px solid #F0E9E2; }
 .report-item:last-child { border-bottom: none; }
-.report-item h3 { color: #4a5568; margin: 0 0 4px 0; font-size: clamp(15px, 2vw, 18px); }
-.report-item p { color: #2d3748; margin: 0; line-height: 1.6; font-size: clamp(15px, 2vw, 17px); }
+.report-item h3 { font-size: clamp(14px, 2vw, 17px); color: #78716C; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.report-item p  { font-size: clamp(16px, 2.2vw, 19px); color: #1C1917; line-height: 1.6; }
 
-/* Tablet+ breakpoints */
-@media (min-width: 768px) {
-    body { max-width: 860px; }
-    .container { gap: 16px; }
-}
-@media (min-width: 1024px) {
-    body { max-width: 960px; }
-}
+/* ── Pin form ─────────────────────────────────────────────────────────────── */
+.pin-prompt { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
+.pin-prompt label { font-size: clamp(14px, 2vw, 17px); color: #78716C; font-weight: 500; align-self: flex-start; max-width: 320px; width: 100%; }
+.pin-prompt input { width: 100%; max-width: 320px; }
+.pin-prompt small  { color: #78716C; font-size: 13px; max-width: 320px; text-align: left; width: 100%; }
+.pin-hint { color: #C45D20; font-size: 13px; min-height: 18px; max-width: 320px; width: 100%; }
+
+/* ── Back button ──────────────────────────────────────────────────────────── */
+.back-btn { background: none; border: none; color: #78716C; font-size: 14px; padding: 4px 0; }
+.back-btn:hover { color: #E86F2C; }

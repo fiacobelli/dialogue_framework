@@ -5,21 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/css/screening.css">
 
-    <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
+    <!-- SitePal setup — MUST be before embed -->
     <script>
         const avatarProfile = {{ avatar_profile | tojson }};
         let language = avatarProfile.language || 1;
-        let voice = avatarProfile.voice || 11;
-        let engine = avatarProfile.engine || 4;
+        let voice    = avatarProfile.voice    || 11;
+        let engine   = avatarProfile.engine   || 4;
 
         function vh_sceneLoaded() {
-            console.log('SitePal loaded');
             window.sitePalReady = true;
             document.dispatchEvent(new Event('sitePalReady'));
         }
 
         function vh_talkEnded() {
-            console.log('SitePal talk ended');
             document.dispatchEvent(new Event('sitePalTalkEnded'));
         }
 
@@ -27,77 +25,114 @@
             if (window.sitePalReady && typeof sayText === 'function') {
                 sayText(text, voice, language, engine);
             } else {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 0.9;
-                utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
-                speechSynthesis.speak(utterance);
+                const u = new SpeechSynthesisUtterance(text);
+                u.rate = 0.9;
+                u.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
+                speechSynthesis.speak(u);
             }
         }
     </script>
 </head>
 <body>
-    <div class="container">
-        <div id="conversation-screen">
-            <div class="card">
-                <h1>Health Screening</h1>
 
-                <!-- SitePal embed -->
-                <div class="avatar-container">
-                    <div id="avatar">
-                        <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
-                        <script type="text/javascript">
-                            AC_VHost_Embed(8688641, 320, 427, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
-                        </script>
-                    </div>
-                </div>
+    <!-- ── Main split layout ────────────────────────────────────────────── -->
+    <div id="conversation-screen">
 
-                <div id="beginOverlay" class="begin-overlay">
-                    <div class="pin-prompt">
-                        <p>Please enter your details to begin.</p>
-                        <label for="lastNameInput">Last name (letters only)</label>
-                        <input id="lastNameInput" type="text" inputmode="text" autocomplete="family-name" placeholder="e.g., Thompson" style="margin-bottom:8px;">
-                        <label for="dobInput">Date of birth</label>
-                        <input id="dobInput" type="text" inputmode="numeric" placeholder="MM/DD/YYYY" maxlength="10">
-                        <small>Format: two digits for month and day, four digits for year.</small>
-                        <button id="beginBtn" class="begin-btn" disabled>Begin Screening</button>
-                        <p class="pin-hint" id="pinHint"></p>
-                    </div>
+        <!-- LEFT: Avatar panel -->
+        <div class="avatar-panel">
+            <div class="avatar-frame" id="avatarFrame">
+                <div id="avatar">
+                    <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
+                    <script type="text/javascript">
+                        AC_VHost_Embed(8688641, 320, 427, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                    </script>
                 </div>
-                <div id="conversationUI" style="display:none;">
-                    <!-- Progress bar (fill %, no question numbers) -->
-                    <div id="progress-bar-wrap" class="hidden">
-                        <div id="progress-bar-fill"></div>
-                    </div>
-                    <div class="message-bubble" id="messageBubble"></div>
-                    <button id="repeatBtn" title="Repeat last question">&#9654; Repeat</button>
-                    <div class="mic-container">
-                        <button id="micBtn">🎤</button>
-                        <span class="mic-hint" id="micHint">Speak when ready</span>
-                    </div>
-                    <div class="input-row">
-                        <input type="text" id="input" placeholder="Or type here...">
-                        <button id="sendBtn">Send</button>
-                    </div>
-                    <div id="status"></div>
+            </div>
+            <p class="avatar-label">{{ avatar_profile.name }}</p>
+        </div>
+
+        <!-- RIGHT: Interaction panel -->
+        <div class="interaction-panel">
+
+            <!-- Pre-conversation: patient ID form -->
+            <div id="beginOverlay" class="begin-overlay">
+                <h2>Let's get started</h2>
+                <div class="pin-prompt">
+                    <label for="lastNameInput">Last name (letters only)</label>
+                    <input id="lastNameInput" type="text" inputmode="text" autocomplete="family-name" placeholder="e.g., Thompson">
+                    <label for="dobInput">Date of birth</label>
+                    <input id="dobInput" type="text" inputmode="numeric" placeholder="MM/DD/YYYY" maxlength="10">
+                    <small>Format: two digits for month and day, four digits for year.</small>
+                    <button id="beginBtn" class="begin-btn" disabled>Begin Screening</button>
+                    <p class="pin-hint" id="pinHint"></p>
                 </div>
             </div>
 
-            <div class="card report-section" id="reportSection" style="display:none;">
-                <h2>Screening Summary</h2>
-                <div class="report-item"><h3>Social Worker</h3><p id="swConcerns"></p></div>
-                <div class="report-item"><h3>Dietitian</h3><p id="dietConcerns"></p></div>
-                <div class="report-item"><h3>Nephrologist</h3><p id="nephConcerns"></p></div>
-                <div class="report-item"><h3>Nurse Practitioner</h3><p id="nurseConcerns"></p></div>
+            <!-- Active conversation -->
+            <div id="conversationUI" style="display:none;">
+                <div id="progress-bar-wrap" class="hidden">
+                    <div id="progress-bar-fill"></div>
+                </div>
+
+                <div class="message-bubble" id="messageBubble"></div>
+
+                <button id="repeatBtn">&#8635; Repeat</button>
+
+                <div class="mic-container">
+                    <div class="mic-wrapper">
+                        <!-- Mic button — SVG icon replaces emoji -->
+                        <button id="micBtn">
+                            <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="9" y="2" width="6" height="13" rx="3" fill="white"/>
+                                <path d="M5 11a7 7 0 0 0 14 0" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+                                <line x1="12" y1="18" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="9"  y1="22" x2="15" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
+                        <!-- Sonar rings — animate when #micBtn.listening -->
+                        <span class="mic-ring"></span>
+                        <span class="mic-ring"></span>
+                        <span class="mic-ring"></span>
+                    </div>
+
+                    <!-- Waveform bars — shown when avatar is speaking -->
+                    <div class="waveform hidden" id="waveform">
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                        <span class="wave-bar"></span>
+                    </div>
+
+                    <span class="mic-hint" id="micHint">Speak when ready</span>
+                </div>
+
+                <!-- Keyboard fallback (secondary, smaller) -->
+                <div class="input-row">
+                    <input type="text" id="input" placeholder="Or type here...">
+                    <button id="sendBtn">Send</button>
+                </div>
+                <div id="status"></div>
             </div>
+
         </div>
     </div>
 
+    <!-- Report (shown full-width after screening completes) -->
+    <div class="report-section" id="reportSection" style="display:none;">
+        <h2>Screening Summary</h2>
+        <div class="report-item"><h3>Social Worker</h3><p id="swConcerns"></p></div>
+        <div class="report-item"><h3>Dietitian</h3><p id="dietConcerns"></p></div>
+        <div class="report-item"><h3>Nephrologist</h3><p id="nephConcerns"></p></div>
+        <div class="report-item"><h3>Nurse Practitioner</h3><p id="nurseConcerns"></p></div>
+    </div>
+
     <script>
-        window.AVATAR_ID = '{{ avatar_id }}';
+        window.AVATAR_ID      = '{{ avatar_id }}';
         window.AVATAR_PROFILE = {{ avatar_profile | tojson }};
     </script>
-    <!-- VAD bundle: Silero VAD via ONNX Runtime WASM. Assets served locally (same-origin
-         required for AudioWorklet). Falls back gracefully if unavailable. -->
     <script src="/static/js/vad/bundle.min.js"></script>
     <script src="/static/js/config.js"></script>
     <script src="/static/js/TurnManager.js"></script>

@@ -23,11 +23,13 @@ class UIController {
             progressWrap: document.getElementById('progress-bar-wrap'),
             progressFill: document.getElementById('progress-bar-fill'),
             repeatBtn: document.getElementById('repeatBtn'),
+            avatarFrame: document.getElementById('avatarFrame'),
+            waveform: document.getElementById('waveform'),
         };
     }
 
     showConversation() {
-        this.elements.conversationScreen.style.display = 'block';
+        // Layout is always visible in the new design; kept for API compatibility.
     }
 
     /** Display message in the avatar speech bubble. */
@@ -77,18 +79,24 @@ class UIController {
     showIdle() {
         this.elements.micBtn.classList.remove('listening', 'disabled');
         this.elements.micHint.textContent = 'Speak when ready';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
     }
 
     showListening() {
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled');
         this.elements.micHint.textContent = 'Listening...';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
     }
 
     showProcessing() {
         this.elements.micBtn.classList.remove('listening');
         this.elements.micBtn.classList.add('disabled');
         this.elements.micHint.textContent = 'Processing...';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
         this.setStatus('Thinking...');
     }
 
@@ -96,6 +104,8 @@ class UIController {
         this.elements.micBtn.classList.add('disabled');
         this.elements.micBtn.classList.remove('listening');
         this.elements.micHint.textContent = 'Assistant is speaking...';
+        this.elements.avatarFrame?.classList.add('speaking');
+        this.elements.waveform?.classList.remove('hidden');
     }
 
     // Transcript display

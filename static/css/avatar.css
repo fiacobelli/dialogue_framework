@@ -1,141 +1,283 @@
-/* Conversation Screen */
-#conversation-screen { display: block; }
+/* ── Page layout ──────────────────────────────────────────────────────────── */
+#conversation-screen {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: clamp(16px, 3vw, 28px);
+    gap: 20px;
+    animation: page-enter 0.5s ease-out both;
+}
 
-.avatar-container {
+@media (min-width: 768px) {
+    #conversation-screen {
+        display: grid;
+        grid-template-columns: 58fr 42fr;
+        align-items: center;
+        padding: clamp(24px, 4vw, 40px);
+        gap: clamp(20px, 3vw, 36px);
+    }
+}
+
+@keyframes page-enter {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Avatar panel ─────────────────────────────────────────────────────────── */
+.avatar-panel {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 4px 0;
+    gap: 16px;
+    animation: page-enter 0.5s ease-out 0.1s both;
 }
 
-/* SitePal avatar — large portrait, fills most of screen width on tablet */
+.avatar-frame {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    background: #FFFDF9;
+    border-radius: 24px;
+    padding: 10px;
+    box-shadow: 0 8px 32px rgba(28, 25, 23, 0.12);
+    transition: box-shadow 0.4s ease;
+}
+
+/* Warm glow when avatar is speaking */
+.avatar-frame.speaking {
+    animation: avatar-glow 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes avatar-glow {
+    from { box-shadow: 0 8px 32px rgba(28,25,23,0.12), 0 0 0 6px rgba(232,111,44,0.18), 0 0 32px rgba(232,111,44,0.12); }
+    to   { box-shadow: 0 8px 32px rgba(28,25,23,0.12), 0 0 0 12px rgba(232,111,44,0.28), 0 0 56px rgba(232,111,44,0.2); }
+}
+
 #avatar {
-    width: clamp(300px, 65vw, 480px);
-    height: clamp(400px, 87vw, 640px);
-    margin: 0 auto;
+    width: clamp(260px, 45vw, 400px);
+    height: clamp(347px, 60vw, 533px); /* 3:4 portrait ratio */
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-#avatar object,
-#avatar embed,
-#avatar iframe {
+#avatar object, #avatar embed, #avatar iframe {
     border: none;
-    border-radius: 12px;
-    margin: 0 auto;
-    display: block;
-}
-
-/* Large readable message for patients sitting back in a chair */
-.message-bubble {
-    background: #f7fafc;
-    border: 1px solid #e2e8f0;
     border-radius: 16px;
-    padding: 18px 22px;
-    margin: 8px 0;
-    font-size: clamp(20px, 3.5vw, 26px);
-    line-height: 1.6;
-    color: #1a202c;
-    text-align: center;
+    display: block;
+    margin: 0 auto;
 }
 
-.mic-container {
+.avatar-label {
+    font-size: clamp(18px, 2.8vw, 24px);
+    font-weight: 600;
+    color: #78716C;
+    letter-spacing: 0.01em;
+}
+
+/* ── Interaction panel ────────────────────────────────────────────────────── */
+.interaction-panel {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    margin-top: 12px;
-}
-
-/* Very large tap target — patients have limited hand dexterity */
-#micBtn {
-    width: clamp(110px, 18vw, 140px);
-    height: clamp(110px, 18vw, 140px);
-    font-size: clamp(44px, 7vw, 58px);
-    background: #38a169;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 6px 20px rgba(56, 161, 105, 0.45);
-}
-
-#micBtn:hover { transform: scale(1.05); }
-
-#micBtn.listening {
-    background: #e53e3e;
-    animation: pulse 1s infinite;
-    box-shadow: 0 6px 20px rgba(229, 62, 62, 0.45);
-}
-
-#micBtn.disabled {
-    background: #a0aec0;
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-#micBtn.disabled:hover { transform: none; }
-
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.06); }
-}
-
-.mic-hint {
-    margin-top: 14px;
-    font-size: clamp(17px, 2.5vw, 21px);
-    color: #4a5568;
-    font-weight: 500;
-}
-
-/* Begin Screening overlay */
-.begin-overlay {
-    display: flex;
     justify-content: center;
-    padding: 32px 0;
+    gap: 20px;
+    background: #FFFDF9;
+    border-radius: 24px;
+    padding: clamp(20px, 3.5vw, 36px);
+    box-shadow: 0 4px 24px rgba(28, 25, 23, 0.08);
+    animation: page-enter 0.5s ease-out 0.2s both;
+    min-height: 50vh;
 }
-.begin-btn {
-    padding: clamp(16px, 3vw, 22px) clamp(40px, 7vw, 64px);
-    font-size: clamp(20px, 3vw, 26px);
-    background: #3182ce;
-    color: white;
-    border: none;
-    border-radius: 14px;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(49, 130, 206, 0.45);
-    transition: all 0.2s;
-}
-.begin-btn:hover { transform: scale(1.03); background: #2b6cb0; }
 
-/* Progress bar */
+/* ── Progress bar ─────────────────────────────────────────────────────────── */
 #progress-bar-wrap {
     width: 100%;
-    height: 8px;
-    background: #e2e8f0;
-    border-radius: 4px;
-    margin: 8px 0;
+    height: 6px;
+    background: #F0E9E2;
+    border-radius: 3px;
     overflow: hidden;
 }
 #progress-bar-fill {
     height: 100%;
-    background: #3182ce;
-    border-radius: 4px;
-    transition: width 0.4s ease;
+    background: linear-gradient(90deg, #E86F2C, #F4A261);
+    border-radius: 3px;
+    transition: width 0.5s ease;
     width: 0%;
 }
 
-/* Repeat button */
+/* ── Message bubble ───────────────────────────────────────────────────────── */
+.message-bubble {
+    font-size: clamp(20px, 3.2vw, 26px);
+    font-weight: 500;
+    line-height: 1.65;
+    color: #1C1917;
+    text-align: center;
+    padding: 4px 0;
+    min-height: 3em;
+}
+
+/* ── Repeat button ────────────────────────────────────────────────────────── */
 #repeatBtn {
+    align-self: center;
     background: none;
-    border: 1px solid #cbd5e0;
-    border-radius: 8px;
-    padding: 8px 18px;
-    font-size: clamp(15px, 2vw, 18px);
-    color: #4a5568;
-    cursor: pointer;
-    margin-top: 8px;
+    border: 1.5px solid #E7DDD5;
+    border-radius: 20px;
+    padding: 7px 20px;
+    font-size: clamp(13px, 1.8vw, 15px);
+    color: #78716C;
     display: none;
 }
-#repeatBtn:hover { background: #edf2f7; }
+#repeatBtn:hover { background: #FEF3E8; border-color: #E86F2C; color: #E86F2C; }
+
+/* ── Mic container ────────────────────────────────────────────────────────── */
+.mic-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Wrapper holds both the rings and the button — rings expand outward */
+.mic-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 160px;
+    height: 160px;
+}
+
+/* Sonar rings — hidden by default, shown when #micBtn.listening */
+.mic-ring {
+    position: absolute;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 3px solid #E86F2C;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#micBtn.listening ~ .mic-ring:nth-child(1) { animation: sonar 1.8s ease-out infinite; }
+#micBtn.listening ~ .mic-ring:nth-child(2) { animation: sonar 1.8s ease-out 0.6s infinite; }
+#micBtn.listening ~ .mic-ring:nth-child(3) { animation: sonar 1.8s ease-out 1.2s infinite; }
+
+@keyframes sonar {
+    0%   { transform: scale(1);   opacity: 0.6; }
+    100% { transform: scale(2.1); opacity: 0; }
+}
+
+/* The mic button itself */
+#micBtn {
+    position: relative;
+    z-index: 1;
+    width: clamp(110px, 17vw, 140px);
+    height: clamp(110px, 17vw, 140px);
+    border-radius: 50%;
+    background: #4CAF7D;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 24px rgba(76, 175, 125, 0.4);
+    transition: background 0.2s, transform 0.15s ease-out, box-shadow 0.2s;
+}
+
+#micBtn:hover  { transform: scale(1.04); }
+#micBtn:active { transform: scale(0.93); }
+
+#micBtn.listening {
+    background: #E86F2C;
+    box-shadow: 0 6px 24px rgba(232, 111, 44, 0.45);
+}
+
+#micBtn.disabled {
+    background: #C8BEB8;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+#micBtn.disabled:hover  { transform: none; }
+#micBtn.disabled:active { transform: none; }
+
+.mic-icon { width: clamp(40px, 6vw, 54px); height: clamp(40px, 6vw, 54px); }
+
+/* ── Waveform (shown when SYSTEM_SPEAKING) ────────────────────────────────── */
+.waveform {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 36px;
+}
+
+.wave-bar {
+    display: inline-block;
+    width: 6px;
+    height: 8px;
+    border-radius: 3px;
+    background: #E86F2C;
+    animation: wave 0.9s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.12s; }
+.wave-bar:nth-child(3) { animation-delay: 0.24s; }
+.wave-bar:nth-child(4) { animation-delay: 0.36s; }
+.wave-bar:nth-child(5) { animation-delay: 0.24s; }
+.wave-bar:nth-child(6) { animation-delay: 0.12s; }
+.wave-bar:nth-child(7) { animation-delay: 0s; }
+
+@keyframes wave {
+    0%, 100% { height: 8px;  }
+    50%       { height: 34px; }
+}
+
+.mic-hint {
+    font-size: clamp(15px, 2.2vw, 18px);
+    color: #78716C;
+    font-weight: 500;
+}
+
+/* ── Begin overlay ────────────────────────────────────────────────────────── */
+.begin-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.begin-overlay h2 {
+    font-size: clamp(20px, 3.2vw, 26px);
+    color: #1C1917;
+    text-align: center;
+}
+
+.begin-btn {
+    padding: clamp(16px, 2.5vw, 20px) clamp(40px, 6vw, 60px);
+    font-size: clamp(18px, 2.8vw, 22px);
+    font-weight: 600;
+    background: #E86F2C;
+    color: white;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(232, 111, 44, 0.4);
+    transition: all 0.2s;
+}
+.begin-btn:hover:not(:disabled) { background: #C45D20; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(232,111,44,0.45); }
+.begin-btn:disabled { background: #C8BEB8; box-shadow: none; cursor: not-allowed; }
+
+/* ── Text input row (secondary) ───────────────────────────────────────────── */
+.input-row { display: flex; gap: 10px; }
+#input { flex: 1; font-size: clamp(14px, 2vw, 16px); padding: 10px 14px; }
+#sendBtn {
+    padding: 10px 20px;
+    font-size: clamp(14px, 2vw, 16px);
+    background: #E86F2C;
+    color: white;
+    border-radius: 10px;
+}
+#sendBtn:hover   { background: #C45D20; }
+#sendBtn:disabled { background: #C8BEB8; cursor: not-allowed; }
+
+#status {
+    font-size: clamp(13px, 1.8vw, 15px);
+    color: #78716C;
+    text-align: center;
+    min-height: 18px;
+}
