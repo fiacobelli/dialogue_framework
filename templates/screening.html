@@ -67,6 +67,13 @@
                 </div>
             </div>
 
+            <!-- Thank you screen (shown after screening completes) -->
+            <div id="thankYouScreen" style="display:none;" class="thankyou-screen">
+                <div class="thankyou-icon">&#10003;</div>
+                <h2>Thank you for completing your screening</h2>
+                <p>Your responses have been recorded. Your care team will review them and follow up with you soon.</p>
+            </div>
+
             <!-- Active conversation -->
             <div id="conversationUI" style="display:none;">
                 <div id="progress-bar-wrap" class="hidden">
@@ -119,14 +126,6 @@
         </div>
     </div>
 
-    <!-- Report (shown full-width after screening completes) -->
-    <div class="report-section" id="reportSection" style="display:none;">
-        <h2>Screening Summary</h2>
-        <div class="report-item"><h3>Social Worker</h3><p id="swConcerns"></p></div>
-        <div class="report-item"><h3>Dietitian</h3><p id="dietConcerns"></p></div>
-        <div class="report-item"><h3>Nephrologist</h3><p id="nephConcerns"></p></div>
-        <div class="report-item"><h3>Nurse Practitioner</h3><p id="nurseConcerns"></p></div>
-    </div>
 
     <script>
         window.AVATAR_ID      = '{{ avatar_id }}';

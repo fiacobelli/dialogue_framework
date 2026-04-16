@@ -253,6 +253,44 @@
 .begin-btn:hover:not(:disabled) { background: #C45D20; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(232,111,44,0.45); }
 .begin-btn:disabled { background: #C8BEB8; box-shadow: none; cursor: not-allowed; transform: none; }
 
+/* ── Thank-you end screen ─────────────────────────────────────────────────── */
+.thankyou-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    text-align: center;
+    padding: 16px 0;
+    animation: fade-up 0.5s ease-out both;
+}
+
+.thankyou-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #E86F2C;
+    color: white;
+    font-size: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 18px rgba(232,111,44,0.35);
+}
+
+.thankyou-screen h2 {
+    font-size: clamp(20px, 2.8vw, 26px);
+    font-weight: 700;
+    color: #1C1917;
+    max-width: 380px;
+}
+
+.thankyou-screen p {
+    font-size: clamp(15px, 2vw, 18px);
+    color: #78716C;
+    line-height: 1.6;
+    max-width: 360px;
+}
+
 /* ── Text input row (secondary) ───────────────────────────────────────────── */
 .input-row { display: flex; gap: 10px; width: 100%; max-width: 420px; }
 #input {

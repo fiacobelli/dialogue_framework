@@ -203,17 +203,17 @@ class App {
     }
 
     async classifyAndReport() {
-        ui.setStatus('Preparing your summary...');
+        ui.setStatus('');
         try {
+            // Classification runs and saves to DB — result is for the care team, not shown to patient
             const result = await conversationAPI.classifyResponses();
-            ui.showReport(result);
             const summary = result.verbal_summary || 'Your care team will follow up with you.';
             ui.showMessage(summary);
             await speechManager.speak(summary);
-            ui.setStatus('');
+            ui.showThankYou();
         } catch (err) {
             console.error('Classification failed:', err);
-            ui.setStatus('');
+            ui.showThankYou();
         } finally {
             speechManager.destroy();
         }

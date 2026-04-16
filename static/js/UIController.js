@@ -143,13 +143,10 @@ class UIController {
         this.elements.repeatBtn.style.display = 'none';
     }
 
-    /** Show screening report with classified concerns. */
-    showReport(data) {
-        document.getElementById('swConcerns').textContent = data.social_worker || '';
-        document.getElementById('dietConcerns').textContent = data.dietitian || '';
-        document.getElementById('nephConcerns').textContent = data.nephrologist || '';
-        document.getElementById('nurseConcerns').textContent = data.nurse_practitioner || '';
-        document.getElementById('reportSection').style.display = 'block';
+    /** Show thank-you end screen. Report data goes to DB only — not shown to patient. */
+    showThankYou() {
+        document.getElementById('conversationUI').style.display = 'none';
+        document.getElementById('thankYouScreen').style.display = 'flex';
     }
 }
 

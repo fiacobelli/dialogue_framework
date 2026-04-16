@@ -38,19 +38,6 @@ button {
     transition: all 0.15s ease-out;
 }
 
-/* ── Report section ───────────────────────────────────────────────────────── */
-.report-section {
-    background: #FFFDF9;
-    border-radius: 20px;
-    padding: clamp(20px, 4vw, 36px);
-    margin: 20px clamp(12px, 3vw, 32px);
-    box-shadow: 0 4px 24px rgba(28, 25, 23, 0.08);
-}
-.report-section h2 { margin-bottom: 20px; color: #E86F2C; }
-.report-item { padding: 14px 0; border-bottom: 1px solid #F0E9E2; }
-.report-item:last-child { border-bottom: none; }
-.report-item h3 { font-size: clamp(14px, 2vw, 17px); color: #78716C; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
-.report-item p  { font-size: clamp(16px, 2.2vw, 19px); color: #1C1917; line-height: 1.6; }
 
 /* ── Pin form ─────────────────────────────────────────────────────────────── */
 .pin-prompt { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
