@@ -1,98 +1,91 @@
-/* ── Page layout ──────────────────────────────────────────────────────────── */
+/* ── Full-viewport two-column layout ──────────────────────────────────────── */
 #conversation-screen {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    padding: clamp(16px, 3vw, 28px);
-    gap: 20px;
-    animation: page-enter 0.5s ease-out both;
 }
 
 @media (min-width: 768px) {
     #conversation-screen {
         display: grid;
-        grid-template-columns: 58fr 42fr;
-        align-items: center;
-        padding: clamp(24px, 4vw, 40px);
-        gap: clamp(20px, 3vw, 36px);
+        grid-template-columns: 55fr 45fr;
+        min-height: 100vh;
     }
 }
 
-@keyframes page-enter {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Avatar panel ─────────────────────────────────────────────────────────── */
+/* ── Avatar panel — warm gradient background, full height ─────────────────── */
 .avatar-panel {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-    animation: page-enter 0.5s ease-out 0.1s both;
+    justify-content: center;
+    background: linear-gradient(160deg, #F5F0EB 0%, #EDE4DA 60%, #E8DDD3 100%);
+    padding: clamp(24px, 4vw, 48px);
+    gap: 20px;
+    min-height: 44vh; /* mobile: avatar takes upper portion */
+    animation: fade-up 0.6s ease-out both;
 }
 
+@media (min-width: 768px) {
+    .avatar-panel { min-height: 100vh; }
+}
+
+/* Avatar sits directly on the gradient — soft shadow, no white card box */
 .avatar-frame {
     display: inline-flex;
     justify-content: center;
-    align-items: center;
-    background: #FFFDF9;
-    border-radius: 24px;
-    padding: 10px;
-    box-shadow: 0 8px 32px rgba(28, 25, 23, 0.12);
+    align-items: flex-end;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(100, 70, 40, 0.2), 0 4px 16px rgba(100, 70, 40, 0.12);
     transition: box-shadow 0.4s ease;
 }
 
-/* Warm glow when avatar is speaking */
+/* Warm amber ring pulses when avatar is speaking */
 .avatar-frame.speaking {
     animation: avatar-glow 1.4s ease-in-out infinite alternate;
 }
 
 @keyframes avatar-glow {
-    from { box-shadow: 0 8px 32px rgba(28,25,23,0.12), 0 0 0 6px rgba(232,111,44,0.18), 0 0 32px rgba(232,111,44,0.12); }
-    to   { box-shadow: 0 8px 32px rgba(28,25,23,0.12), 0 0 0 12px rgba(232,111,44,0.28), 0 0 56px rgba(232,111,44,0.2); }
+    from { box-shadow: 0 20px 60px rgba(100,70,40,0.2), 0 0 0 4px rgba(232,111,44,0.25), 0 0 40px rgba(232,111,44,0.15); }
+    to   { box-shadow: 0 20px 60px rgba(100,70,40,0.2), 0 0 0 10px rgba(232,111,44,0.35), 0 0 70px rgba(232,111,44,0.25); }
 }
 
 #avatar {
-    width: clamp(260px, 45vw, 400px);
-    height: clamp(347px, 60vw, 533px); /* 3:4 portrait ratio */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: block;
+    line-height: 0;
 }
 
 #avatar object, #avatar embed, #avatar iframe {
     border: none;
-    border-radius: 16px;
     display: block;
-    margin: 0 auto;
 }
 
-.avatar-label {
-    font-size: clamp(18px, 2.8vw, 24px);
-    font-weight: 600;
-    color: #78716C;
-    letter-spacing: 0.01em;
-}
-
-/* ── Interaction panel ────────────────────────────────────────────────────── */
+/* ── Interaction panel — pure white, full height ──────────────────────────── */
 .interaction-panel {
+    background: white;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 20px;
-    background: #FFFDF9;
-    border-radius: 24px;
-    padding: clamp(20px, 3.5vw, 36px);
-    box-shadow: 0 4px 24px rgba(28, 25, 23, 0.08);
-    animation: page-enter 0.5s ease-out 0.2s both;
-    min-height: 50vh;
+    padding: clamp(28px, 5vw, 60px) clamp(24px, 4vw, 52px);
+    gap: 22px;
+    animation: fade-up 0.6s ease-out 0.15s both;
+    min-height: 56vh; /* mobile: controls take lower portion */
+}
+
+@media (min-width: 768px) {
+    .interaction-panel { min-height: 100vh; }
+}
+
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Progress bar ─────────────────────────────────────────────────────────── */
 #progress-bar-wrap {
     width: 100%;
-    height: 6px;
+    height: 5px;
     background: #F0E9E2;
     border-radius: 3px;
     overflow: hidden;
@@ -107,23 +100,21 @@
 
 /* ── Message bubble ───────────────────────────────────────────────────────── */
 .message-bubble {
-    font-size: clamp(20px, 3.2vw, 26px);
+    font-size: clamp(20px, 2.8vw, 28px);
     font-weight: 500;
     line-height: 1.65;
     color: #1C1917;
-    text-align: center;
-    padding: 4px 0;
-    min-height: 3em;
+    min-height: 3.5em;
 }
 
 /* ── Repeat button ────────────────────────────────────────────────────────── */
 #repeatBtn {
-    align-self: center;
+    align-self: flex-start;
     background: none;
     border: 1.5px solid #E7DDD5;
     border-radius: 20px;
-    padding: 7px 20px;
-    font-size: clamp(13px, 1.8vw, 15px);
+    padding: 7px 18px;
+    font-size: 14px;
     color: #78716C;
     display: none;
 }
@@ -133,11 +124,10 @@
 .mic-container {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 16px;
+    align-items: flex-start;
+    gap: 14px;
 }
 
-/* Wrapper holds both the rings and the button — rings expand outward */
 .mic-wrapper {
     position: relative;
     display: flex;
@@ -147,7 +137,7 @@
     height: 160px;
 }
 
-/* Sonar rings — hidden by default, shown when #micBtn.listening */
+/* Sonar rings */
 .mic-ring {
     position: absolute;
     width: 140px;
@@ -163,59 +153,55 @@
 #micBtn.listening ~ .mic-ring:nth-child(3) { animation: sonar 1.8s ease-out 1.2s infinite; }
 
 @keyframes sonar {
-    0%   { transform: scale(1);   opacity: 0.6; }
-    100% { transform: scale(2.1); opacity: 0; }
+    0%   { transform: scale(1);   opacity: 0.65; }
+    100% { transform: scale(2.2); opacity: 0; }
 }
 
-/* The mic button itself */
 #micBtn {
     position: relative;
     z-index: 1;
-    width: clamp(110px, 17vw, 140px);
-    height: clamp(110px, 17vw, 140px);
+    width: 130px;
+    height: 130px;
     border-radius: 50%;
     background: #4CAF7D;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 6px 24px rgba(76, 175, 125, 0.4);
-    transition: background 0.2s, transform 0.15s ease-out, box-shadow 0.2s;
+    box-shadow: 0 6px 28px rgba(76,175,125,0.45);
+    transition: background 0.2s, box-shadow 0.2s;
 }
-
 #micBtn:hover  { transform: scale(1.04); }
-#micBtn:active { transform: scale(0.93); }
+#micBtn:active { transform: scale(0.92); transition: transform 0ms; }
 
 #micBtn.listening {
     background: #E86F2C;
-    box-shadow: 0 6px 24px rgba(232, 111, 44, 0.45);
+    box-shadow: 0 6px 28px rgba(232,111,44,0.5);
 }
-
 #micBtn.disabled {
     background: #C8BEB8;
     box-shadow: none;
     cursor: not-allowed;
+    transform: none !important;
 }
-#micBtn.disabled:hover  { transform: none; }
-#micBtn.disabled:active { transform: none; }
 
-.mic-icon { width: clamp(40px, 6vw, 54px); height: clamp(40px, 6vw, 54px); }
+.mic-icon { width: 48px; height: 48px; }
 
-/* ── Waveform (shown when SYSTEM_SPEAKING) ────────────────────────────────── */
+/* ── Waveform ─────────────────────────────────────────────────────────────── */
 .waveform {
     display: flex;
     align-items: center;
     gap: 5px;
     height: 36px;
+    padding-left: 4px;
 }
-
 .wave-bar {
     display: inline-block;
-    width: 6px;
-    height: 8px;
+    width: 5px;
     border-radius: 3px;
     background: #E86F2C;
     animation: wave 0.9s ease-in-out infinite;
+    height: 8px;
 }
 .wave-bar:nth-child(2) { animation-delay: 0.12s; }
 .wave-bar:nth-child(3) { animation-delay: 0.24s; }
@@ -225,12 +211,12 @@
 .wave-bar:nth-child(7) { animation-delay: 0s; }
 
 @keyframes wave {
-    0%, 100% { height: 8px;  }
+    0%, 100% { height: 8px; }
     50%       { height: 34px; }
 }
 
 .mic-hint {
-    font-size: clamp(15px, 2.2vw, 18px);
+    font-size: clamp(15px, 2vw, 18px);
     color: #78716C;
     font-weight: 500;
 }
@@ -239,35 +225,44 @@
 .begin-overlay {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 24px;
+    gap: 20px;
 }
-
 .begin-overlay h2 {
-    font-size: clamp(20px, 3.2vw, 26px);
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 700;
     color: #1C1917;
-    text-align: center;
 }
-
 .begin-btn {
-    padding: clamp(16px, 2.5vw, 20px) clamp(40px, 6vw, 60px);
-    font-size: clamp(18px, 2.8vw, 22px);
+    padding: clamp(15px, 2.2vw, 19px) clamp(36px, 5vw, 52px);
+    font-size: clamp(17px, 2.2vw, 21px);
     font-weight: 600;
     background: #E86F2C;
     color: white;
     border-radius: 14px;
-    box-shadow: 0 4px 16px rgba(232, 111, 44, 0.4);
-    transition: all 0.2s;
+    box-shadow: 0 4px 18px rgba(232,111,44,0.4);
+    align-self: flex-start;
 }
-.begin-btn:hover:not(:disabled) { background: #C45D20; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(232,111,44,0.45); }
-.begin-btn:disabled { background: #C8BEB8; box-shadow: none; cursor: not-allowed; }
+.begin-btn:hover:not(:disabled) { background: #C45D20; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(232,111,44,0.45); }
+.begin-btn:disabled { background: #C8BEB8; box-shadow: none; cursor: not-allowed; transform: none; }
 
 /* ── Text input row (secondary) ───────────────────────────────────────────── */
 .input-row { display: flex; gap: 10px; }
-#input { flex: 1; font-size: clamp(14px, 2vw, 16px); padding: 10px 14px; }
+#input {
+    flex: 1;
+    font-size: clamp(14px, 1.8vw, 16px);
+    padding: 10px 14px;
+    border: 1.5px solid #E7DDD5;
+    border-radius: 10px;
+    background: #FAFAF9;
+    outline: none;
+}
+#input:focus { border-color: #E86F2C; }
+#input.interim { color: #9E8F87; font-style: italic; }
+
 #sendBtn {
-    padding: 10px 20px;
-    font-size: clamp(14px, 2vw, 16px);
+    padding: 10px 22px;
+    font-size: clamp(14px, 1.8vw, 16px);
+    font-weight: 500;
     background: #E86F2C;
     color: white;
     border-radius: 10px;
@@ -276,8 +271,7 @@
 #sendBtn:disabled { background: #C8BEB8; cursor: not-allowed; }
 
 #status {
-    font-size: clamp(13px, 1.8vw, 15px);
-    color: #78716C;
-    text-align: center;
+    font-size: 14px;
+    color: #9E8F87;
     min-height: 18px;
 }
