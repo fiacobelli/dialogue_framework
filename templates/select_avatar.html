@@ -37,12 +37,18 @@
         }
 
         .avatar-options {
-            display: flex;
-            justify-content: center;
-            gap: clamp(14px, 2.5vw, 24px);
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: clamp(14px, 2.5vw, 22px);
             margin-bottom: clamp(28px, 4vw, 44px);
-            max-width: 1000px;
+            width: 100%;
+            max-width: 720px;
+        }
+
+        @media (min-width: 600px) {
+            .avatar-options {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
 
         .avatar-option {
