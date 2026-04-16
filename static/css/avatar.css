@@ -67,10 +67,11 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: clamp(28px, 5vw, 60px) clamp(24px, 4vw, 52px);
-    gap: 22px;
+    align-items: center;
+    padding: clamp(28px, 5vw, 56px) clamp(28px, 5vw, 56px);
+    gap: 24px;
     animation: fade-up 0.6s ease-out 0.15s both;
-    min-height: 56vh; /* mobile: controls take lower portion */
+    min-height: 56vh;
 }
 
 @media (min-width: 768px) {
@@ -104,12 +105,15 @@
     font-weight: 500;
     line-height: 1.65;
     color: #1C1917;
+    text-align: center;
+    max-width: 480px;
+    width: 100%;
     min-height: 3.5em;
 }
 
 /* ── Repeat button ────────────────────────────────────────────────────────── */
 #repeatBtn {
-    align-self: flex-start;
+    align-self: center;
     background: none;
     border: 1.5px solid #E7DDD5;
     border-radius: 20px;
@@ -124,7 +128,7 @@
 .mic-container {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 14px;
 }
 
@@ -225,12 +229,16 @@
 .begin-overlay {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 20px;
+    width: 100%;
+    max-width: 400px;
 }
 .begin-overlay h2 {
     font-size: clamp(22px, 3vw, 30px);
     font-weight: 700;
     color: #1C1917;
+    text-align: center;
 }
 .begin-btn {
     padding: clamp(15px, 2.2vw, 19px) clamp(36px, 5vw, 52px);
@@ -240,13 +248,13 @@
     color: white;
     border-radius: 14px;
     box-shadow: 0 4px 18px rgba(232,111,44,0.4);
-    align-self: flex-start;
+    width: 100%;
 }
 .begin-btn:hover:not(:disabled) { background: #C45D20; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(232,111,44,0.45); }
 .begin-btn:disabled { background: #C8BEB8; box-shadow: none; cursor: not-allowed; transform: none; }
 
 /* ── Text input row (secondary) ───────────────────────────────────────────── */
-.input-row { display: flex; gap: 10px; }
+.input-row { display: flex; gap: 10px; width: 100%; max-width: 420px; }
 #input {
     flex: 1;
     font-size: clamp(14px, 1.8vw, 16px);
@@ -274,4 +282,8 @@
     font-size: 14px;
     color: #9E8F87;
     min-height: 18px;
+    text-align: center;
 }
+
+/* ── Progress bar (full width within panel) ───────────────────────────────── */
+#progress-bar-wrap { width: 100%; max-width: 420px; }
