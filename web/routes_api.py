@@ -1,6 +1,7 @@
 """Core API routes blueprint for the SDoH screening framework."""
 
 import logging
+import random
 import re
 from flask import Blueprint, request, jsonify
 import uuid
@@ -155,21 +156,35 @@ def classify_responses():
             'nurse_practitioner': 'Unable to classify — please review manually.',
             'verbal_summary': 'We will share your answers with your care team. Thank you for your time today, and take care of yourself.'
         })
-def _load_questions() -> str:
-    """Load the question pool from prompts/questions.txt."""
+def _load_questions() -> tuple[str, list[str]]:
+    """Load questions file and split into (preamble, [category_blocks])."""
     try:
         with open(QUESTIONS_FILE, 'r', encoding='utf-8') as f:
-            return f.read().strip()
+            text = f.read().strip()
     except FileNotFoundError:
-        return ''
+        return '', []
+
+    # First paragraph is the preamble; the rest are category blocks
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    if not paragraphs:
+        return '', []
+    return paragraphs[0], paragraphs[1:]
 
 
-QUESTIONS_TEXT = _load_questions()
+QUESTIONS_PREAMBLE, QUESTIONS_CATEGORIES = _load_questions()
 
 
 def build_question_instructions() -> str:
-    """Return the full question pool loaded from the questions file."""
-    return QUESTIONS_TEXT
+    """Return the question pool with categories shuffled for this session.
+
+    Shuffling ensures the LLM sees categories in a different order each time,
+    so it doesn't reliably pick the same first six every session.
+    """
+    if not QUESTIONS_CATEGORIES:
+        return QUESTIONS_PREAMBLE
+    shuffled = QUESTIONS_CATEGORIES[:]
+    random.shuffle(shuffled)
+    return QUESTIONS_PREAMBLE + '\n\n' + '\n\n'.join(shuffled)
 
 
 def _sanitize_patient_id(value: str | None) -> str:
