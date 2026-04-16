@@ -158,9 +158,8 @@
             card.dataset.avatar = id;
             card.innerHTML = `
                 <div class="avatar-thumb">
-                    <img src="/static/photos/avatars/${profile.scene_id}.png" alt="${profile.name || 'Avatar'}">
-                </div>
-                <h3>${profile.name || ''}</h3>`;
+                    <img src="/static/photos/avatars/${profile.scene_id}.png" alt="Avatar">
+                </div>`;
             card.onclick = () => selectAvatar(id);
             container.appendChild(card);
         });
