@@ -1,24 +1,25 @@
 * { box-sizing: border-box; }
 body {
     font-family: system-ui, -apple-system, sans-serif;
-    max-width: min(800px, 100%);
+    max-width: 100%;
     margin: 0 auto;
-    padding: clamp(12px, 3vw, 24px);
+    padding: clamp(8px, 2vw, 16px);
     background: #f5f5f5;
+    min-height: 100vh;
 }
-h1 { color: #2c5282; text-align: center; margin-bottom: 8px; font-size: clamp(20px, 4vw, 28px); }
-.subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: clamp(15px, 2.5vw, 18px); }
-.container { display: flex; flex-direction: column; gap: 20px; }
-.card { background: white; border-radius: 16px; padding: clamp(16px, 3vw, 28px); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+h1 { color: #2c5282; text-align: center; margin-bottom: 6px; font-size: clamp(22px, 4vw, 32px); }
+.subtitle { text-align: center; color: #64748b; margin-bottom: 20px; font-size: clamp(16px, 2.5vw, 20px); }
+.container { display: flex; flex-direction: column; gap: 12px; }
+.card { background: white; border-radius: 16px; padding: clamp(12px, 2.5vw, 24px); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 .begin-overlay { text-align: center; }
 .pin-prompt input {
     width: 100%;
-    max-width: 280px;
+    max-width: 320px;
     text-align: left;
-    font-size: clamp(15px, 2vw, 17px);
+    font-size: clamp(16px, 2.5vw, 20px);
     letter-spacing: normal;
-    padding: 10px 14px;
-    margin: 6px auto;
+    padding: 12px 16px;
+    margin: 8px auto;
     border: 2px solid #e2e8f0;
     border-radius: 12px;
     display: block;
@@ -26,46 +27,52 @@ h1 { color: #2c5282; text-align: center; margin-bottom: 8px; font-size: clamp(20
 .pin-prompt button {
     display: block;
     width: 100%;
-    max-width: 240px;
-    margin: 8px auto;
+    max-width: 280px;
+    margin: 10px auto;
 }
-.pin-hint { color: #c53030; font-size: 14px; min-height: 20px; }
+.pin-hint { color: #c53030; font-size: clamp(14px, 2vw, 16px); min-height: 20px; }
 .hidden { display: none !important; }
 
 /* Input elements */
-.input-row { display: flex; gap: 10px; margin-top: 20px; }
-#input { flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: clamp(15px, 2vw, 17px); }
+.input-row { display: flex; gap: 10px; margin-top: 16px; }
+#input {
+    flex: 1;
+    padding: clamp(12px, 2vw, 16px);
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: clamp(16px, 2.5vw, 20px);
+}
 #input:focus { outline: none; border-color: #3182ce; }
 #input.interim { color: #718096; font-style: italic; }
 #sendBtn {
-    padding: clamp(10px, 2vw, 14px) clamp(18px, 3.5vw, 26px);
+    padding: clamp(12px, 2vw, 16px) clamp(20px, 3.5vw, 28px);
     background: #3182ce;
     color: white;
     border: none;
     border-radius: 12px;
-    font-size: clamp(15px, 2vw, 17px);
+    font-size: clamp(16px, 2.5vw, 20px);
     cursor: pointer;
 }
 #sendBtn:disabled { background: #a0aec0; cursor: not-allowed; }
-#status { font-size: 14px; color: #718096; margin-top: 12px; text-align: center; }
+#status { font-size: clamp(15px, 2vw, 18px); color: #718096; margin-top: 10px; text-align: center; }
 
 /* Back button */
-.back-btn { background: none; border: none; color: #64748b; font-size: 14px; cursor: pointer; margin-bottom: 16px; }
+.back-btn { background: none; border: none; color: #64748b; font-size: clamp(14px, 2vw, 17px); cursor: pointer; margin-bottom: 16px; }
 .back-btn:hover { color: #3182ce; }
 
 /* Report section */
-.report-section { margin-top: 20px; }
-.report-section h2 { color: #2c5282; margin-bottom: 16px; }
+.report-section { margin-top: 16px; }
+.report-section h2 { color: #2c5282; margin-bottom: 14px; font-size: clamp(18px, 3vw, 24px); }
 .report-item { padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
 .report-item:last-child { border-bottom: none; }
-.report-item h3 { color: #4a5568; margin: 0 0 4px 0; font-size: 1em; }
-.report-item p { color: #2d3748; margin: 0; line-height: 1.5; }
+.report-item h3 { color: #4a5568; margin: 0 0 4px 0; font-size: clamp(15px, 2vw, 18px); }
+.report-item p { color: #2d3748; margin: 0; line-height: 1.6; font-size: clamp(15px, 2vw, 17px); }
 
-/* Tablet breakpoints */
+/* Tablet+ breakpoints */
 @media (min-width: 768px) {
-    .container { gap: 24px; }
-    .card { padding: 32px; }
+    body { max-width: 860px; }
+    .container { gap: 16px; }
 }
 @media (min-width: 1024px) {
-    body { max-width: 900px; }
+    body { max-width: 960px; }
 }
