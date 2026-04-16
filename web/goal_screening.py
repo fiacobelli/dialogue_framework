@@ -1,6 +1,7 @@
 """Screening goal - LLM-driven health screening using system prompt."""
 import os
 import re
+import time
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
@@ -8,7 +9,7 @@ from .config import LANGUAGE_NAMES
 from . import database as db
 
 LOGS_DIR = 'logs'
-MAX_USER_TURNS = 7
+MAX_USER_TURNS = 20
 MIN_TURNS_FOR_GOODBYE = 4
 EXIT_PHRASE = "Thank you for sharing that with me. Let me review your answers."
 SUMMARY_PREAMBLE_RE = re.compile(
@@ -59,6 +60,8 @@ class ScreeningGoal(Goal):
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
         session_id = info_state.user.query('session_id') or 'unknown'
+        turn_meta = msg.get('turn_meta') or {}
+        no_response = turn_meta.get('no_response', False)
 
         if user_input:
             history.append({"role": "user", "content": user_input})
@@ -70,8 +73,10 @@ class ScreeningGoal(Goal):
         avatar_name = avatar_profile.get('name', 'Assistant')
         prompt = self._build_prompt(info_state, avatar_name, language)
 
+        t0 = time.perf_counter()
         response = self.llm.generate(history, prompt)
-        log_screening(session_id, f"LLM: {response}")
+        llm_latency_ms = int((time.perf_counter() - t0) * 1000)
+        log_screening(session_id, f"LLM ({llm_latency_ms}ms): {response}")
 
         is_ending = self._is_goodbye(response, user_turn_count)
         if not is_ending and user_turn_count >= MAX_USER_TURNS:
@@ -99,8 +104,22 @@ class ScreeningGoal(Goal):
         if visit_id:
             turn = len(history)
             if user_input:
-                db.save_message(visit_id, 'user', user_input, turn - 2, agent, voice)
-            db.save_message(visit_id, 'assistant', response, turn - 1, agent, voice)
+                db.save_message(
+                    visit_id, 'user', user_input, turn - 2, agent, voice,
+                    input_modality=turn_meta.get('input_modality'),
+                    response_latency_ms=turn_meta.get('response_latency_ms'),
+                    speech_confidence=turn_meta.get('speech_confidence'),
+                    client_sent_at=turn_meta.get('client_sent_at'),
+                )
+                if not no_response:
+                    db.increment_visit_turns(visit_id)
+                    events = turn_meta.get('events') or []
+                    if events:
+                        db.save_turn_events(visit_id, turn - 2, events)
+            db.save_message(
+                visit_id, 'assistant', response, turn - 1, agent, voice,
+                llm_latency_ms=llm_latency_ms,
+            )
             db.update_visit_phase(visit_id, phase)
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)

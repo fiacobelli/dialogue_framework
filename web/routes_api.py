@@ -32,6 +32,12 @@ def new_session():
     info_state = s['info_state']
     goal_mgr = s['goal_mgr']
 
+    user_agent = request.headers.get('User-Agent', '')
+    screen_width = data.get('screen_width')
+    screen_height = data.get('screen_height')
+    if screen_width or screen_height:
+        logger.debug('Session screen: %sx%s UA: %.120s', screen_width, screen_height, user_agent)
+
     avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['black_female'])
     if lang == 'en' and avatar_profile['lang'] != 'en':
         lang = avatar_profile['lang']
@@ -42,7 +48,7 @@ def new_session():
     visit_number = 1
     if patient_id:
         db.get_or_create_patient(patient_id)
-        visit_id, visit_number = db.create_visit(patient_id, avatar_id, lang)
+        visit_id, visit_number = db.create_visit(patient_id, avatar_id, lang, user_agent=user_agent)
         info_state.user.update('patient_pin', patient_id)
         info_state.user.update('visit_id', visit_id)
         info_state.user.update('visit_number', visit_number)
@@ -95,6 +101,14 @@ def chat():
     msg = s['msg']
 
     msg[MSG.POSSIBLE_RESPONSES] = [(1.0, user_input)]
+    msg['turn_meta'] = {
+        'input_modality':      data.get('input_modality'),
+        'response_latency_ms': data.get('response_latency_ms'),
+        'speech_confidence':   data.get('speech_confidence'),
+        'client_sent_at':      data.get('client_sent_at'),
+        'no_response':         data.get('no_response', False),
+        'events':              data.get('events', []),
+    }
 
     if nlu.check(msg):
         dialogue_mgr.manage(msg)
