@@ -46,7 +46,7 @@
                     <div id="avatar">
                         <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                         <script type="text/javascript">
-                            AC_VHost_Embed(8688641, 300, 400, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                            AC_VHost_Embed(8688641, 320, 427, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
                         </script>
                     </div>
                 </div>
@@ -64,7 +64,12 @@
                     </div>
                 </div>
                 <div id="conversationUI" style="display:none;">
+                    <!-- Progress bar (fill %, no question numbers) -->
+                    <div id="progress-bar-wrap" class="hidden">
+                        <div id="progress-bar-fill"></div>
+                    </div>
                     <div class="message-bubble" id="messageBubble"></div>
+                    <button id="repeatBtn" title="Repeat last question">&#9654; Repeat</button>
                     <div class="mic-container">
                         <button id="micBtn">🎤</button>
                         <span class="mic-hint" id="micHint">Speak when ready</span>
@@ -99,6 +104,7 @@
     <script src="/static/js/SpeechManager.js"></script>
     <script src="/static/js/ConversationAPI.js"></script>
     <script src="/static/js/UIController.js"></script>
+    <script src="/static/js/InputHandler.js"></script>
     <script src="/static/js/App.js"></script>
 </body>
 </html>

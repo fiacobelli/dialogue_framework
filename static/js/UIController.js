@@ -19,7 +19,10 @@ class UIController {
             micBtn: document.getElementById('micBtn'),
             micHint: document.getElementById('micHint'),
             input: document.getElementById('input'),
-            status: document.getElementById('status')
+            status: document.getElementById('status'),
+            progressWrap: document.getElementById('progress-bar-wrap'),
+            progressFill: document.getElementById('progress-bar-fill'),
+            repeatBtn: document.getElementById('repeatBtn'),
         };
     }
 
@@ -108,6 +111,26 @@ class UIController {
     clearTranscript() {
         this.elements.input.value = '';
         this.elements.input.classList.remove('interim');
+    }
+
+    /** Update progress bar. turns = user turns completed, max = MAX_USER_TURNS. */
+    showProgress(turns, max) {
+        const pct = Math.min(100, Math.round((turns / max) * 100));
+        this.elements.progressFill.style.width = pct + '%';
+        this.elements.progressWrap.classList.remove('hidden');
+    }
+
+    hideProgress() {
+        this.elements.progressWrap.classList.add('hidden');
+    }
+
+    /** Show repeat button. Caller must verify _lastSpokenText exists before calling. */
+    showRepeatButton() {
+        this.elements.repeatBtn.style.display = 'inline-block';
+    }
+
+    hideRepeatButton() {
+        this.elements.repeatBtn.style.display = 'none';
     }
 
     /** Show screening report with classified concerns. */

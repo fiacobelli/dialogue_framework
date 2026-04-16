@@ -16,7 +16,6 @@ class SpeechManager {
         this.voices = [];
         this.transcript = '';
         this.silenceTimeout = null;
-        this.silenceDelay = 5000; // 5 s of silence = done (elderly patients need more time)
         this.listeners = {};
         this.lang = 'en-US';
         this.voiceConfig = { lang: 'en', gender: 'female' };
@@ -26,6 +25,13 @@ class SpeechManager {
         this._vadReady = false;
         this._recognitionActive = false; // true while recognition.start() is live
         this._finishing = false;         // re-entry guard for _finishListening()
+        this._speechDetectedCount = 0;   // VAD fires this listen cycle; drives two-tier timer
+
+        // Research instrumentation
+        this._turnEvents    = [];    // browser-side event timeline for current turn
+        this._speakEndTime  = null;  // performance.now() at sitePalTalkEnded
+        this._vadFireTime   = null;  // performance.now() at first VAD fire
+        this._speechConfidence = null; // running avg of final-result confidences
 
         this._initRecognition();
         this._loadVoices();
@@ -65,11 +71,9 @@ class SpeechManager {
         }
         try {
             this._vad = await window.vad.MicVAD.new({
-                baseAssetPath: '/static/js/vad/',    // worklet + model files (same-origin)
-                onnxWASMBasePath: '/static/js/vad/', // ONNX Runtime WASM files
+                baseAssetPath: '/static/js/vad/',
+                onnxWASMBasePath: '/static/js/vad/',
                 model: 'legacy',
-                // onSpeechEnd is intentionally a no-op: the 5 s silence timer submits.
-                // This lets slow-speaking patients pause mid-sentence without being cut off.
                 onSpeechStart: () => this._onVADSpeechStart(),
                 onSpeechEnd:   () => {},
                 onVADMisfire:  () => this._onVADMisfire(),
@@ -86,8 +90,16 @@ class SpeechManager {
     // ── VAD callbacks ─────────────────────────────────────────────────────────
 
     _onVADSpeechStart() {
-        if (this._recognitionActive) return;              // already recording
-        if (this.turnManager.getState() !== TurnState.IDLE) return; // not our turn
+        this._speechDetectedCount++;           // MUST be first — no guards before this
+        this._vadFireTime = performance.now();
+        this.recordEvent('vad_fired');
+
+        if (this._recognitionActive) {
+            // Mid-sentence re-fire: extend the silence window so the patient isn't cut off
+            this._resetSilenceTimer(EXTENDED_SILENCE_DELAY_MS);
+            return;
+        }
+        if (this.turnManager.getState() !== TurnState.IDLE) return;
         if (!this.turnManager.startUserTurn()) return;
 
         this.transcript = '';
@@ -95,6 +107,8 @@ class SpeechManager {
         this.recognition.lang = this.lang;
         try {
             this.recognition.start();
+            this.recordEvent('recognition_started');
+            this._resetSilenceTimer(SILENCE_DELAY_MS);
         } catch (e) {
             console.warn('[SpeechManager] recognition.start() failed in VAD callback:', e);
             this._recognitionActive = false;
@@ -108,6 +122,7 @@ class SpeechManager {
         this._recognitionActive = false;
         if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
         this.transcript = '';
+        this._speechDetectedCount = 0;
         this.turnManager.reset();
     }
 
@@ -118,8 +133,17 @@ class SpeechManager {
         let interim = '', final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
             const text = e.results[i][0].transcript;
-            if (e.results[i].isFinal) final += text + ' ';
-            else interim += text;
+            if (e.results[i].isFinal) {
+                final += text + ' ';
+                // Confidence: final results only (interim values are noisy)
+                const conf = e.results[i][0].confidence;
+                if (conf > 0) {
+                    this._speechConfidence = this._speechConfidence === null
+                        ? conf : (this._speechConfidence + conf) / 2;
+                }
+            } else {
+                interim += text;
+            }
         }
         if (final) this.transcript += final;
         this._emit('transcript', {
@@ -146,12 +170,19 @@ class SpeechManager {
 
     // ── Silence timer ─────────────────────────────────────────────────────────
 
-    _resetSilenceTimer() {
+    /**
+     * Reset the silence timer. Uses two-tier delay: SILENCE_DELAY_MS until a
+     * mid-sentence VAD re-fire, then EXTENDED_SILENCE_DELAY_MS thereafter.
+     * Pass an explicit delay to override (e.g. from _onVADSpeechStart).
+     */
+    _resetSilenceTimer(delay) {
         this._clearSilenceTimer();
+        const d = delay !== undefined ? delay
+            : (this._speechDetectedCount > 1 ? EXTENDED_SILENCE_DELAY_MS : SILENCE_DELAY_MS);
         this.silenceTimeout = setTimeout(() => {
-            this._emit('silence', { duration: this.silenceDelay });
+            this._emit('silence', { duration: d });
             this._finishListening();
-        }, this.silenceDelay);
+        }, d);
     }
 
     _clearSilenceTimer() {
@@ -165,12 +196,14 @@ class SpeechManager {
         this._finishing = true;
         try {
             this._clearSilenceTimer();
-            if (this._vadReady && this._vad) this._vad.pause(); // stop VAD from re-triggering
+            if (this._vadReady && this._vad) this._vad.pause();
             this._recognitionActive = false;
             if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
+            this.recordEvent('recognition_ended');
 
             const text = this.transcript.trim();
             this.transcript = '';
+            this._speechDetectedCount = 0; // reset for next listen cycle
 
             if (text) {
                 this.turnManager.endUserTurn();
@@ -193,10 +226,11 @@ class SpeechManager {
         if (!this.turnManager.canUserSpeak()) return false;
 
         this.transcript = '';
+        this._speechDetectedCount = 0;
+        this._speechConfidence = null;
 
         if (this._vadReady) {
             // VAD mode: TurnManager stays IDLE until VAD fires onSpeechStart.
-            // UI transitions to USER_SPEAKING only when the patient actually speaks.
             this._vad.start();
             this._emit('listening', {});
             return true;
@@ -223,19 +257,19 @@ class SpeechManager {
             return Promise.reject(new Error('Cannot speak now'));
         }
 
-        // Pause VAD so TTS audio coming through the room speakers doesn't
-        // trigger onSpeechStart and cause a false recognition session.
+        // Pause VAD so TTS audio doesn't trigger a false onSpeechStart.
         if (this._vadReady && this._vad) this._vad.pause();
-
         if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
 
+        this.recordEvent('tts_started');
         this._emit('speakStart', { text });
 
         return new Promise((resolve) => {
             const onEnd = () => {
                 document.removeEventListener('sitePalTalkEnded', onEnd);
+                this._speakEndTime = performance.now(); // record before the 400 ms delay
+                this.recordEvent('tts_ended');
                 this.turnManager.endSystemTurn();
-                // Brief delay lets residual TTS audio die before VAD/recognition restart.
                 setTimeout(() => {
                     this._emit('speakEnd', { text });
                     resolve();
@@ -255,6 +289,32 @@ class SpeechManager {
 
     setVoiceConfig(config) {
         this.voiceConfig = { ...this.voiceConfig, ...config };
+    }
+
+    /** Record a browser-side event in the current turn's timeline. */
+    recordEvent(type) {
+        this._turnEvents.push({ type, ts: performance.now() });
+    }
+
+    /** Return and clear the current turn's event list. Call before sendMessage(). */
+    consumeTurnEvents() {
+        const events = this._turnEvents.slice();
+        this._turnEvents = [];
+        return events;
+    }
+
+    /**
+     * Response latency: ms between TTS end and first VAD speech detection.
+     * Returns null if either timestamp is missing (e.g. first turn of session).
+     */
+    getResponseLatency() {
+        if (this._speakEndTime === null || this._vadFireTime === null) return null;
+        return Math.round(this._vadFireTime - this._speakEndTime);
+    }
+
+    /** Speech confidence averaged over final recognition results (0–1), or null. */
+    getSpeechConfidence() {
+        return this._speechConfidence;
     }
 
     /** Clean up VAD and recognition at end of conversation. */

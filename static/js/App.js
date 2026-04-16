@@ -3,128 +3,69 @@ class App {
     constructor() {
         this.conversationActive = false;
         this.patientPin = '';
-        this.capturingPin = false;
-        this.pinPrompted = false;
-        this.pinInputEl = null;
-        this.pinHintEl = null;
+        this._lastSpokenText = null;   // for repeat button
+        this._turnCount = 0;           // user turns sent (drives progress bar)
+        this._emptyCount = 0;          // consecutive empty VAD cycles (drives skip)
+        this._maxTurns = 20;           // must match goal_screening.MAX_USER_TURNS
+        this._inputHandler = null;
     }
 
     async init() {
         ui.init();
+        this._inputHandler = new InputHandler(this);
         this._setupTurnStateHandlers();
         this._setupSpeechHandlers();
-        this._setupUIEvents();
-
-        this._setupBeginOverlay();
-    }
-
-    _setupBeginOverlay() {
-        const lastNameInput = document.getElementById('lastNameInput');
-        const dobInput = document.getElementById('dobInput');
-        const beginBtn = document.getElementById('beginBtn');
-        const hint = document.getElementById('pinHint');
-        const micBtn = document.getElementById('micBtn');
-        micBtn?.classList.add('hidden');
-
-        this.pinHintEl = hint;
-
-        const sanitizeName = (value) => value.trim().toLowerCase().replace(/[^a-z]/g, '');
-        const extractDobDigits = (value) => value.replace(/\D/g, '').slice(0, 8);
-        const formatDob = (digits) => {
-            const mm = digits.slice(0, 2);
-            const dd = digits.slice(2, 4);
-            const yyyy = digits.slice(4, 8);
-            let formatted = '';
-            if (mm) formatted = mm;
-            if (dd) formatted += (formatted ? '/' : '') + dd;
-            if (yyyy) formatted += (formatted ? '/' : '') + yyyy;
-            return formatted;
-        };
-        const buildPatientId = () => {
-            const safeName = sanitizeName(lastNameInput.value);
-            const dobDigits = extractDobDigits(dobInput.value);
-            return `${safeName}-${dobDigits}`;
-        };
-
-        const validate = () => {
-            const safeName = sanitizeName(lastNameInput.value);
-            const dobDigits = extractDobDigits(dobInput.value);
-            dobInput.value = formatDob(dobDigits);
-
-            const validName = safeName.length >= 2;
-            const validDob = dobDigits.length === 8;
-            const valid = validName && validDob;
-            beginBtn.disabled = !valid;
-            if (!validName) hint.textContent = 'Enter at least two letters for your last name';
-            else if (!validDob) hint.textContent = 'Enter date of birth as MM/DD/YYYY';
-            else hint.textContent = '';
-            return valid;
-        };
-
-        lastNameInput.addEventListener('input', validate);
-        dobInput.addEventListener('input', (e) => {
-            const digits = extractDobDigits(e.target.value);
-            e.target.value = formatDob(digits);
-            validate();
-        });
-
-        beginBtn.addEventListener('click', () => {
-            if (validate()) {
-                const patientId = buildPatientId();
-                this._beginScreeningWithPin(patientId);
-            }
-        });
-
-    }
-
-    _beginScreeningWithPin(pin) {
-        this.patientPin = pin;
-        document.getElementById('beginOverlay').style.display = 'none';
-        document.getElementById('conversationUI').style.display = 'block';
-        this.startConversation();
+        this._inputHandler.setupUIEvents();
+        this._inputHandler.setupBeginOverlay();
     }
 
     _setupTurnStateHandlers() {
-        turnManager.on(TurnState.IDLE, () => ui.showIdle());
-        turnManager.on(TurnState.USER_SPEAKING, () => ui.showListening());
-        turnManager.on(TurnState.PROCESSING, () => ui.showProcessing());
-        turnManager.on(TurnState.SYSTEM_SPEAKING, () => ui.showSpeaking());
+        turnManager.on(TurnState.IDLE,           () => ui.showIdle());
+        turnManager.on(TurnState.USER_SPEAKING,  () => { ui.showListening();  ui.hideRepeatButton(); });
+        turnManager.on(TurnState.PROCESSING,     () => { ui.showProcessing(); ui.hideRepeatButton(); });
+        turnManager.on(TurnState.SYSTEM_SPEAKING,() => ui.showSpeaking());
     }
 
     _setupSpeechHandlers() {
-        speechManager.on('transcript', ({ full }) => {
-            ui.showTranscript(full, true);
-        });
+        speechManager.on('transcript', ({ full }) => ui.showTranscript(full, true));
 
         speechManager.on('complete', async ({ transcript }) => {
+            this._emptyCount = 0;
             ui.showTranscript(transcript, false);
-            await this._processUserInput(transcript);
+            // Collect browser-side instrumentation before draining the event buffer
+            speechManager.recordEvent('input_sent');
+            const meta = {
+                input_modality:      'voice',
+                response_latency_ms: speechManager.getResponseLatency(),
+                speech_confidence:   speechManager.getSpeechConfidence(),
+                client_sent_at:      new Date().toISOString(),
+                events:              speechManager.consumeTurnEvents(),
+            };
+            await this._processUserInput(transcript, meta);
         });
 
         speechManager.on('empty', () => {
-            if (this.conversationActive) {
+            this._emptyCount++;
+            if (this._emptyCount >= 2) {
+                this._emptyCount = 0;
+                this._skipCurrentQuestion();
+            } else if (this.conversationActive) {
                 speechManager.startListening();
             } else {
-                ui.setStatus('I didn\'t hear anything.');
+                ui.setStatus("I didn't hear anything.");
             }
         });
 
-        speechManager.on('silence', () => {
-            ui.setStatus('Got it!');
-        });
+        speechManager.on('silence', () => ui.setStatus('Got it!'));
 
-        speechManager.on('speakStart', () => {
-            ui.showSpeaking();
-        });
+        speechManager.on('speakStart', () => ui.showSpeaking());
 
         speechManager.on('speakEnd', () => {
             ui.stopMessageAnimation();
             ui.setStatus('');
-            if (this.conversationActive) {
-                speechManager.startListening();
-            } else {
-                ui.showIdle();
-            }
+            if (this._lastSpokenText) ui.showRepeatButton();
+            if (this.conversationActive) speechManager.startListening();
+            else ui.showIdle();
         });
 
         speechManager.on('recognitionEnded', () => {
@@ -140,17 +81,11 @@ class App {
         });
     }
 
-    _setupUIEvents() {
-        const micBtn = document.getElementById('micBtn');
-        micBtn.addEventListener('click', () => this.toggleMic());
-
-        const input = document.getElementById('input');
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendTextInput();
-        });
-
-        const sendBtn = document.getElementById('sendBtn');
-        if (sendBtn) sendBtn.addEventListener('click', () => this.sendTextInput());
+    _beginScreeningWithPin(pin) {
+        this.patientPin = pin;
+        document.getElementById('beginOverlay').style.display = 'none';
+        document.getElementById('conversationUI').style.display = 'block';
+        this.startConversation();
     }
 
     /** Wait for SitePal avatar to finish loading. */
@@ -169,18 +104,11 @@ class App {
     async startConversation() {
         const avatarProfile = window.AVATAR_PROFILE || {};
         speechManager.setLanguage('en-US');
-        speechManager.setVoiceConfig({
-            lang: avatarProfile.lang || 'en',
-            gender: avatarProfile.gender || 'female'
-        });
+        speechManager.setVoiceConfig({ lang: avatarProfile.lang || 'en', gender: avatarProfile.gender || 'female' });
 
         ui.showConversation();
         document.getElementById('micBtn')?.classList.remove('hidden');
         ui.setStatus('Loading...');
-
-        // Kick off VAD init in background. Called here (inside a click-handler chain)
-        // so the browser grants getUserMedia without a separate permission prompt.
-        // By the time the opening greeting finishes (~5-10 s), VAD will be ready.
         speechManager.initVAD();
 
         try {
@@ -190,7 +118,8 @@ class App {
                 this._waitForSitePal()
             ]);
             this.conversationActive = true;
-            ui.showMessageAnimated(data.prompt);
+            ui.showMessage(data.prompt);
+            this._lastSpokenText = data.prompt;
             ui.setStatus('');
             await speechManager.speak(data.prompt);
         } catch (err) {
@@ -201,39 +130,61 @@ class App {
 
     toggleMic() {
         const state = turnManager.getState();
-        if (state === TurnState.USER_SPEAKING) {
-            speechManager.stopListening();
-        } else if (state === TurnState.IDLE) {
-            speechManager.startListening();
-        }
+        if (state === TurnState.USER_SPEAKING) speechManager.stopListening();
+        else if (state === TurnState.IDLE)     speechManager.startListening();
     }
 
     async sendTextInput() {
         const input = document.getElementById('input');
         const text = input.value.trim();
         if (!text) return;
-
-        if (!conversationAPI.getSessionId()) {
-            ui.setStatus('No active session. Please refresh.');
-            return;
-        }
-
+        if (!conversationAPI.getSessionId()) { ui.setStatus('No active session. Please refresh.'); return; }
         ui.clearTranscript();
         ui.showProcessing();
-        await this._processUserInput(text);
+        await this._processUserInput(text, { input_modality: 'text', client_sent_at: new Date().toISOString() });
     }
 
-    async _processUserInput(text) {
-        if (!conversationAPI.getSessionId()) {
-            ui.setStatus('No active session.');
-            ui.showIdle();
-            return;
-        }
+    /** Re-speak the last avatar message (repeat button). */
+    repeatLastMessage() {
+        if (!this._lastSpokenText || turnManager.getState() !== TurnState.IDLE) return;
+        ui.hideRepeatButton();
+        speechManager.speak(this._lastSpokenText);
+    }
 
+    /**
+     * Skip current question after repeated empty turns.
+     * Sends no_response=true so the backend doesn't count it as a real turn.
+     */
+    async _skipCurrentQuestion() {
+        if (!conversationAPI.getSessionId()) return;
         try {
-            const data = await conversationAPI.sendMessage(text);
+            const data = await conversationAPI.sendMessage('', { no_response: true });
+            this._lastSpokenText = data.prompt;
+            ui.showMessage(data.prompt);
+            ui.setStatus('');
+            if (data.phase === 'REPORT') {
+                this.conversationActive = false;
+                await speechManager.speak(data.prompt);
+                this.classifyAndReport();
+                return;
+            }
+            await speechManager.speak(data.prompt);
+        } catch (err) {
+            console.error('Skip failed:', err);
+            ui.showIdle();
+        }
+    }
+
+    async _processUserInput(text, meta = {}) {
+        if (!conversationAPI.getSessionId()) { ui.setStatus('No active session.'); ui.showIdle(); return; }
+        ui.hideRepeatButton();
+        try {
+            const data = await conversationAPI.sendMessage(text, meta);
             this.conversationActive = true;
-            ui.showMessageAnimated(data.prompt);
+            this._turnCount++;
+            ui.showMessage(data.prompt);           // instant caption — no word animation
+            ui.showProgress(this._turnCount, this._maxTurns);
+            this._lastSpokenText = data.prompt;
             ui.setStatus('');
 
             if (data.phase === 'REPORT') {
@@ -242,7 +193,6 @@ class App {
                 this.classifyAndReport();
                 return;
             }
-
             await speechManager.speak(data.prompt);
         } catch (err) {
             ui.setStatus('Failed to send. Please try again.');
@@ -258,14 +208,14 @@ class App {
             const result = await conversationAPI.classifyResponses();
             ui.showReport(result);
             const summary = result.verbal_summary || 'Your care team will follow up with you.';
-            ui.showMessageAnimated(summary);
+            ui.showMessage(summary);
             await speechManager.speak(summary);
             ui.setStatus('');
         } catch (err) {
             console.error('Classification failed:', err);
             ui.setStatus('');
         } finally {
-            speechManager.destroy(); // release VAD and mic resources
+            speechManager.destroy();
         }
     }
 }
@@ -274,5 +224,4 @@ class App {
 const speechManager = new SpeechManager(turnManager);
 const app = new App();
 
-// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => app.init());

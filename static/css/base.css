@@ -1,21 +1,21 @@
 * { box-sizing: border-box; }
 body {
     font-family: system-ui, -apple-system, sans-serif;
-    max-width: 800px;
+    max-width: min(800px, 100%);
     margin: 0 auto;
-    padding: 20px;
+    padding: clamp(12px, 3vw, 24px);
     background: #f5f5f5;
 }
-h1 { color: #2c5282; text-align: center; margin-bottom: 8px; }
-.subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: 18px; }
+h1 { color: #2c5282; text-align: center; margin-bottom: 8px; font-size: clamp(20px, 4vw, 28px); }
+.subtitle { text-align: center; color: #64748b; margin-bottom: 24px; font-size: clamp(15px, 2.5vw, 18px); }
 .container { display: flex; flex-direction: column; gap: 20px; }
-.card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.card { background: white; border-radius: 16px; padding: clamp(16px, 3vw, 28px); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 .begin-overlay { text-align: center; }
 .pin-prompt input {
     width: 100%;
     max-width: 280px;
     text-align: left;
-    font-size: 16px;
+    font-size: clamp(15px, 2vw, 17px);
     letter-spacing: normal;
     padding: 10px 14px;
     margin: 6px auto;
@@ -34,10 +34,18 @@ h1 { color: #2c5282; text-align: center; margin-bottom: 8px; }
 
 /* Input elements */
 .input-row { display: flex; gap: 10px; margin-top: 20px; }
-#input { flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 16px; }
+#input { flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: clamp(15px, 2vw, 17px); }
 #input:focus { outline: none; border-color: #3182ce; }
 #input.interim { color: #718096; font-style: italic; }
-#sendBtn { padding: 12px 24px; background: #3182ce; color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; }
+#sendBtn {
+    padding: clamp(10px, 2vw, 14px) clamp(18px, 3.5vw, 26px);
+    background: #3182ce;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: clamp(15px, 2vw, 17px);
+    cursor: pointer;
+}
 #sendBtn:disabled { background: #a0aec0; cursor: not-allowed; }
 #status { font-size: 14px; color: #718096; margin-top: 12px; text-align: center; }
 
@@ -52,3 +60,12 @@ h1 { color: #2c5282; text-align: center; margin-bottom: 8px; }
 .report-item:last-child { border-bottom: none; }
 .report-item h3 { color: #4a5568; margin: 0 0 4px 0; font-size: 1em; }
 .report-item p { color: #2d3748; margin: 0; line-height: 1.5; }
+
+/* Tablet breakpoints */
+@media (min-width: 768px) {
+    .container { gap: 24px; }
+    .card { padding: 32px; }
+}
+@media (min-width: 1024px) {
+    body { max-width: 900px; }
+}
