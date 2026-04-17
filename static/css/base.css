@@ -6,13 +6,6 @@ html, body {
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
     background: #F5F0EB;
     color: #1C1917;
-    /* Lock page scroll on tablet+ — panels scroll internally */
-    overflow: hidden;
-}
-
-/* Allow natural scroll on small screens where panels stack */
-@media (max-width: 767px) {
-    html, body { overflow: auto; }
 }
 
 /* ── Typography ───────────────────────────────────────────────────────────── */
