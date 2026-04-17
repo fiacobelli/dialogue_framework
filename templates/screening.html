@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/css/screening.css">
 
+    <!-- Lock page scroll on this page only — panels handle their own overflow -->
+    <style>
+        @media (min-width: 768px) {
+            html, body { height: 100%; overflow: hidden; }
+        }
+    </style>
+
     <!-- SitePal setup — MUST be before embed -->
     <script>
         const avatarProfile = {{ avatar_profile | tojson }};

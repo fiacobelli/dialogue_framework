@@ -1,11 +1,3 @@
-/* ── Lock scroll only on screening page — not on avatar-select or other pages ── */
-@media (min-width: 768px) {
-    body.screening-page,
-    body.screening-page html {
-        overflow: hidden;
-    }
-}
-
 /* ── Full-viewport two-column layout ──────────────────────────────────────── */
 #conversation-screen {
     display: flex;
