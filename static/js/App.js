@@ -6,7 +6,7 @@ class App {
         this._lastSpokenText = null;   // for repeat button
         this._turnCount = 0;           // user turns sent (drives progress bar)
         this._emptyCount = 0;          // consecutive empty VAD cycles (drives skip)
-        this._maxTurns = 20;           // must match goal_screening.MAX_USER_TURNS
+        this._maxTurns = 10;           // typical session length (~6 topics + probes)
         this._inputHandler = null;
     }
 
@@ -189,6 +189,7 @@ class App {
 
             if (data.phase === 'REPORT') {
                 this.conversationActive = false;
+                ui.showProgress(1, 1); // snap bar to 100%
                 await speechManager.speak(data.prompt);
                 this.classifyAndReport();
                 return;

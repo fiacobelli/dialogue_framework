@@ -95,9 +95,9 @@
 /* ── Progress bar ─────────────────────────────────────────────────────────── */
 #progress-bar-wrap {
     width: 100%;
-    height: 5px;
+    height: 8px;
     background: #F0E9E2;
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
 }
 #progress-bar-fill {
