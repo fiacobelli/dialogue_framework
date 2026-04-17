@@ -71,10 +71,10 @@
     background: white;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start; /* flex-start so overflow goes DOWN, not above the fold */
     align-items: center;
     padding: clamp(28px, 5vw, 56px) clamp(28px, 5vw, 56px);
-    gap: 24px;
+    gap: 0;
     animation: fade-up 0.6s ease-out 0.15s both;
     min-height: 56vh;
 }
@@ -110,14 +110,15 @@
 
 /* ── Message bubble ───────────────────────────────────────────────────────── */
 .message-bubble {
-    font-size: clamp(20px, 2.8vw, 28px);
+    font-size: clamp(18px, 2.2vw, 22px);
     font-weight: 500;
-    line-height: 1.65;
+    line-height: 1.6;
     color: #1C1917;
     text-align: center;
     max-width: 480px;
     width: 100%;
-    min-height: 3.5em;
+    position: relative;  /* z-index: text always renders above sonar rings */
+    z-index: 2;
 }
 
 /* ── Repeat button ────────────────────────────────────────────────────────── */
@@ -138,7 +139,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
+    position: relative;
+    z-index: 1;  /* below message-bubble z-index:2 */
 }
 
 .mic-wrapper {
@@ -146,15 +149,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 160px;
-    height: 160px;
+    width: 140px;
+    height: 140px;
 }
 
 /* Sonar rings */
 .mic-ring {
     position: absolute;
-    width: 140px;
-    height: 140px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
     border: 3px solid #E86F2C;
     opacity: 0;
@@ -167,14 +170,14 @@
 
 @keyframes sonar {
     0%   { transform: scale(1);   opacity: 0.65; }
-    100% { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(1.8); opacity: 0; }
 }
 
 #micBtn {
     position: relative;
     z-index: 1;
-    width: 130px;
-    height: 130px;
+    width: 112px;
+    height: 112px;
     border-radius: 50%;
     background: #4CAF7D;
     border: none;
@@ -232,6 +235,26 @@
     font-size: clamp(15px, 2vw, 18px);
     color: #78716C;
     font-weight: 500;
+}
+
+/* ── Content blocks: margin:auto centers them when panel has space,
+      collapses to 0 when content overflows so overflow goes downward ─────── */
+.begin-overlay,
+.thankyou-screen,
+#conversationUI {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+/* ── Active conversation layout ───────────────────────────────────────────── */
+#conversationUI {
+    position: relative;   /* stacking context for z-index children */
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
 }
 
 /* ── Begin overlay ────────────────────────────────────────────────────────── */

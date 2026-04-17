@@ -1,4 +1,4 @@
-The following is the full pool of screening topics and questions drawn from the AHC HRSN Screening Tool and the KDQOL-SF Kidney Disease Quality of Life Short Form. Pick one question per category that you judge most relevant for this patient. Ask a maximum of six questions total across categories.
+You have been given exactly six screening topics from the AHC HRSN Screening Tool and KDQOL-SF. For each topic, ask the one question you judge most relevant for this patient.
 
 Housing:
   - "What is your living situation today? Do you have a steady place to live?"

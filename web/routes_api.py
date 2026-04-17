@@ -175,16 +175,15 @@ QUESTIONS_PREAMBLE, QUESTIONS_CATEGORIES = _load_questions()
 
 
 def build_question_instructions() -> str:
-    """Return the question pool with categories shuffled for this session.
+    """Pre-select exactly 6 random categories and return them to the LLM.
 
-    Shuffling ensures the LLM sees categories in a different order each time,
-    so it doesn't reliably pick the same first six every session.
+    Selecting in Python (not relying on the LLM to count) guarantees the
+    session always has exactly 6 topics — no more, no fewer.
     """
     if not QUESTIONS_CATEGORIES:
         return QUESTIONS_PREAMBLE
-    shuffled = QUESTIONS_CATEGORIES[:]
-    random.shuffle(shuffled)
-    return QUESTIONS_PREAMBLE + '\n\n' + '\n\n'.join(shuffled)
+    selected = random.sample(QUESTIONS_CATEGORIES, min(6, len(QUESTIONS_CATEGORIES)))
+    return QUESTIONS_PREAMBLE + '\n\n' + '\n\n'.join(selected)
 
 
 def _sanitize_patient_id(value: str | None) -> str:
