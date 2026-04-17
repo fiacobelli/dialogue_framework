@@ -20,11 +20,14 @@ _SURFACE_ANSWERS = frozenset({
     'none', 'never', 'always', 'not much', 'a little', 'sort of',
 })
 
-_PROBE_INJECTION = (
-    "\n\nCRITICAL — DO NOT SKIP: The patient's last answer was too short or "
-    "vague to be clinically useful. You MUST ask exactly one specific follow-up "
-    "question about what they said before moving to the next topic. "
-    "Do NOT ask the next screening topic yet."
+# System prompt for the isolated probe call — kept minimal so even a small
+# model generates a useful follow-up without context to distract it
+_PROBE_SYSTEM = (
+    "You are conducting a brief health screening for a dialysis patient. "
+    "The patient just gave a vague or one-word answer. "
+    "Write exactly two sentences: first briefly acknowledge their answer warmly, "
+    "then ask one specific follow-up question to get more useful detail. "
+    "Do NOT move on to a new topic. Do NOT ask more than one question."
 )
 
 
@@ -103,16 +106,16 @@ class ScreeningGoal(Goal):
         avatar_name = avatar_profile.get('name', 'Assistant')
         prompt = self._build_prompt(info_state, avatar_name, language)
 
-        # If the patient gave a surface-level answer, inject a hard probe
-        # instruction into the system prompt for this turn only.
-        # Code-enforced because small LLMs reliably ignore complex prompt rules.
-        effective_prompt = prompt
-        if user_input and _is_surface_answer(user_input):
-            effective_prompt = prompt + _PROBE_INJECTION
-            log_screening(session_id, f"PROBE INJECTED for surface answer: '{user_input}'")
-
+        # Surface-answer detection: generate the probe in full isolation rather
+        # than injecting into the main prompt. An isolated call (last Q + this A,
+        # nothing else) is far more reliable than prompt injection because the
+        # model has no "move to next topic" history to override the instruction.
         t0 = time.perf_counter()
-        response = self.llm.generate(history, effective_prompt)
+        if user_input and _is_surface_answer(user_input):
+            log_screening(session_id, f"PROBE for surface answer: '{user_input}'")
+            response = self._generate_probe(history)
+        else:
+            response = self.llm.generate(history, prompt)
         llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         log_screening(session_id, f"LLM ({llm_latency_ms}ms): {response}")
 
@@ -162,15 +165,34 @@ class ScreeningGoal(Goal):
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
+    def _generate_probe(self, history: list) -> str:
+        """Generate a follow-up question in full isolation.
+
+        Uses only the last assistant question and the patient's surface answer —
+        no conversation history that could tempt the model to move topics.
+        """
+        last_q = next(
+            (m['content'] for m in reversed(history) if m['role'] == 'assistant'), ''
+        )
+        last_a = next(
+            (m['content'] for m in reversed(history) if m['role'] == 'user'), ''
+        )
+        messages = []
+        if last_q:
+            messages.append({"role": "assistant", "content": last_q})
+        messages.append({"role": "user", "content": last_a})
+        return self.llm.generate(messages, _PROBE_SYSTEM)
+
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
         instruction = (
-            "Write a one-paragraph summary of the conversation above. "
-            "List the topics that were discussed (for example: housing, food, "
-            "transportation, financial strain, kidney disease burden, family support), "
+            "Write a one-paragraph clinical summary of the conversation above. "
+            "List the topics discussed (e.g. housing, food, transportation, "
+            "financial strain, kidney disease burden, family support), "
             "what the patient said about each, and any concerns or positive notes. "
-            "Start directly with the content. Do NOT preface with phrases like "
-            "'Here is a summary', 'I'll summarize', 'Sure', or similar."
+            "Start directly with the content. "
+            "Do NOT preface with phrases like 'Here is a summary' or similar. "
+            "Do NOT end with any question or request for feedback."
         )
         full_history = history + [{"role": "assistant", "content": last_response}]
         raw = self.llm.generate(full_history, instruction)
@@ -212,11 +234,15 @@ class ScreeningGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant', is_returning: bool = False) -> str:
         """Generate opening greeting using LLM."""
+        session_id = info_state.user.query('session_id') or 'unknown'
         prompt = self.goal._build_prompt(info_state, avatar_name, lang)
         existing = info_state.user.query('conversation_history') or []
         opening = self.goal.llm.generate(existing, prompt)
         existing.append({"role": "assistant", "content": opening})
         info_state.user.update('conversation_history', existing)
+
+        visit_number = info_state.user.query('visit_number') or 1
+        log_screening(session_id, f"OPENING (visit {visit_number}): {opening}")
 
         phone_pin = info_state.user.query('patient_pin')
         if phone_pin:
