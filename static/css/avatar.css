@@ -2,14 +2,15 @@
 #conversation-screen {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    min-height: 100vh; /* mobile: stacks, page scrolls naturally */
 }
 
 @media (min-width: 768px) {
     #conversation-screen {
         display: grid;
         grid-template-columns: 55fr 45fr;
-        min-height: 100vh;
+        height: 100vh;      /* exact viewport — no page overflow */
+        overflow: hidden;
     }
 }
 
@@ -22,12 +23,16 @@
     background: linear-gradient(160deg, #F5F0EB 0%, #EDE4DA 60%, #E8DDD3 100%);
     padding: clamp(24px, 4vw, 48px);
     gap: 20px;
-    min-height: 44vh; /* mobile: avatar takes upper portion */
+    min-height: 44vh;
     animation: fade-up 0.6s ease-out both;
 }
 
 @media (min-width: 768px) {
-    .avatar-panel { min-height: 100vh; }
+    .avatar-panel {
+        height: 100%;   /* fill grid cell exactly */
+        min-height: unset;
+        overflow: hidden;
+    }
 }
 
 /* Avatar sits directly on the gradient — soft shadow, no white card box */
@@ -75,7 +80,11 @@
 }
 
 @media (min-width: 768px) {
-    .interaction-panel { min-height: 100vh; }
+    .interaction-panel {
+        height: 100%;       /* fill grid cell exactly */
+        min-height: unset;
+        overflow-y: auto;   /* long content scrolls inside panel, not the page */
+    }
 }
 
 @keyframes fade-up {

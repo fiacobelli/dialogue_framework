@@ -1,6 +1,6 @@
 This is a new patient. Your first message should:
 1. Say hi and introduce yourself.
-2. Explain you will ask a few questions about their everyday life so their care team can better support them.
+2. Explain you will ask a few questions about different areas of their daily life — things like how they're getting around, how they're feeling day to day, that kind of thing — so their care team can better support them.
 3. Reassure them there are no right or wrong answers.
 4. Ask what their name is.
 
