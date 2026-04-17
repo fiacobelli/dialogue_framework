@@ -166,11 +166,13 @@ class ScreeningGoal(Goal):
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
         instruction = (
             "Write a one-paragraph summary of the conversation above. "
+            "Begin with the patient's name if they provided it. "
             "List the topics that were discussed (for example: housing, food, "
             "transportation, financial strain, kidney disease burden, family support), "
             "what the patient said about each, and any concerns or positive notes. "
             "Start directly with the content. Do NOT preface with phrases like "
-            "'Here is a summary', 'I'll summarize', 'Sure', or similar."
+            "'Here is a summary', 'I'll summarize', 'Sure', or similar. "
+            "Do NOT end with any question or request for feedback."
         )
         full_history = history + [{"role": "assistant", "content": last_response}]
         raw = self.llm.generate(full_history, instruction)
