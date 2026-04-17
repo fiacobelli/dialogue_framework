@@ -26,6 +26,7 @@ class SpeechManager {
         this._recognitionActive = false; // true while recognition.start() is live
         this._finishing = false;         // re-entry guard for _finishListening()
         this._speechDetectedCount = 0;   // VAD fires this listen cycle; drives two-tier timer
+        this._micStream = null;          // captured getUserMedia stream — stopped on destroy()
 
         // Research instrumentation
         this._turnEvents    = [];    // browser-side event timeline for current turn
@@ -70,6 +71,18 @@ class SpeechManager {
             return;
         }
         try {
+            // Temporarily wrap getUserMedia to capture the stream reference.
+            // We need it to explicitly stop tracks in destroy() — VAD.destroy()
+            // alone does not reliably clear the browser's mic indicator in Chrome.
+            const self = this;
+            const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = async (constraints) => {
+                const stream = await origGUM(constraints);
+                self._micStream = stream;
+                navigator.mediaDevices.getUserMedia = origGUM; // restore immediately
+                return stream;
+            };
+
             this._vad = await window.vad.MicVAD.new({
                 baseAssetPath: '/static/js/vad/',
                 onnxWASMBasePath: '/static/js/vad/',
@@ -317,11 +330,22 @@ class SpeechManager {
         return this._speechConfidence;
     }
 
-    /** Clean up VAD and recognition at end of conversation. */
+    /** Clean up VAD, recognition, and microphone stream at end of conversation. */
     destroy() {
         this._clearSilenceTimer();
-        if (this._vad) { this._vad.destroy(); this._vad = null; this._vadReady = false; }
+        if (this._vad) {
+            try { this._vad.pause(); }   catch (_) {}
+            try { this._vad.destroy(); } catch (_) {}
+            this._vad = null;
+            this._vadReady = false;
+        }
         if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
+        // Explicitly stop all mic tracks — this is the only reliable way to clear
+        // the browser's recording indicator. VAD.destroy() alone is not enough.
+        if (this._micStream) {
+            this._micStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+            this._micStream = null;
+        }
     }
 
     // ── Event system ──────────────────────────────────────────────────────────
