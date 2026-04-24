@@ -70,7 +70,7 @@ class ScreeningGoal(Goal):
     def _build_prompt(self, info_state, avatar_name: str, language: str) -> str:
         """Concatenate the right intro + shared screener + runtime values."""
         visit_number = info_state.user.query('visit_number') or 1
-        is_returning = visit_number > 1
+        is_returning = visit_number > 1 and bool(info_state.user.query('last_summary'))
         intro = self.subsequent_prompt if is_returning else self.first_time_prompt
         full = f"{intro}\n\n{self.system_prompt}" if intro else self.system_prompt
 
