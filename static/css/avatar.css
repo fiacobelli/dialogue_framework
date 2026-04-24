@@ -77,6 +77,7 @@
     gap: 0;
     animation: fade-up 0.6s ease-out 0.15s both;
     min-height: 56vh;
+    position: relative; /* enables absolute positioning of restart button */
 }
 
 @media (min-width: 768px) {
@@ -117,8 +118,10 @@
     text-align: center;
     max-width: 480px;
     width: 100%;
-    position: relative;  /* z-index: text always renders above sonar rings */
-    z-index: 2;
+    position: relative;
+    z-index: 10;           /* well above sonar rings */
+    background: white;     /* masks any ring bleed-through */
+    padding-bottom: 16px;  /* guaranteed clearance above the mic */
 }
 
 /* ── Repeat button ────────────────────────────────────────────────────────── */
@@ -355,22 +358,30 @@
     text-align: center;
 }
 
-/* ── Restart button ───────────────────────────────────────────────────────── */
-.restart-row { text-align: center; }
+/* ── Restart button — fixed top-right corner of interaction panel ─────────── */
+.restart-row {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 20;
+}
 #restartBtn {
     background: none;
-    border: none;
-    color: #B0A8A2;
+    border: 1.5px solid #E7DDD5;
+    color: #78716C;
     font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    padding: 8px 20px;
+    padding: 7px 14px;
     min-height: 44px;
-    border-radius: 8px;
-    transition: color 0.2s;
+    border-radius: 20px;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
 }
-#restartBtn:hover { color: #E86F2C; }
+#restartBtn:hover { color: #E86F2C; border-color: #E86F2C; }
 #restartBtn[data-confirming="true"] {
     color: #E86F2C;
+    border-color: #E86F2C;
     font-weight: 600;
 }
 

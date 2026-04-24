@@ -85,6 +85,8 @@ class App {
         this.patientPin = pin;
         document.getElementById('beginOverlay').style.display = 'none';
         document.getElementById('conversationUI').style.display = 'block';
+        const restartRow = document.getElementById('restartRow');
+        if (restartRow) restartRow.style.display = 'block';
         this.startConversation();
     }
 
@@ -205,8 +207,8 @@ class App {
 
     async classifyAndReport() {
         ui.setStatus('');
-        const restartBtn = document.getElementById('restartBtn');
-        if (restartBtn) restartBtn.style.display = 'none';
+        const restartRow = document.getElementById('restartRow');
+        if (restartRow) restartRow.style.display = 'none';
         try {
             // Classification runs and saves to DB — result is for the care team, not shown to patient
             const result = await conversationAPI.classifyResponses();

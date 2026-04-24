@@ -60,6 +60,11 @@
         <!-- RIGHT: Interaction panel -->
         <div class="interaction-panel">
 
+            <!-- Start Over — top-right corner, always visible during conversation -->
+            <div class="restart-row" id="restartRow" style="display:none;">
+                <button id="restartBtn">↺ Start Over</button>
+            </div>
+
             <!-- Pre-conversation: patient ID form -->
             <div id="beginOverlay" class="begin-overlay">
                 <h2>Let's get started</h2>
@@ -120,11 +125,6 @@
                     </div>
 
                     <span class="mic-hint" id="micHint">Speak when ready</span>
-                </div>
-
-                <!-- Restart — two-tap confirmation prevents accidental wipe -->
-                <div class="restart-row">
-                    <button id="restartBtn">Start Over</button>
                 </div>
 
                 <!-- Keyboard fallback (secondary, smaller) -->
