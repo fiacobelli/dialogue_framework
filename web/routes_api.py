@@ -193,6 +193,21 @@ def _sanitize_patient_id(value: str | None) -> str:
     name_part, sep, dob_part = raw.partition('-')
     safe_name = re.sub(r'[^a-z]', '', name_part)
     safe_dob = re.sub(r'[^0-9]', '', dob_part)
-    if safe_name and safe_dob:
+    if safe_name and safe_dob and _is_valid_dob(safe_dob):
         return f"{safe_name}-{safe_dob}"
     return ''
+
+
+def _is_valid_dob(digits: str) -> bool:
+    """Validate 8-digit MMDDYYYY string represents a real past date."""
+    if len(digits) != 8:
+        return False
+    try:
+        from datetime import datetime
+        month = int(digits[0:2])
+        day   = int(digits[2:4])
+        year  = int(digits[4:8])
+        dob = datetime(year, month, day)
+        return 1900 <= year <= datetime.now().year
+    except ValueError:
+        return False

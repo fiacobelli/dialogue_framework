@@ -25,14 +25,28 @@ class InputHandler {
         const buildId = () =>
             `${sanitizeName(lastNameInput.value)}-${extractDigits(dobInput.value)}`;
 
+        const isValidDate = (digits) => {
+            if (digits.length !== 8) return false;
+            const month = parseInt(digits.slice(0, 2), 10);
+            const day   = parseInt(digits.slice(2, 4), 10);
+            const year  = parseInt(digits.slice(4, 8), 10);
+            if (month < 1 || month > 12) return false;
+            if (day < 1 || day > 31) return false;
+            if (year < 1900 || year > new Date().getFullYear()) return false;
+            const d = new Date(year, month - 1, day);
+            return d.getMonth() === month - 1 && d.getDate() === day;
+        };
+
         const validate = () => {
             const name = sanitizeName(lastNameInput.value);
             const dob  = extractDigits(dobInput.value);
             dobInput.value = formatDob(dob);
-            const ok = name.length >= 2 && dob.length === 8;
+            const validDate = isValidDate(dob);
+            const ok = name.length >= 2 && validDate;
             beginBtn.disabled = !ok;
             hint.textContent = name.length < 2 ? 'Enter at least two letters for your last name'
-                : dob.length < 8 ? 'Enter date of birth as MM/DD/YYYY' : '';
+                : dob.length < 8 ? 'Enter date of birth as MM/DD/YYYY'
+                : !validDate ? 'Please enter a valid date of birth' : '';
             return ok;
         };
 
