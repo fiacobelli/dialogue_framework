@@ -81,8 +81,9 @@
             <!-- Thank you screen (shown after screening completes) -->
             <div id="thankYouScreen" style="display:none;" class="thankyou-screen">
                 <div class="thankyou-icon">&#10003;</div>
-                <h2>Thank you for completing your screening</h2>
-                <p>Your responses have been recorded. Your care team will review them and follow up with you soon.</p>
+                <h2>You did great — thank you.</h2>
+                <p class="thankyou-summary">Your care team will have everything they need to support you well.</p>
+                <p class="thankyou-sub">A member of your care team will review your answers and follow up with you.</p>
             </div>
 
             <!-- Active conversation -->
@@ -125,8 +126,11 @@
                         <span class="mic-hint" id="micHint">Speak when ready</span>
                     </div>
                     <div class="input-row">
-                        <input type="text" id="input" placeholder="Or type here...">
-                        <button id="sendBtn">Send</button>
+                        <span class="input-row-label">Or type your answer</span>
+                        <div class="input-row-controls">
+                            <input type="text" id="input" placeholder="Type here...">
+                            <button id="sendBtn">Send</button>
+                        </div>
                     </div>
                     <div id="status"></div>
                 </div>

@@ -6,7 +6,7 @@ class App {
         this._lastSpokenText = null;   // for repeat button
         this._turnCount = 0;           // user turns sent (drives progress bar)
         this._emptyCount = 0;          // consecutive empty VAD cycles (drives skip)
-        this._maxTurns = 10;           // typical session length (~6 topics + probes)
+        this._maxTurns = 12;           // 6 topics + up to 1 probe each
         this._inputHandler = null;
     }
 
@@ -76,7 +76,9 @@ class App {
 
         speechManager.on('error', ({ type, message }) => {
             console.error('Speech error:', type, message);
-            ui.setStatus('Error: ' + (message || type));
+            if (type !== 'no-speech' && type !== 'aborted') {
+                this._speakError("I had a little trouble with that. Go ahead and try speaking again.");
+            }
             turnManager.reset();
         });
     }
@@ -142,8 +144,8 @@ class App {
             ui.setStatus('');
             await speechManager.speak(data.prompt);
         } catch (err) {
-            ui.setStatus('Connection failed. Please refresh.');
             console.error(err);
+            this._speakError("I'm having a little trouble getting started. A staff member can help if this keeps happening.");
         }
     }
 
@@ -157,7 +159,7 @@ class App {
         const input = document.getElementById('input');
         const text = input.value.trim();
         if (!text) return;
-        if (!conversationAPI.getSessionId()) { ui.setStatus('No active session. Please refresh.'); return; }
+        if (!conversationAPI.getSessionId()) { this._speakError("There's no active session. A staff member can help get this restarted."); return; }
         ui.clearTranscript();
         ui.showProcessing();
         await this._processUserInput(text, { input_modality: 'text', client_sent_at: new Date().toISOString() });
@@ -215,8 +217,8 @@ class App {
             }
             await speechManager.speak(data.prompt);
         } catch (err) {
-            ui.setStatus('Failed to send. Please try again.');
             console.error(err);
+            this._speakError("I didn't quite get that. Go ahead and try again, or use the text box below.");
             ui.showIdle();
             turnManager.reset();
         }
@@ -227,18 +229,23 @@ class App {
         const restartRow = document.getElementById('restartRow');
         if (restartRow) restartRow.style.display = 'none';
         try {
-            // Classification runs and saves to DB — result is for the care team, not shown to patient
             const result = await conversationAPI.classifyResponses();
             const summary = result.verbal_summary || 'Your care team will follow up with you.';
             ui.showMessage(summary);
             await speechManager.speak(summary);
-            ui.showThankYou();
+            ui.showThankYou(summary);
         } catch (err) {
             console.error('Classification failed:', err);
             ui.showThankYou();
         } finally {
             speechManager.destroy();
         }
+    }
+
+    /** Speak an error message aloud and show it in status. Patient-appropriate language only. */
+    _speakError(message) {
+        ui.setStatus(message);
+        try { speechManager.speak(message); } catch (_) {}
     }
 }
 

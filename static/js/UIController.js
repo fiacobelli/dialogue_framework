@@ -34,6 +34,7 @@ class UIController {
 
     /** Display message in the avatar speech bubble. */
     showMessage(text) {
+        this.elements.messageBubble.classList.remove('pulsing');
         this.elements.messageBubble.textContent = text;
     }
 
@@ -97,7 +98,8 @@ class UIController {
         this.elements.micHint.textContent = 'Processing...';
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
-        this.setStatus('Thinking...');
+        this.elements.messageBubble?.classList.add('pulsing');
+        this.setStatus('');
     }
 
     showSpeaking() {
@@ -143,10 +145,15 @@ class UIController {
         this.elements.repeatBtn.style.display = 'none';
     }
 
-    /** Show thank-you end screen. Report data goes to DB only — not shown to patient. */
-    showThankYou() {
+    /** Show thank-you end screen. Optionally display the verbal summary spoken by the avatar. */
+    showThankYou(summary) {
         document.getElementById('conversationUI').style.display = 'none';
-        document.getElementById('thankYouScreen').style.display = 'flex';
+        const screen = document.getElementById('thankYouScreen');
+        if (summary) {
+            const p = screen.querySelector('.thankyou-summary');
+            if (p) p.textContent = summary;
+        }
+        screen.style.display = 'flex';
     }
 }
 

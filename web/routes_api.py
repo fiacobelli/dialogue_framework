@@ -173,16 +173,36 @@ def _load_questions() -> tuple[str, list[str]]:
 
 QUESTIONS_PREAMBLE, QUESTIONS_CATEGORIES = _load_questions()
 
+# Sensitivity ranking: lower = less sensitive, higher = more sensitive.
+# The LLM is instructed to cover topics in listed order, so sorting here
+# ensures sessions always build from safe topics toward sensitive ones.
+_SENSITIVITY_ORDER = {
+    'Transportation': 1, 'Physical Activity': 2, 'Sleep': 3,
+    'General Health': 4, 'Physical Functioning': 5, 'Pain': 6,
+    'Kidney Symptoms': 7, 'Kidney Disease Burden': 8,
+    'Kidney Disease Daily Life Impact': 9, 'Dialysis Care Satisfaction': 10,
+    'Education': 11, 'Work Status': 12, 'Employment': 12,
+    'Disabilities': 13, 'Family and Friends Satisfaction': 14,
+    'Family and Community Support': 15, 'Utilities': 16,
+    'Food': 17, 'Financial Strain': 18, 'Housing': 19,
+    'Substance Use': 20, 'Interpersonal Safety': 21,
+}
+
+def _category_name(block: str) -> str:
+    return block.split('\n')[0].rstrip(':').strip()
+
 
 def build_question_instructions() -> str:
-    """Pre-select exactly 6 random categories and return them to the LLM.
+    """Pre-select exactly 6 random categories, sorted least-to-most sensitive.
 
-    Selecting in Python (not relying on the LLM to count) guarantees the
-    session always has exactly 6 topics — no more, no fewer.
+    Random selection preserves research variability across sessions.
+    Sensitivity sort ensures the LLM always builds rapport before
+    reaching the most sensitive topics.
     """
     if not QUESTIONS_CATEGORIES:
         return QUESTIONS_PREAMBLE
     selected = random.sample(QUESTIONS_CATEGORIES, min(6, len(QUESTIONS_CATEGORIES)))
+    selected.sort(key=lambda b: _SENSITIVITY_ORDER.get(_category_name(b), 99))
     return QUESTIONS_PREAMBLE + '\n\n' + '\n\n'.join(selected)
 
 

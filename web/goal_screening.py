@@ -41,7 +41,7 @@ def _is_surface_answer(text: str) -> bool:
     return False
 
 
-EXIT_PHRASE = "Thank you for sharing that with me. Let me review your answers."
+EXIT_PHRASE = "It means a lot that you shared all of this with me. Your care team will have everything they need to look after you well."
 SUMMARY_PREAMBLE_RE = re.compile(
     r"^\s*(I['\u2019]ll|I will|Here['\u2019]s|Here is|Sure|Okay|Of course|Certainly)[^.\n]*[.!?]\s*",
     re.IGNORECASE,
@@ -185,11 +185,10 @@ class ScreeningGoal(Goal):
             return False
         text_lower = text.lower()
         end_phrases = [
+            'it means a lot that you shared',
+            'care team will have everything they need',
             'thank you for sharing that with me',
             'let me review your answers',
-            'thank you for sharing all of that',
-            'the right people follow up',
-            'make sure the right people',
         ]
         return any(phrase in text_lower for phrase in end_phrases)
 
