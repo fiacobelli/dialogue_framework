@@ -355,5 +355,24 @@
     text-align: center;
 }
 
+/* ── Restart button ───────────────────────────────────────────────────────── */
+.restart-row { text-align: center; }
+#restartBtn {
+    background: none;
+    border: none;
+    color: #B0A8A2;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 8px 20px;
+    min-height: 44px;
+    border-radius: 8px;
+    transition: color 0.2s;
+}
+#restartBtn:hover { color: #E86F2C; }
+#restartBtn[data-confirming="true"] {
+    color: #E86F2C;
+    font-weight: 600;
+}
+
 /* ── Progress bar (full width within panel) ───────────────────────────────── */
 #progress-bar-wrap { width: 100%; max-width: 420px; }

@@ -27,7 +27,7 @@ class App {
     }
 
     _setupSpeechHandlers() {
-        speechManager.on('transcript', ({ full }) => ui.showTranscript(full, true));
+        speechManager.on('transcript', ({ full }) => ui.showTranscript(full, false));
 
         speechManager.on('complete', async ({ transcript }) => {
             this._emptyCount = 0;
@@ -205,6 +205,8 @@ class App {
 
     async classifyAndReport() {
         ui.setStatus('');
+        const restartBtn = document.getElementById('restartBtn');
+        if (restartBtn) restartBtn.style.display = 'none';
         try {
             // Classification runs and saves to DB — result is for the care team, not shown to patient
             const result = await conversationAPI.classifyResponses();

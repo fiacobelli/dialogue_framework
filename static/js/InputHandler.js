@@ -61,5 +61,21 @@ class InputHandler {
 
         const repeatBtn = document.getElementById('repeatBtn');
         if (repeatBtn) repeatBtn.addEventListener('click', () => this._app.repeatLastMessage());
+
+        const restartBtn = document.getElementById('restartBtn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => {
+                if (restartBtn.dataset.confirming === 'true') {
+                    window.location.reload();
+                } else {
+                    restartBtn.dataset.confirming = 'true';
+                    restartBtn.textContent = 'Tap again to confirm';
+                    setTimeout(() => {
+                        restartBtn.dataset.confirming = 'false';
+                        restartBtn.textContent = 'Start Over';
+                    }, 3000);
+                }
+            });
+        }
     }
 }

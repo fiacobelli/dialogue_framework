@@ -49,7 +49,7 @@ class SpeechManager {
         }
         this.recognition = new SR();
         this.recognition.continuous = true;
-        this.recognition.interimResults = true;
+        this.recognition.interimResults = false;
         this.recognition.onresult = (e) => this._handleResult(e);
         this.recognition.onerror  = (e) => this._handleError(e);
         this.recognition.onend    = ()  => this._handleEnd();
