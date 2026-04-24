@@ -80,7 +80,9 @@ class InputHandler {
         if (restartBtn) {
             restartBtn.addEventListener('click', () => {
                 if (restartBtn.dataset.confirming === 'true') {
-                    window.location.reload();
+                    restartBtn.dataset.confirming = 'false';
+                    restartBtn.textContent = '↺ Start Over';
+                    this._app._restartConversation();
                 } else {
                     restartBtn.dataset.confirming = 'true';
                     restartBtn.textContent = 'Tap again to confirm';

@@ -90,6 +90,23 @@ class App {
         this.startConversation();
     }
 
+    _restartConversation() {
+        // Reset state without going back to login
+        this._turnCount = 0;
+        this.conversationActive = false;
+        this._emptyCount = 0;
+        speechManager.destroy();
+        turnManager.reset();
+        ui.hideProgress();
+        ui.showMessage('');
+        ui.setStatus('');
+        document.getElementById('thankYouScreen').style.display = 'none';
+        document.getElementById('conversationUI').style.display = 'block';
+        const restartRow = document.getElementById('restartRow');
+        if (restartRow) restartRow.style.display = 'block';
+        this.startConversation();
+    }
+
     /** Wait for SitePal avatar to finish loading. */
     _waitForSitePal(timeoutMs = 15000) {
         if (window.sitePalReady) return Promise.resolve();
