@@ -47,6 +47,10 @@
 
         <!-- LEFT: Avatar panel -->
         <div class="avatar-panel">
+            <!-- Start Over — bottom-left of avatar panel, visible during conversation -->
+            <div class="restart-row" id="restartRow" style="display:none;">
+                <button id="restartBtn">↺ Start Over</button>
+            </div>
             <div class="avatar-frame" id="avatarFrame">
                 <div id="avatar">
                     <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
@@ -59,11 +63,6 @@
 
         <!-- RIGHT: Interaction panel -->
         <div class="interaction-panel">
-
-            <!-- Start Over — top-right corner, always visible during conversation -->
-            <div class="restart-row" id="restartRow" style="display:none;">
-                <button id="restartBtn">↺ Start Over</button>
-            </div>
 
             <!-- Pre-conversation: patient ID form -->
             <div id="beginOverlay" class="begin-overlay">
@@ -88,51 +87,50 @@
 
             <!-- Active conversation -->
             <div id="conversationUI" style="display:none;">
-                <div id="progress-bar-wrap" class="hidden">
-                    <div id="progress-bar-fill"></div>
-                </div>
 
-                <div class="message-bubble" id="messageBubble"></div>
-
-                <button id="repeatBtn">&#8635; Repeat</button>
-
-                <div class="mic-container">
-                    <div class="mic-wrapper">
-                        <!-- Mic button — SVG icon replaces emoji -->
-                        <button id="micBtn">
-                            <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="9" y="2" width="6" height="13" rx="3" fill="white"/>
-                                <path d="M5 11a7 7 0 0 0 14 0" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
-                                <line x1="12" y1="18" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                                <line x1="9"  y1="22" x2="15" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                        </button>
-                        <!-- Sonar rings — animate when #micBtn.listening -->
-                        <span class="mic-ring"></span>
-                        <span class="mic-ring"></span>
-                        <span class="mic-ring"></span>
+                <!-- TOP: message area — scrolls if text is long -->
+                <div class="convo-top">
+                    <div id="progress-bar-wrap" class="hidden">
+                        <div id="progress-bar-fill"></div>
                     </div>
+                    <div class="message-bubble" id="messageBubble"></div>
+                    <button id="repeatBtn">&#8635; Repeat</button>
+                </div>
 
-                    <!-- Waveform bars — shown when avatar is speaking -->
-                    <div class="waveform hidden" id="waveform">
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
-                        <span class="wave-bar"></span>
+                <!-- BOTTOM: mic + input — always visible, never overlapped -->
+                <div class="convo-bottom">
+                    <div class="mic-container">
+                        <div class="mic-wrapper">
+                            <button id="micBtn">
+                                <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="9" y="2" width="6" height="13" rx="3" fill="white"/>
+                                    <path d="M5 11a7 7 0 0 0 14 0" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+                                    <line x1="12" y1="18" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                                    <line x1="9"  y1="22" x2="15" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                            <span class="mic-ring"></span>
+                            <span class="mic-ring"></span>
+                            <span class="mic-ring"></span>
+                        </div>
+                        <div class="waveform hidden" id="waveform">
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                        </div>
+                        <span class="mic-hint" id="micHint">Speak when ready</span>
                     </div>
-
-                    <span class="mic-hint" id="micHint">Speak when ready</span>
+                    <div class="input-row">
+                        <input type="text" id="input" placeholder="Or type here...">
+                        <button id="sendBtn">Send</button>
+                    </div>
+                    <div id="status"></div>
                 </div>
 
-                <!-- Keyboard fallback (secondary, smaller) -->
-                <div class="input-row">
-                    <input type="text" id="input" placeholder="Or type here...">
-                    <button id="sendBtn">Send</button>
-                </div>
-                <div id="status"></div>
             </div>
 
         </div>
