@@ -335,6 +335,16 @@ class SpeechManager {
         if (this._vadReady && this._vad) this._vad.pause();
     }
 
+    /**
+     * Interrupt TTS immediately. Dispatches sitePalTalkEnded so any pending
+     * speak() Promise resolves cleanly and the turn state returns to IDLE.
+     */
+    stopSpeaking() {
+        if (typeof stopTalk === 'function') { try { stopTalk(); } catch (_) {} }
+        try { this.synthesis.cancel(); } catch (_) {}
+        document.dispatchEvent(new Event('sitePalTalkEnded'));
+    }
+
     /** Clean up VAD, recognition, and microphone stream at end of conversation. */
     destroy() {
         this._clearSilenceTimer();

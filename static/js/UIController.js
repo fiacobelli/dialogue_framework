@@ -165,6 +165,7 @@ class UIController {
 
     showResumed() {
         this.elements.micBtn.classList.remove('paused');
+        this.elements.micHint.textContent = 'Speak when ready';
     }
 
     /** Show thank-you end screen. Optionally display the verbal summary spoken by the avatar. */
