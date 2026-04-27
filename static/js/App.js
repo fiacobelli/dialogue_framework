@@ -10,6 +10,7 @@ class App {
         this._inputHandler = null;
         this._streaming = false;       // true while SSE stream + TTS sentence queue active
         this._pendingReport = false;   // true when done event arrives with phase=REPORT
+        this._paused = false;          // true when patient has paused the mic
     }
 
     async init() {
@@ -55,7 +56,7 @@ class App {
             if (this._emptyCount >= 2) {
                 this._emptyCount = 0;
                 this._skipCurrentQuestion();
-            } else if (this.conversationActive) {
+            } else if (this.conversationActive && !this._paused) {
                 speechManager.startListening();
             } else {
                 ui.setStatus("I didn't hear anything.");
@@ -71,12 +72,12 @@ class App {
             ui.stopMessageAnimation();
             ui.setStatus('');
             if (this._lastSpokenText) ui.showRepeatButton();
-            if (this.conversationActive) speechManager.startListening();
+            if (this.conversationActive && !this._paused) speechManager.startListening();
             else ui.showIdle();
         });
 
         speechManager.on('recognitionEnded', () => {
-            if (this.conversationActive && turnManager.getState() === TurnState.IDLE) {
+            if (this.conversationActive && !this._paused && turnManager.getState() === TurnState.IDLE) {
                 speechManager.startListening();
             }
         });
@@ -104,6 +105,7 @@ class App {
         this._turnCount = 0;
         this.conversationActive = false;
         this._emptyCount = 0;
+        this._paused = false;
         speechManager.destroy();
         turnManager.reset();
         ui.hideProgress();
@@ -146,6 +148,8 @@ class App {
                 this._waitForSitePal()
             ]);
             this.conversationActive = true;
+            this._paused = false;
+            ui.showPauseButton();
             ui.showMessage(data.prompt);
             this._lastSpokenText = data.prompt;
             ui.setStatus('');
@@ -153,6 +157,19 @@ class App {
         } catch (err) {
             console.error(err);
             this._speakError("I'm having a little trouble getting started. A staff member can help if this keeps happening.");
+        }
+    }
+
+    togglePause() {
+        this._paused = !this._paused;
+        if (this._paused) {
+            speechManager.pauseVAD();
+            ui.showPaused();
+        } else {
+            ui.showResumed();
+            if (this.conversationActive && turnManager.getState() === TurnState.IDLE) {
+                speechManager.startListening();
+            }
         }
     }
 
@@ -259,13 +276,14 @@ class App {
             this.classifyAndReport();
         } else {
             if (this._lastSpokenText) ui.showRepeatButton();
-            if (this.conversationActive) speechManager.startListening();
+            if (this.conversationActive && !this._paused) speechManager.startListening();
             else ui.showIdle();
         }
     }
 
     async classifyAndReport() {
         ui.setStatus('');
+        ui.hidePauseButton();
         const restartRow = document.getElementById('restartRow');
         if (restartRow) restartRow.style.display = 'none';
         try {

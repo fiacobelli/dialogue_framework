@@ -330,6 +330,11 @@ class SpeechManager {
         return this._speechConfidence;
     }
 
+    /** Pause VAD so it won't fire onSpeechStart — used by the pause button. */
+    pauseVAD() {
+        if (this._vadReady && this._vad) this._vad.pause();
+    }
+
     /** Clean up VAD, recognition, and microphone stream at end of conversation. */
     destroy() {
         this._clearSilenceTimer();
