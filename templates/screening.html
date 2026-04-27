@@ -60,12 +60,23 @@
         }
 
         function stopSpeakText() {
-            // Pause every audio element that called .play() — caught via prototype intercept.
-            // We do NOT suspend AudioContexts: resume() is async, so sayText() on resume
-            // would fire before the context is ready, causing silent playback.
+            // Skip each audio element to its end instead of pausing it.
+            // el.pause() leaves SitePal's state machine stuck in "speaking" — it waits
+            // for the 'ended' event (which it uses to fire vh_talkEnded / reset state),
+            // so the next sayText() call is silently ignored.
+            // Setting currentTime = duration fires 'ended' immediately, SitePal resets,
+            // and sayText() works again on resume.
             console.log('[stopSpeakText] playing els:', window._playingAudioEls.size);
             window._playingAudioEls.forEach(el => {
-                try { window._origAudioPause.call(el); el.currentTime = 0; } catch(_) {}
+                try {
+                    el.volume = 0;
+                    const dur = el.duration;
+                    if (isFinite(dur) && dur > 0) {
+                        el.currentTime = dur;   // fires 'ended' → SitePal resets naturally
+                    } else {
+                        window._origAudioPause.call(el); // fallback if duration unknown
+                    }
+                } catch(_) {}
             });
             window._playingAudioEls.clear();
             if (!window.sitePalReady) {
