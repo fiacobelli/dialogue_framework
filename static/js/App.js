@@ -9,6 +9,7 @@ class App {
         this._maxTurns = 12;           // 6 topics + headroom
         this._inputHandler = null;
         this._paused = false;          // true when patient has paused the mic
+        this._agentPaused = false;     // true when patient has paused Ludi mid-speech
     }
 
     async init() {
@@ -64,9 +65,13 @@ class App {
         speechManager.on('speakEnd', () => {
             ui.stopMessageAnimation();
             ui.setStatus('');
-            if (this._lastSpokenText) ui.showRepeatButton();
-            if (this.conversationActive && !this._paused) speechManager.startListening();
-            else ui.showIdle();
+            if (this._agentPaused) {
+                ui.showPaused();
+            } else {
+                if (this._lastSpokenText) ui.showRepeatButton();
+                if (this.conversationActive && !this._paused) speechManager.startListening();
+                else ui.showIdle();
+            }
         });
 
         speechManager.on('recognitionEnded', () => {
@@ -159,18 +164,33 @@ class App {
 
     toggleMic() {
         const state = turnManager.getState();
+
+        // Ludi is speaking → pause her
+        if (state === TurnState.SYSTEM_SPEAKING) {
+            this._agentPaused = true;
+            ui.showPaused();
+            speechManager.stopSpeaking();
+            return;
+        }
+
+        // Ludi was paused mid-speech → resume (re-speak from start)
+        if (this._agentPaused) {
+            this._agentPaused = false;
+            speechManager.speak(this._lastSpokenText);
+            return;
+        }
+
         if (state === TurnState.USER_SPEAKING) {
             speechManager.stopListening();
             return;
         }
         if (state !== TurnState.IDLE) return;
+
         if (this._paused) {
-            // Resume
             this._paused = false;
             ui.showResumed();
             if (this.conversationActive) speechManager.startListening();
         } else if (this.conversationActive) {
-            // Pause
             this._paused = true;
             speechManager.pauseVAD();
             ui.showPaused();

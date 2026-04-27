@@ -115,9 +115,8 @@ class UIController {
     }
 
     showSpeaking() {
-        this.elements.micBtn.classList.add('disabled');
-        this.elements.micBtn.classList.remove('listening');
-        this.elements.micHint.textContent = 'Assistant is speaking...';
+        this.elements.micBtn.classList.remove('listening', 'disabled');
+        this.elements.micHint.textContent = 'Tap to pause';
         this.elements.avatarFrame?.classList.add('speaking');
         this.elements.waveform?.classList.remove('hidden');
     }
