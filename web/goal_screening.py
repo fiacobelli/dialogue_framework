@@ -91,9 +91,13 @@ class ScreeningGoal(Goal):
         if is_ending:
             info_state.user.update('screening_phase', 'REPORT')
             log_screening(session_id, "PHASE CHANGED TO: REPORT")
-            summary = self._generate_summary(history, response)
-            info_state.user.update('last_summary', summary)
-            log_screening(session_id, f"SUMMARY: {summary}")
+            try:
+                summary = self._generate_summary(history, response)
+                info_state.user.update('last_summary', summary)
+                log_screening(session_id, f"SUMMARY: {summary}")
+            except Exception as exc:
+                log_screening(session_id, f"SUMMARY FAILED: {exc}")
+                logger.warning("Summary generation failed for %s: %s", session_id, exc)
 
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
@@ -167,9 +171,13 @@ class ScreeningGoal(Goal):
             if is_ending:
                 info_state.user.update('screening_phase', 'REPORT')
                 log_screening(session_id, "PHASE CHANGED TO: REPORT")
-                summary = self._generate_summary(history, response)
-                info_state.user.update('last_summary', summary)
-                log_screening(session_id, f"SUMMARY: {summary}")
+                try:
+                    summary = self._generate_summary(history, response)
+                    info_state.user.update('last_summary', summary)
+                    log_screening(session_id, f"SUMMARY: {summary}")
+                except Exception as exc:
+                    log_screening(session_id, f"SUMMARY FAILED: {exc}")
+                    logger.warning("Summary generation failed for %s: %s", session_id, exc)
 
             history.append({"role": "assistant", "content": response})
             info_state.user.update('conversation_history', history)
@@ -206,16 +214,21 @@ class ScreeningGoal(Goal):
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
         instruction = (
-            "Write a one-paragraph summary of the conversation above. "
+            "You are a clinical documentation assistant. "
+            "Write a one-paragraph summary of the patient screening conversation above. "
             "Begin with the patient's name if they provided it. "
-            "List the topics that were discussed (for example: housing, food, "
-            "transportation, financial strain, kidney disease burden, family support), "
-            "what the patient said about each, and any concerns or positive notes. "
-            "Start directly with the content. Do NOT preface with phrases like "
-            "'Here is a summary', 'I'll summarize', 'Sure', or similar. "
-            "Do NOT end with any question or request for feedback."
+            "List the topics discussed (e.g. housing, food, transportation, financial "
+            "strain, kidney disease burden, family support), what the patient said about "
+            "each, and any concerns or positive notes. "
+            "Start directly with the content — do NOT preface with 'Here is a summary', "
+            "'I'll summarize', 'Sure', or anything similar. "
+            "Do NOT end with a question or request for feedback."
         )
-        full_history = history + [{"role": "assistant", "content": last_response}]
+        # End with a user turn so the LLM responds as a summariser, not as the avatar.
+        full_history = history + [
+            {"role": "assistant", "content": last_response},
+            {"role": "user", "content": "Please write a summary of our conversation for the care team."},
+        ]
         raw = self.llm.generate(full_history, instruction)
         cleaned = SUMMARY_PREAMBLE_RE.sub('', raw or '', count=1)
         return cleaned.strip()
