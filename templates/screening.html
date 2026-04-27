@@ -14,6 +14,22 @@
 
     <!-- SitePal setup — MUST be before embed -->
     <script>
+        // Intercept AudioContext before SitePal loads so we can suspend/resume it.
+        (function() {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            window.AudioContext = window.webkitAudioContext = new Proxy(Ctx, {
+                construct(target, args) {
+                    const ctx = Reflect.construct(target, args);
+                    if (!window._spCtx) {
+                        window._spCtx = ctx;
+                        console.log('[AudioCtx] SitePal context captured');
+                    }
+                    return ctx;
+                }
+            });
+        })();
+
         const avatarProfile = {{ avatar_profile | tojson }};
         let language = avatarProfile.language || 1;
         let voice    = avatarProfile.voice    || 11;
@@ -29,6 +45,10 @@
         }
 
         function speakText(text) {
+            // Resume AudioContext if it was suspended for an agent-pause
+            if (window._spCtx && window._spCtx.state === 'suspended') {
+                window._spCtx.resume();
+            }
             if (window.sitePalReady && typeof sayText === 'function') {
                 sayText(text, voice, language, engine);
             } else {
@@ -40,14 +60,11 @@
         }
 
         function stopSpeakText() {
-            const audioEls = document.querySelectorAll('audio');
-            console.log('[stopSpeakText] sitePalReady:', window.sitePalReady, '| audio elements found:', audioEls.length);
-            if (window.sitePalReady && typeof sayText === 'function') {
-                // SitePal HTML5 drives an <audio> element — pause it directly
-                audioEls.forEach(a => { try { a.pause(); a.currentTime = 0; } catch(_) {} });
-                // Reset SitePal's internal state with silent speech
-                try { sayText(' ', voice, language, engine); } catch (_) {}
+            console.log('[stopSpeakText] _spCtx:', window._spCtx?.state);
+            if (window._spCtx) {
+                window._spCtx.suspend();
             } else {
+                // Web Speech API fallback
                 window.speechSynthesis.pause();
                 window.speechSynthesis.cancel();
             }
