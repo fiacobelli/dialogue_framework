@@ -457,21 +457,12 @@
     text-align: center;
 }
 
-/* ── Pause / Resume button ────────────────────────────────────────────────── */
-#pauseBtn {
-    align-self: center;
-    background: none;
-    border: 1.5px solid #E7DDD5;
-    border-radius: 20px;
-    padding: 7px 20px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #78716C;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s, color 0.2s;
+/* ── Mic paused state — patient has frozen the conversation ───────────────── */
+#micBtn.paused {
+    background: #9E8F87;
+    box-shadow: 0 6px 28px rgba(158, 143, 135, 0.45);
 }
-#pauseBtn:hover { background: #FEF3E8; border-color: #E86F2C; color: #E86F2C; }
-#pauseBtn.paused { border-color: #E86F2C; color: #E86F2C; background: #FEF3E8; }
+#micBtn.paused:hover { transform: scale(1.04); }
 
 /* ── Restart button — bottom-left of avatar panel ─────────────────────────── */
 .restart-row {

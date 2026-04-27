@@ -76,9 +76,6 @@ class InputHandler {
         const repeatBtn = document.getElementById('repeatBtn');
         if (repeatBtn) repeatBtn.addEventListener('click', () => this._app.repeatLastMessage());
 
-        const pauseBtn = document.getElementById('pauseBtn');
-        if (pauseBtn) pauseBtn.addEventListener('click', () => this._app.togglePause());
-
         const restartBtn = document.getElementById('restartBtn');
         if (restartBtn) {
             restartBtn.addEventListener('click', () => {

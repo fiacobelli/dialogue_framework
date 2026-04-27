@@ -25,7 +25,6 @@ class UIController {
             repeatBtn: document.getElementById('repeatBtn'),
             avatarFrame: document.getElementById('avatarFrame'),
             waveform: document.getElementById('waveform'),
-            pauseBtn: document.getElementById('pauseBtn'),
         };
     }
 
@@ -158,28 +157,14 @@ class UIController {
         this.elements.repeatBtn.style.display = 'none';
     }
 
-    showPauseButton() {
-        if (this.elements.pauseBtn) this.elements.pauseBtn.style.display = 'inline-block';
-    }
-
-    hidePauseButton() {
-        if (this.elements.pauseBtn) this.elements.pauseBtn.style.display = 'none';
-    }
-
     showPaused() {
-        const btn = this.elements.pauseBtn;
-        if (!btn) return;
-        btn.textContent = '▶ Resume';
-        btn.classList.add('paused');
-        this.elements.micHint.textContent = 'Conversation paused';
-        this.elements.micBtn.classList.add('disabled');
+        this.elements.micBtn.classList.add('paused');
+        this.elements.micBtn.classList.remove('listening', 'disabled');
+        this.elements.micHint.textContent = 'Tap mic to resume';
     }
 
     showResumed() {
-        const btn = this.elements.pauseBtn;
-        if (!btn) return;
-        btn.textContent = '❙❙ Pause';
-        btn.classList.remove('paused');
+        this.elements.micBtn.classList.remove('paused');
     }
 
     /** Show thank-you end screen. Optionally display the verbal summary spoken by the avatar. */

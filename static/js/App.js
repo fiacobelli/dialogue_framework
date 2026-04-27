@@ -142,7 +142,6 @@ class App {
             ]);
             this.conversationActive = true;
             this._paused = false;
-            ui.showPauseButton();
             const preview = document.getElementById('avatarPreview');
             if (preview) {
                 preview.classList.add('fade-out');
@@ -158,23 +157,26 @@ class App {
         }
     }
 
-    togglePause() {
-        this._paused = !this._paused;
+    toggleMic() {
+        const state = turnManager.getState();
+        if (state === TurnState.USER_SPEAKING) {
+            speechManager.stopListening();
+            return;
+        }
+        if (state !== TurnState.IDLE) return;
         if (this._paused) {
+            // Resume
+            this._paused = false;
+            ui.showResumed();
+            if (this.conversationActive) speechManager.startListening();
+        } else if (this.conversationActive) {
+            // Pause
+            this._paused = true;
             speechManager.pauseVAD();
             ui.showPaused();
         } else {
-            ui.showResumed();
-            if (this.conversationActive && turnManager.getState() === TurnState.IDLE) {
-                speechManager.startListening();
-            }
+            speechManager.startListening();
         }
-    }
-
-    toggleMic() {
-        const state = turnManager.getState();
-        if (state === TurnState.USER_SPEAKING) speechManager.stopListening();
-        else if (state === TurnState.IDLE)     speechManager.startListening();
     }
 
     async sendTextInput() {
@@ -258,7 +260,6 @@ class App {
 
     async classifyAndReport() {
         ui.setStatus('');
-        ui.hidePauseButton();
         const restartRow = document.getElementById('restartRow');
         if (restartRow) restartRow.style.display = 'none';
         try {
