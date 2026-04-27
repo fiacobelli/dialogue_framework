@@ -53,6 +53,7 @@ class UIController {
     /** Display message word-by-word synchronized with speech. */
     showMessageAnimated(text, wordsPerMinute = 150) {
         this.stopMessageAnimation();
+        this.elements.messageBubble.classList.remove('pulsing');
 
         this.pendingWords = text.split(/\s+/);
         this.currentWordIndex = 0;

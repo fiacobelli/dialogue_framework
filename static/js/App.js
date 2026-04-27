@@ -60,7 +60,10 @@ class App {
 
         speechManager.on('silence', () => ui.setStatus('Got it!'));
 
-        speechManager.on('speakStart', () => ui.showSpeaking());
+        speechManager.on('speakStart', ({ text }) => {
+            ui.showSpeaking();
+            if (text) ui.showMessageAnimated(text);
+        });
 
         speechManager.on('speakEnd', () => {
             ui.stopMessageAnimation();
