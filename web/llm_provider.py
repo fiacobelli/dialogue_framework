@@ -3,6 +3,7 @@
 Supports multiple backends (Ollama, Groq) with a common interface.
 """
 
+import json as _json
 import logging
 import time
 import requests
@@ -43,6 +44,28 @@ class OllamaProvider:
                 logger.warning("Ollama LLM attempt %d/%d failed: %s", attempt + 1, MAX_RETRIES, e)
         logger.error("Ollama LLM call failed after %d attempts", MAX_RETRIES)
         return LLM_ERROR_MESSAGE
+
+    def generate_stream(self, messages: list, system_prompt: str = None):
+        """Stream tokens from Ollama. Yields delta content strings."""
+        all_messages = []
+        if system_prompt:
+            all_messages.append({"role": "system", "content": system_prompt})
+        all_messages.extend(messages)
+        payload = {"model": self.model, "messages": all_messages, "stream": True}
+        resp = requests.post(f"{self.base_url}/api/chat", json=payload, stream=True, timeout=60)
+        try:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                chunk = _json.loads(line)
+                delta = chunk.get("message", {}).get("content", "")
+                if delta:
+                    yield delta
+                if chunk.get("done"):
+                    break
+        finally:
+            resp.close()
 
 
 class GroqProvider:
@@ -92,6 +115,37 @@ class GroqProvider:
                 logger.warning("Groq unexpected error on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e)
         logger.error("Groq LLM call failed after %d attempts for model %s", MAX_RETRIES, self.model)
         return LLM_ERROR_MESSAGE
+
+
+    def generate_stream(self, messages: list, system_prompt: str = None):
+        """Stream tokens from Groq. Yields delta.content strings. No retry — fail fast."""
+        all_messages = []
+        if system_prompt:
+            all_messages.append({"role": "system", "content": system_prompt})
+        all_messages.extend(messages)
+        payload = {"model": self.model, "messages": all_messages, "stream": True}
+        resp = requests.post(
+            GROQ_API_URL,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json=payload,
+            stream=True,
+            timeout=30,
+        )
+        try:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                if line.startswith(b'data: '):
+                    data = line[6:]
+                    if data == b'[DONE]':
+                        break
+                    chunk = _json.loads(data)
+                    delta = chunk['choices'][0]['delta'].get('content', '')
+                    if delta:
+                        yield delta
+        finally:
+            resp.close()
 
 
 def get_provider(name: str, **kwargs):

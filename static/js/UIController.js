@@ -38,6 +38,18 @@ class UIController {
         this.elements.messageBubble.textContent = text;
     }
 
+    /** Clear the message bubble (used at stream start). */
+    clearMessage() {
+        this.elements.messageBubble.classList.remove('pulsing');
+        this.elements.messageBubble.textContent = '';
+    }
+
+    /** Append a sentence to the message bubble as stream sentences arrive. */
+    appendMessage(text) {
+        const current = this.elements.messageBubble.textContent;
+        this.elements.messageBubble.textContent = current ? current + ' ' + text : text;
+    }
+
     /** Display message word-by-word synchronized with speech. */
     showMessageAnimated(text, wordsPerMinute = 150) {
         this.stopMessageAnimation();

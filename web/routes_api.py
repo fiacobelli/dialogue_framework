@@ -1,9 +1,10 @@
 """Core API routes blueprint for the SDoH screening framework."""
 
+import json as _json
 import logging
 import random
 import re
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,69 @@ def chat():
         'phase': phase,
         'done': done
     })
+
+
+_SENTENCE_BOUNDARY = re.compile(r'(?<=[.!?])\s+')
+
+
+@api_bp.route('/chat/stream', methods=['POST'])
+def chat_stream():
+    """Stream LLM response as Server-Sent Events, one sentence per event."""
+    data = request.json or {}
+    session_id = data.get('session_id')
+    user_input = data.get('input', '').strip()
+
+    if not session_id or not has_session(session_id):
+        return jsonify({'error': 'Invalid session'}), 400
+
+    s = get_session(session_id)
+    info_state = s['info_state']
+    goal = s['goal_mgr'].goal
+    msg = s['msg']
+
+    msg[MSG.ORIG_TEXT] = user_input
+    msg[MSG.POSSIBLE_RESPONSES] = [(1.0, user_input)]
+    msg['turn_meta'] = {
+        'input_modality':      data.get('input_modality'),
+        'response_latency_ms': data.get('response_latency_ms'),
+        'speech_confidence':   data.get('speech_confidence'),
+        'client_sent_at':      data.get('client_sent_at'),
+        'no_response':         data.get('no_response', False),
+        'events':              data.get('events', []),
+    }
+
+    def generate():
+        buffer = ''
+        stream_gen = goal.execute_goal_stream(msg, info_state)
+        try:
+            for token in stream_gen:
+                buffer += token
+                while True:
+                    m = _SENTENCE_BOUNDARY.search(buffer)
+                    if not m:
+                        break
+                    sentence = buffer[:m.start()].strip()
+                    buffer = buffer[m.end():]
+                    if sentence:
+                        yield f"data: {_json.dumps({'type': 'sentence', 'text': sentence})}\n\n"
+        except Exception as e:
+            logger.error("Stream error for session %s: %s", session_id, e, exc_info=True)
+            stream_gen.close()
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Streaming error'})}\n\n"
+            return
+
+        if buffer.strip():
+            yield f"data: {_json.dumps({'type': 'sentence', 'text': buffer.strip()})}\n\n"
+
+        phase = info_state.user.query('screening_phase') or 'WELCOME'
+        info_state.save_user_model()
+        yield f"data: {_json.dumps({'type': 'done', 'phase': phase, 'done': phase in ('REPORT', 'COMPLETE')})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @api_bp.route('/classify', methods=['POST'])

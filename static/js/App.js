@@ -6,8 +6,10 @@ class App {
         this._lastSpokenText = null;   // for repeat button
         this._turnCount = 0;           // user turns sent (drives progress bar)
         this._emptyCount = 0;          // consecutive empty VAD cycles (drives skip)
-        this._maxTurns = 12;           // 6 topics + up to 1 probe each
+        this._maxTurns = 12;           // 6 topics + headroom
         this._inputHandler = null;
+        this._streaming = false;       // true while SSE stream + TTS sentence queue active
+        this._pendingReport = false;   // true when done event arrives with phase=REPORT
     }
 
     async init() {
@@ -15,6 +17,10 @@ class App {
         this._inputHandler = new InputHandler(this);
         this._setupTurnStateHandlers();
         this._setupSpeechHandlers();
+        sentenceQueue.configure(
+            (text) => this._playSentence(text),
+            ()     => this._onQueueFinished()
+        );
         this._inputHandler.setupUIEvents();
         this._inputHandler.setupBeginOverlay();
     }
@@ -61,6 +67,7 @@ class App {
         speechManager.on('speakStart', () => ui.showSpeaking());
 
         speechManager.on('speakEnd', () => {
+            if (this._streaming) return; // sentence queue owns the flow during streaming
             ui.stopMessageAnimation();
             ui.setStatus('');
             if (this._lastSpokenText) ui.showRepeatButton();
@@ -199,28 +206,61 @@ class App {
     async _processUserInput(text, meta = {}) {
         if (!conversationAPI.getSessionId()) { ui.setStatus('No active session.'); ui.showIdle(); return; }
         ui.hideRepeatButton();
-        try {
-            const data = await conversationAPI.sendMessage(text, meta);
-            this.conversationActive = true;
-            this._turnCount++;
-            ui.showMessage(data.prompt);           // instant caption — no word animation
-            ui.showProgress(this._turnCount, this._maxTurns);
-            this._lastSpokenText = data.prompt;
-            ui.setStatus('');
 
-            if (data.phase === 'REPORT') {
-                this.conversationActive = false;
-                ui.showProgress(1, 1); // snap bar to 100%
-                await speechManager.speak(data.prompt);
-                this.classifyAndReport();
-                return;
+        this._streaming = true;
+        this._pendingReport = false;
+        this._lastSpokenText = '';
+        sentenceQueue.reset();
+        ui.clearMessage();
+
+        await conversationAPI.sendMessageStream(text, meta, {
+            onSentence: (sentence) => {
+                ui.appendMessage(sentence);
+                this._lastSpokenText += (this._lastSpokenText ? ' ' : '') + sentence;
+                sentenceQueue.enqueue(sentence);
+            },
+            onDone: ({ phase, done }) => {
+                this._turnCount++;
+                ui.showProgress(this._turnCount, this._maxTurns);
+                if (done) {
+                    this.conversationActive = false;
+                    ui.showProgress(1, 1);
+                    this._pendingReport = true;
+                }
+                sentenceQueue.markDone();
+            },
+            onError: (message) => {
+                this._streaming = false;
+                this._pendingReport = false;
+                sentenceQueue.reset();
+                console.error('[App] Stream error:', message);
+                ui.setStatus("Something went wrong. Please try again.");
+                turnManager.reset();
             }
-            await speechManager.speak(data.prompt);
+        });
+    }
+
+    /** Speak one sentence from the queue; advance queue when done. */
+    async _playSentence(text) {
+        try {
+            await speechManager.speak(text);
         } catch (err) {
-            console.error(err);
-            this._speakError("I didn't quite get that. Go ahead and try again, or use the text box below.");
-            ui.showIdle();
-            turnManager.reset();
+            console.error('[App] _playSentence error:', err);
+        }
+        sentenceQueue.onSentenceEnd();
+    }
+
+    /** Called by sentenceQueue when the last sentence has finished playing. */
+    _onQueueFinished() {
+        this._streaming = false;
+        ui.setStatus('');
+        if (this._pendingReport) {
+            this._pendingReport = false;
+            this.classifyAndReport();
+        } else {
+            if (this._lastSpokenText) ui.showRepeatButton();
+            if (this.conversationActive) speechManager.startListening();
+            else ui.showIdle();
         }
     }
 
@@ -251,6 +291,7 @@ class App {
 
 // Create instances and wire them together
 const speechManager = new SpeechManager(turnManager);
+const sentenceQueue = new SentenceQueue();
 const app = new App();
 
 document.addEventListener('DOMContentLoaded', () => app.init());

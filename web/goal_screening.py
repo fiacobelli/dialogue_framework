@@ -127,6 +127,82 @@ class ScreeningGoal(Goal):
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
+    def execute_goal_stream(self, msg, info_state):
+        """Generator: yields raw token strings; performs all DB side-effects in finally."""
+        history = info_state.user.query('conversation_history') or []
+        user_input = msg.get(MSG.ORIG_TEXT, '')
+        language = info_state.user.query('language') or 'en'
+        session_id = info_state.user.query('session_id') or 'unknown'
+        turn_meta = msg.get('turn_meta') or {}
+        no_response = turn_meta.get('no_response', False)
+
+        if user_input:
+            history.append({"role": "user", "content": user_input})
+            info_state.user.update('conversation_history', history)
+            log_screening(session_id, f"USER: {user_input}")
+
+        user_turn_count = sum(1 for m in history if m.get('role') == 'user')
+        avatar_profile = info_state.user.query('avatar_profile') or {}
+        avatar_name = avatar_profile.get('name', 'Assistant')
+        prompt = self._build_prompt(info_state, avatar_name, language)
+
+        full_tokens = []
+        t0 = time.perf_counter()
+        try:
+            for token in self.llm.generate_stream(history, prompt):
+                full_tokens.append(token)
+                yield token
+        finally:
+            response = ''.join(full_tokens)
+            llm_latency_ms = int((time.perf_counter() - t0) * 1000)
+            log_screening(session_id, f"LLM ({llm_latency_ms}ms) [stream]: {response}")
+
+            is_ending = self._is_goodbye(response, user_turn_count)
+            if not is_ending and user_turn_count >= MAX_USER_TURNS:
+                log_screening(session_id, f"FORCED ENDING at turn {user_turn_count}")
+                response = EXIT_PHRASE
+                is_ending = True
+            log_screening(session_id, f"_is_goodbye check: {is_ending}")
+
+            if is_ending:
+                info_state.user.update('screening_phase', 'REPORT')
+                log_screening(session_id, "PHASE CHANGED TO: REPORT")
+                summary = self._generate_summary(history, response)
+                info_state.user.update('last_summary', summary)
+                log_screening(session_id, f"SUMMARY: {summary}")
+
+            history.append({"role": "assistant", "content": response})
+            info_state.user.update('conversation_history', history)
+            msg[MSG.RESPONSE] = response
+
+            visit_id = info_state.user.query('visit_id')
+            phone_pin = info_state.user.query('patient_pin')
+            phase = info_state.user.query('screening_phase') or 'WELCOME'
+            agent = info_state.user.query('avatar') or 'unknown'
+            voice = avatar_profile.get('lang', language)
+            if visit_id:
+                turn = len(history)
+                if user_input:
+                    db.save_message(
+                        visit_id, 'user', user_input, turn - 2, agent, voice,
+                        input_modality=turn_meta.get('input_modality'),
+                        response_latency_ms=turn_meta.get('response_latency_ms'),
+                        speech_confidence=turn_meta.get('speech_confidence'),
+                        client_sent_at=turn_meta.get('client_sent_at'),
+                    )
+                    if not no_response:
+                        db.increment_visit_turns(visit_id)
+                        events = turn_meta.get('events') or []
+                        if events:
+                            db.save_turn_events(visit_id, turn - 2, events)
+                db.save_message(
+                    visit_id, 'assistant', response, turn - 1, agent, voice,
+                    llm_latency_ms=llm_latency_ms,
+                )
+                db.update_visit_phase(visit_id, phase)
+            if phone_pin:
+                db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
+
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
         instruction = (
