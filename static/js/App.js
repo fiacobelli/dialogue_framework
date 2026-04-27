@@ -167,6 +167,7 @@ class App {
 
         // Ludi is speaking → pause her
         if (state === TurnState.SYSTEM_SPEAKING) {
+            console.log('[App] Agent pause triggered');
             this._agentPaused = true;
             ui.showPaused();
             speechManager.stopSpeaking();

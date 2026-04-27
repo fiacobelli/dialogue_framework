@@ -40,10 +40,9 @@
         }
 
         function stopSpeakText() {
+            window.speechSynthesis.cancel(); // always cancel fallback
             if (window.sitePalReady && typeof sayText === 'function') {
-                sayText('.', voice, language, engine); // interrupts current speech
-            } else {
-                window.speechSynthesis.cancel();
+                sayText('.', voice, language, engine); // interrupt SitePal
             }
         }
     </script>
