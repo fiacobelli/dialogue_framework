@@ -14,31 +14,39 @@
 
     <!-- SitePal setup — MUST be before embed -->
     <script>
-        // Intercept ALL AudioContext and Audio element instances before SitePal loads.
-        window._spCtxList  = [];
-        window._spAudioEls = [];
+        // Intercept AudioContext creation and HTMLAudioElement.prototype.play before SitePal loads.
+        // Using prototype.play catches every element regardless of how it was created
+        // (new Audio() OR document.createElement('audio')).
+        window._spCtxList      = [];
+        window._playingAudioEls = new Set();
+
         (function() {
+            // AudioContext interception (needed to resume on speakText)
             const Ctx = window.AudioContext || window.webkitAudioContext;
             if (Ctx) {
                 window.AudioContext = window.webkitAudioContext = new Proxy(Ctx, {
                     construct(target, args) {
                         const ctx = Reflect.construct(target, args);
                         window._spCtxList.push(ctx);
-                        console.log('[AudioCtx] captured #' + window._spCtxList.length);
                         return ctx;
                     }
                 });
             }
-            if (window.Audio) {
-                window.Audio = new Proxy(window.Audio, {
-                    construct(target, args) {
-                        const el = Reflect.construct(target, args);
-                        window._spAudioEls.push(el);
-                        console.log('[Audio el] captured #' + window._spAudioEls.length, args[0]?.toString().slice(0,60));
-                        return el;
-                    }
-                });
-            }
+
+            // Prototype-level play/pause intercept — catches the actual playing element
+            const _origPlay  = HTMLAudioElement.prototype.play;
+            const _origPause = HTMLAudioElement.prototype.pause;
+            window._origAudioPause = _origPause; // needed by stopSpeakText
+
+            HTMLAudioElement.prototype.play = function() {
+                window._playingAudioEls.add(this);
+                console.log('[Audio.play] src:', this.src?.slice(0, 80));
+                return _origPlay.call(this);
+            };
+            HTMLAudioElement.prototype.pause = function() {
+                window._playingAudioEls.delete(this);
+                return _origPause.call(this);
+            };
         })();
 
         const avatarProfile = {{ avatar_profile | tojson }};
@@ -56,9 +64,8 @@
         }
 
         function speakText(text) {
-            // Resume suspended AudioContexts; clear stale audio elements (SitePal creates new ones per utterance)
+            // Resume suspended AudioContexts before each utterance
             window._spCtxList.forEach(ctx => { if (ctx.state === 'suspended') ctx.resume(); });
-            window._spAudioEls = [];
             if (window.sitePalReady && typeof sayText === 'function') {
                 sayText(text, voice, language, engine);
             } else {
@@ -70,10 +77,16 @@
         }
 
         function stopSpeakText() {
-            console.log('[stopSpeakText] ctxs:', window._spCtxList.map(c => c.state), '| audioEls:', window._spAudioEls.length);
+            console.log('[stopSpeakText] playing els:', window._playingAudioEls.size, '| ctxs:', window._spCtxList.map(c => c.state));
+            // Pause every element that called .play() since page load
+            window._playingAudioEls.forEach(el => {
+                try { window._origAudioPause.call(el); el.currentTime = 0; } catch(_) {}
+            });
+            window._playingAudioEls.clear();
+            // Suspend AudioContexts as belt-and-suspenders
             window._spCtxList.forEach(ctx => { try { ctx.suspend(); } catch(_) {} });
-            window._spAudioEls.forEach(el  => { try { el.pause(); el.currentTime = 0; } catch(_) {} });
-            if (window._spCtxList.length === 0 && window._spAudioEls.length === 0) {
+            // Fallback: Web Speech API (active when sitePalReady is false)
+            if (!window.sitePalReady) {
                 window.speechSynthesis.pause();
                 window.speechSynthesis.cancel();
             }
