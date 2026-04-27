@@ -330,9 +330,21 @@ class SpeechManager {
         return this._speechConfidence;
     }
 
-    /** Pause VAD so it won't fire onSpeechStart — used by the pause button. */
-    pauseVAD() {
-        if (this._vadReady && this._vad) this._vad.pause();
+    /**
+     * Pause listening — works in both VAD mode and continuous recognition fallback.
+     * Stops the active listener without emitting complete/empty events.
+     */
+    pauseListening() {
+        this._clearSilenceTimer();
+        if (this._vadReady && this._vad) {
+            this._vad.pause();
+        } else if (this._recognitionActive) {
+            this._recognitionActive = false;
+            try { this.recognition.stop(); } catch (_) {}
+        }
+        if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
+            this.turnManager.reset();
+        }
     }
 
     /**

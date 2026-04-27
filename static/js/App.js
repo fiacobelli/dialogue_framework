@@ -164,10 +164,10 @@ class App {
 
     toggleMic() {
         const state = turnManager.getState();
+        console.log('[App] toggleMic state:', state, '| agentPaused:', this._agentPaused, '| paused:', this._paused);
 
         // Ludi is speaking → pause her
         if (state === TurnState.SYSTEM_SPEAKING) {
-            console.log('[App] Agent pause triggered');
             this._agentPaused = true;
             ui.showPaused();
             speechManager.stopSpeaking();
@@ -193,7 +193,7 @@ class App {
             if (this.conversationActive) speechManager.startListening();
         } else if (this.conversationActive) {
             this._paused = true;
-            speechManager.pauseVAD();
+            speechManager.pauseListening();
             ui.showPaused();
         } else {
             speechManager.startListening();
