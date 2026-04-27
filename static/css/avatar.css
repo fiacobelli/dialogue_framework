@@ -119,10 +119,13 @@
     text-align: center;
     max-width: 480px;
     width: 100%;
-    position: relative;
-    z-index: 10;           /* well above sonar rings */
-    background: white;     /* masks any ring bleed-through */
-    padding-bottom: 16px;  /* guaranteed clearance above the mic */
+}
+
+@media (min-width: 768px) {
+    .message-bubble {
+        overflow-y: auto;
+        max-height: 45vh;
+    }
 }
 
 /* ── Repeat button ────────────────────────────────────────────────────────── */
