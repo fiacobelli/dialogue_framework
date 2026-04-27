@@ -15,6 +15,8 @@ from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import report
 from . import database as db
+from . import email_sender
+from .config import EMAIL_ENABLED, SMTP_HOST, SMTP_PORT, EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECIPIENTS
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -207,8 +209,17 @@ def classify_responses():
     try:
         result = report.classify(info_state, provider)
         visit_id = info_state.user.query('visit_id')
+        patient_id = info_state.user.query('patient_pin')
         if visit_id:
             db.save_referrals(visit_id, result)
+        email_sender.send_report(visit_id, result, patient_id, {
+            'enabled':    EMAIL_ENABLED,
+            'host':       SMTP_HOST,
+            'port':       SMTP_PORT,
+            'sender':     EMAIL_SENDER,
+            'password':   EMAIL_PASSWORD,
+            'recipients': EMAIL_RECIPIENTS,
+        })
         logger.info("Classification complete for session %s", session_id)
         return jsonify(result)
     except Exception as e:

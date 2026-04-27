@@ -60,3 +60,11 @@ FALLBACK_PROMPT = 'You are a helpful assistant.'
 
 # Database
 DB_PATH = config('DB_PATH', default='db/sdoh.db')
+
+# Email report (sent after each classify)
+EMAIL_ENABLED    = config('EMAIL_ENABLED',    default=False, cast=bool)
+SMTP_HOST        = config('SMTP_HOST',        default='smtp.office365.com')
+SMTP_PORT        = config('SMTP_PORT',        default=587, cast=int)
+EMAIL_SENDER     = config('EMAIL_SENDER',     default='')
+EMAIL_PASSWORD   = config('EMAIL_PASSWORD',   default='')
+EMAIL_RECIPIENTS = config('EMAIL_RECIPIENTS', default='bboateng1@luc.edu')

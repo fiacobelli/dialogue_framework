@@ -52,6 +52,9 @@
                 <button id="restartBtn">↺ Start Over</button>
             </div>
             <div class="avatar-frame" id="avatarFrame">
+                <img id="avatarPreview" loading="eager"
+                     src="/static/photos/avatars/{{ avatar_scene_id }}.png"
+                     alt="Your health navigator">
                 <div id="avatar">
                     <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                     <script type="text/javascript">
@@ -153,7 +156,6 @@
     <script src="/static/js/ConversationAPI.js"></script>
     <script src="/static/js/UIController.js"></script>
     <script src="/static/js/InputHandler.js"></script>
-    <script src="/static/js/SentenceQueue.js"></script>
     <script src="/static/js/App.js"></script>
 </body>
 </html>
