@@ -40,11 +40,14 @@
         }
 
         function stopSpeakText() {
-            console.log('[stopSpeakText] sitePalReady:', window.sitePalReady, 'synthesis.speaking:', window.speechSynthesis.speaking);
+            const audioEls = document.querySelectorAll('audio');
+            console.log('[stopSpeakText] sitePalReady:', window.sitePalReady, '| audio elements found:', audioEls.length);
             if (window.sitePalReady && typeof sayText === 'function') {
-                sayText('.', voice, language, engine);
+                // SitePal HTML5 drives an <audio> element — pause it directly
+                audioEls.forEach(a => { try { a.pause(); a.currentTime = 0; } catch(_) {} });
+                // Reset SitePal's internal state with silent speech
+                try { sayText(' ', voice, language, engine); } catch (_) {}
             } else {
-                // Chrome bug: pause() before cancel() is needed to reliably stop speech
                 window.speechSynthesis.pause();
                 window.speechSynthesis.cancel();
             }
