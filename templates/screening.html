@@ -56,9 +56,9 @@
         }
 
         function speakText(text) {
-            // Resume all suspended AudioContexts and audio elements
+            // Resume suspended AudioContexts; clear stale audio elements (SitePal creates new ones per utterance)
             window._spCtxList.forEach(ctx => { if (ctx.state === 'suspended') ctx.resume(); });
-            window._spAudioEls.forEach(el  => { try { if (el.paused) el.play(); } catch(_) {} });
+            window._spAudioEls = [];
             if (window.sitePalReady && typeof sayText === 'function') {
                 sayText(text, voice, language, engine);
             } else {
