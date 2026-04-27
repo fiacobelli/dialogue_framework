@@ -340,8 +340,9 @@ class SpeechManager {
      * speak() Promise resolves cleanly and the turn state returns to IDLE.
      */
     stopSpeaking() {
-        if (typeof stopTalk === 'function') { try { stopTalk(); } catch (_) {} }
-        try { this.synthesis.cancel(); } catch (_) {}
+        if (typeof stopSpeakText === 'function') {
+            try { stopSpeakText(); } catch (_) {}
+        }
         document.dispatchEvent(new Event('sitePalTalkEnded'));
     }
 

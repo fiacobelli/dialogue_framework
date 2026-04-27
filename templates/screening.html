@@ -38,6 +38,14 @@
                 speechSynthesis.speak(u);
             }
         }
+
+        function stopSpeakText() {
+            if (window.sitePalReady && typeof sayText === 'function') {
+                sayText('.', voice, language, engine); // interrupts current speech
+            } else {
+                window.speechSynthesis.cancel();
+            }
+        }
     </script>
 </head>
 <body class="screening-page">
