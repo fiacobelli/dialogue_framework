@@ -12,33 +12,6 @@ LOGS_DIR = 'logs'
 MAX_USER_TURNS = 20
 MIN_TURNS_FOR_GOODBYE = 4
 
-# Words/phrases that indicate a surface-level answer not worth acting on
-_SURFACE_ANSWERS = frozenset({
-    'yes', 'no', 'fine', 'okay', 'ok', 'good', 'bad', 'great', 'maybe',
-    'sure', 'yeah', 'nope', 'not really', 'kind of', 'i guess', 'alright',
-    "i don't know", 'i dont know', 'satisfied', 'not bad', 'nothing',
-    'none', 'never', 'always', 'not much', 'a little', 'sort of',
-})
-
-_PROBE_INJECTION = (
-    "\n\nCRITICAL — DO NOT SKIP: The patient's last answer was too short or "
-    "vague to be clinically useful. You MUST ask exactly one specific follow-up "
-    "question about what they said before moving to the next topic. "
-    "Do NOT ask the next screening topic yet."
-)
-
-
-def _is_surface_answer(text: str) -> bool:
-    """Return True if the answer is too brief or vague to be actionable."""
-    t = text.strip().lower().rstrip('.,!?')
-    if not t:
-        return False
-    if t in _SURFACE_ANSWERS:
-        return True
-    # Three words or fewer is always surface-level
-    if len(t.split()) <= 3:
-        return True
-    return False
 
 
 EXIT_PHRASE = "It means a lot that you shared all of this with me. Your care team will have everything they need to look after you well."
@@ -103,16 +76,8 @@ class ScreeningGoal(Goal):
         avatar_name = avatar_profile.get('name', 'Assistant')
         prompt = self._build_prompt(info_state, avatar_name, language)
 
-        # If the patient gave a surface-level answer, inject a hard probe
-        # instruction into the system prompt for this turn only.
-        # Code-enforced because small LLMs reliably ignore complex prompt rules.
-        effective_prompt = prompt
-        if user_input and _is_surface_answer(user_input):
-            effective_prompt = prompt + _PROBE_INJECTION
-            log_screening(session_id, f"PROBE INJECTED for surface answer: '{user_input}'")
-
         t0 = time.perf_counter()
-        response = self.llm.generate(history, effective_prompt)
+        response = self.llm.generate(history, prompt)
         llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         log_screening(session_id, f"LLM ({llm_latency_ms}ms): {response}")
 
