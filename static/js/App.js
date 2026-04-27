@@ -22,7 +22,7 @@ class App {
     }
 
     _setupTurnStateHandlers() {
-        turnManager.on(TurnState.IDLE,           () => ui.showIdle());
+        turnManager.on(TurnState.IDLE,           () => { if (!this._agentPaused && !this._paused) ui.showIdle(); });
         turnManager.on(TurnState.USER_SPEAKING,  () => { ui.showListening();  ui.hideRepeatButton(); });
         turnManager.on(TurnState.PROCESSING,     () => { ui.showProcessing(); ui.hideRepeatButton(); });
         turnManager.on(TurnState.SYSTEM_SPEAKING,() => ui.showSpeaking());
@@ -182,7 +182,14 @@ class App {
         }
 
         if (state === TurnState.USER_SPEAKING) {
-            speechManager.stopListening();
+            if (speechManager._vadReady) {
+                speechManager.stopListening();
+            } else {
+                // Continuous recognition mode: tap = pause (no VAD to gate speech)
+                this._paused = true;
+                speechManager.pauseListening();
+                ui.showPaused();
+            }
             return;
         }
         if (state !== TurnState.IDLE) return;
