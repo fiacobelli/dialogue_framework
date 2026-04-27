@@ -40,9 +40,13 @@
         }
 
         function stopSpeakText() {
-            window.speechSynthesis.cancel(); // always cancel fallback
+            console.log('[stopSpeakText] sitePalReady:', window.sitePalReady, 'synthesis.speaking:', window.speechSynthesis.speaking);
             if (window.sitePalReady && typeof sayText === 'function') {
-                sayText('.', voice, language, engine); // interrupt SitePal
+                sayText('.', voice, language, engine);
+            } else {
+                // Chrome bug: pause() before cancel() is needed to reliably stop speech
+                window.speechSynthesis.pause();
+                window.speechSynthesis.cancel();
             }
         }
     </script>
