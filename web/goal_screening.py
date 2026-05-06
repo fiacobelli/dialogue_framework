@@ -77,7 +77,7 @@ class ScreeningGoal(Goal):
         prompt = self._build_prompt(info_state, avatar_name, language)
 
         t0 = time.perf_counter()
-        response = self.llm.generate(history, prompt)
+        response = self.llm.generate(history, prompt, temperature=0.75)
         llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         log_screening(session_id, f"LLM ({llm_latency_ms}ms): {response}")
 
@@ -153,7 +153,7 @@ class ScreeningGoal(Goal):
         full_tokens = []
         t0 = time.perf_counter()
         try:
-            for token in self.llm.generate_stream(history, prompt):
+            for token in self.llm.generate_stream(history, prompt, temperature=0.75):
                 full_tokens.append(token)
                 yield token
         finally:

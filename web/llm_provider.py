@@ -22,7 +22,7 @@ class OllamaProvider:
         self.model = model
         self.base_url = base_url or OLLAMA_BASE_URL
 
-    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Generate response from message history."""
         all_messages = []
         if system_prompt:
@@ -32,6 +32,8 @@ class OllamaProvider:
         payload = {"model": self.model, "messages": all_messages, "stream": False}
         if json_mode:
             payload["format"] = "json"
+        if temperature is not None:
+            payload["temperature"] = temperature
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -45,13 +47,15 @@ class OllamaProvider:
         logger.error("Ollama LLM call failed after %d attempts", MAX_RETRIES)
         return LLM_ERROR_MESSAGE
 
-    def generate_stream(self, messages: list, system_prompt: str = None):
+    def generate_stream(self, messages: list, system_prompt: str = None, temperature: float = None):
         """Stream tokens from Ollama. Yields delta content strings."""
         all_messages = []
         if system_prompt:
             all_messages.append({"role": "system", "content": system_prompt})
         all_messages.extend(messages)
         payload = {"model": self.model, "messages": all_messages, "stream": True}
+        if temperature is not None:
+            payload["temperature"] = temperature
         resp = requests.post(f"{self.base_url}/api/chat", json=payload, stream=True, timeout=60)
         try:
             resp.raise_for_status()
@@ -75,7 +79,7 @@ class GroqProvider:
         self.model = model
         self.api_key = api_key
 
-    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Generate response from message history."""
         all_messages = []
         if system_prompt:
@@ -85,6 +89,8 @@ class GroqProvider:
         payload = {"model": self.model, "messages": all_messages}
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if temperature is not None:
+            payload["temperature"] = temperature
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -117,13 +123,15 @@ class GroqProvider:
         return LLM_ERROR_MESSAGE
 
 
-    def generate_stream(self, messages: list, system_prompt: str = None):
+    def generate_stream(self, messages: list, system_prompt: str = None, temperature: float = None):
         """Stream tokens from Groq. Yields delta.content strings. No retry — fail fast."""
         all_messages = []
         if system_prompt:
             all_messages.append({"role": "system", "content": system_prompt})
         all_messages.extend(messages)
         payload = {"model": self.model, "messages": all_messages, "stream": True}
+        if temperature is not None:
+            payload["temperature"] = temperature
         resp = requests.post(
             GROQ_API_URL,
             headers={"Authorization": f"Bearer {self.api_key}"},
