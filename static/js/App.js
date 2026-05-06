@@ -294,14 +294,11 @@ class App {
         const restartRow = document.getElementById('restartRow');
         if (restartRow) restartRow.style.display = 'none';
         try {
-            const result = await conversationAPI.classifyResponses();
-            const summary = result.verbal_summary || 'Your care team will follow up with you.';
-            ui.showMessage(summary);
-            await speechManager.speak(summary);
-            ui.showThankYou(summary);
+            await conversationAPI.classifyResponses();
+            ui.showThankYou(this._lastSpokenText);
         } catch (err) {
             console.error('Classification failed:', err);
-            ui.showThankYou();
+            ui.showThankYou(this._lastSpokenText);
         } finally {
             speechManager.destroy();
         }

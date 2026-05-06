@@ -149,6 +149,7 @@ def build_screening_state(topics: list[dict[str, Any]]) -> dict[str, Any]:
         'awaiting': 'name',
         'followup_used': False,
         'asked_final_care_team_question': False,
+        'halfway_cue_given': False,
         'last_task': 'opening',
         'last_topic_category': None,
         'last_probe_depth': None,
@@ -250,6 +251,14 @@ def advance_topic(state: dict[str, Any]) -> None:
     state['awaiting'] = 'main_answer'
 
 
+def maybe_add_halfway_cue(state: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
+    """Mark the first turn after three completed topics for reassurance."""
+    if state.get('topic_index') == 3 and not state.get('halfway_cue_given'):
+        state['halfway_cue_given'] = True
+        task['halfway_cue'] = True
+    return task
+
+
 def decide_next_task(state: dict[str, Any], user_input: str) -> dict[str, Any]:
     """Update state and return the next task for the LLM/code."""
     if has_urgent_disclosure(user_input):
@@ -278,7 +287,10 @@ def decide_next_task(state: dict[str, Any], user_input: str) -> dict[str, Any]:
     if awaiting == 'followup_answer':
         advance_topic(state)
         if current_topic(state):
-            return {'type': 'ack_then_next', 'probe_depth': 0, 'topic': current_topic(state)}
+            return maybe_add_halfway_cue(
+                state,
+                {'type': 'ack_then_next', 'probe_depth': 0, 'topic': current_topic(state)},
+            )
         state['phase'] = 'FINAL_QUESTION'
         state['awaiting'] = 'final_answer'
         state['asked_final_care_team_question'] = True
@@ -301,7 +313,10 @@ def decide_next_task(state: dict[str, Any], user_input: str) -> dict[str, Any]:
 
         advance_topic(state)
         if current_topic(state):
-            return {'type': 'ack_then_next', 'probe_depth': 0, 'topic': current_topic(state)}
+            return maybe_add_halfway_cue(
+                state,
+                {'type': 'ack_then_next', 'probe_depth': 0, 'topic': current_topic(state)},
+            )
         state['phase'] = 'FINAL_QUESTION'
         state['awaiting'] = 'final_answer'
         state['asked_final_care_team_question'] = True

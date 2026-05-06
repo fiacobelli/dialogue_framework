@@ -86,7 +86,7 @@ class ScreeningGoal(Goal):
         """Stream cleaned sentence chunks and finalize DB/state afterward."""
         context = self._prepare_turn(msg, info_state)
 
-        if context['task']['type'] in {'close', 'urgent_close'}:
+        if context['task']['type'] == 'urgent_close':
             response, latency = self._generate_for_task(context)
             self._finalize_turn(msg, info_state, context, response, latency, stream=True)
             yield msg[MSG.RESPONSE]
@@ -174,8 +174,6 @@ class ScreeningGoal(Goal):
         task_type = context['task']['type']
         if task_type == 'urgent_close':
             return URGENT_EXIT_PHRASE, 0
-        if task_type == 'close':
-            return EXIT_PHRASE, 0
 
         t0 = time.perf_counter()
         response = self.llm.generate(context['history'], context['prompt'], temperature=0.75)
@@ -327,9 +325,15 @@ class ScreeningGoal(Goal):
                 "Begin the follow-up with What, How, or Tell me about. Ask only one question."
             )
         if task_type == 'ack_then_next':
+            halfway = (
+                'Also include this reassurance once, naturally: '
+                '"We\'re about halfway through, and you\'re doing well." '
+                if task.get('halfway_cue') else ''
+            )
             return (
                 f"Current task: move to the next topic, {category}. "
-                f"Briefly acknowledge the patient's last answer. Then ask this source question in patient-friendly spoken language: \"{question}\" "
+                f"Briefly acknowledge the patient's last answer. {halfway}"
+                f"Then ask this source question in patient-friendly spoken language: \"{question}\" "
                 f"{self._sensitive_topic_instruction(category)}"
                 "Ask only one question."
             )
@@ -338,6 +342,15 @@ class ScreeningGoal(Goal):
                 "All six screening topics are complete. Briefly acknowledge the patient's last answer. "
                 "Then ask: Is there anything you would like me to pass along to your care team on your behalf? "
                 "Ask only that one question."
+            )
+        if task_type == 'close':
+            return (
+                "Current task: give the final response and end the screening. "
+                f"The patient just answered the care-team question with: \"{user_input}\". "
+                "Briefly acknowledge what they said, including if they said they had nothing else to add. "
+                "Thank them for answering the questions and say their answers will be shared with their care team. "
+                f"End with this exact sentence: \"{EXIT_PHRASE}\" "
+                "Do not ask another question. This is the final spoken response."
             )
         return "Output only patient-facing speech. Ask only one question."
 
