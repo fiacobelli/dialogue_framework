@@ -1,1 +1,1 @@
-"""Web application package for TRANSPLANT microsite builder."""
+"""Web application package for the SDoH screening tool."""
