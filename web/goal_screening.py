@@ -2,23 +2,42 @@
 import os
 import re
 import time
+import logging
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
 from . import database as db
+from .screening_flow import (
+    build_screening_state,
+    advance_topic,
+    current_topic,
+    decide_next_task,
+)
 
 LOGS_DIR = 'logs'
 MAX_USER_TURNS = 20
 MIN_TURNS_FOR_GOODBYE = 4
+logger = logging.getLogger(__name__)
 
 
 
 EXIT_PHRASE = "It means a lot that you shared all of this with me. Your care team will have everything they need to look after you well."
+URGENT_EXIT_PHRASE = (
+    "I'm really glad you told me that. If you are in immediate danger or might hurt yourself "
+    "or someone else, please call 911 right now. Your care team will have everything they need "
+    "to look after you well."
+)
 SUMMARY_PREAMBLE_RE = re.compile(
     r"^\s*(I['\u2019]ll|I will|Here['\u2019]s|Here is|Sure|Okay|Of course|Certainly)[^.\n]*[.!?]\s*",
     re.IGNORECASE,
 )
+META_LINE_RE = re.compile(
+    r"^\s*(\([^)]*(?:note|rule|instruction|move on|response|topic|follow)[^)]*\)|"
+    r"(?:note|rule|instruction)\s*:.*)\s*$",
+    re.IGNORECASE,
+)
+STREAM_SENTENCE_BOUNDARY = re.compile(r'(?<=[.!?])\s+')
 
 
 def log_screening(session_id: str, entry: str):
@@ -59,29 +78,124 @@ class ScreeningGoal(Goal):
         return prompt
 
     def execute_goal(self, msg, info_state):
+        context = self._prepare_turn(msg, info_state)
+        response, latency = self._generate_for_task(context)
+        self._finalize_turn(msg, info_state, context, response, latency, stream=False)
+
+    def execute_goal_stream(self, msg, info_state):
+        """Stream cleaned sentence chunks and finalize DB/state afterward."""
+        context = self._prepare_turn(msg, info_state)
+
+        if context['task']['type'] in {'close', 'urgent_close'}:
+            response, latency = self._generate_for_task(context)
+            self._finalize_turn(msg, info_state, context, response, latency, stream=True)
+            yield msg[MSG.RESPONSE]
+            return
+
+        full_parts = []
+        buffer = ''
+        t0 = time.perf_counter()
+        for token in self.llm.generate_stream(context['history'], context['prompt'], temperature=0.75):
+            buffer += token
+            while True:
+                match = STREAM_SENTENCE_BOUNDARY.search(buffer)
+                if not match:
+                    break
+                raw_sentence = buffer[:match.start()].strip()
+                buffer = buffer[match.end():]
+                cleaned = self._clean_spoken_response(raw_sentence)
+                if cleaned:
+                    full_parts.append(cleaned)
+                    yield cleaned + ' '
+
+        if buffer.strip():
+            cleaned = self._clean_spoken_response(buffer)
+            if cleaned:
+                full_parts.append(cleaned)
+                yield cleaned
+
+        response = ' '.join(full_parts).strip()
+        latency = int((time.perf_counter() - t0) * 1000)
+        self._finalize_turn(msg, info_state, context, response, latency, stream=True)
+
+    def _prepare_turn(self, msg, info_state) -> dict:
         history = info_state.user.query('conversation_history') or []
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
         session_id = info_state.user.query('session_id') or 'unknown'
         turn_meta = msg.get('turn_meta') or {}
         no_response = turn_meta.get('no_response', False)
+        state = self._get_screening_state(info_state)
+        answered_topic = current_topic(state)
+        answered_probe_depth = 1 if state.get('awaiting') == 'followup_answer' else 0
 
         if user_input:
             history.append({"role": "user", "content": user_input})
             info_state.user.update('conversation_history', history)
             log_screening(session_id, f"USER: {user_input}")
 
+        if no_response:
+            task = self._skip_current_question(state)
+        else:
+            task = decide_next_task(state, user_input)
+
+        state['last_task'] = task['type']
+        topic = task.get('topic')
+        state['last_topic_category'] = topic.get('category') if topic else None
+        state['last_probe_depth'] = task.get('probe_depth')
+        info_state.user.update('screening_state', state)
+        info_state.user.update('screening_phase', 'REPORT' if state.get('phase') == 'REPORT' else 'SCREENING')
+        decision = state.get('last_followup_decision')
+        if decision:
+            log_screening(session_id, f"FOLLOWUP_DECISION: {decision}")
+
         user_turn_count = sum(1 for m in history if m.get('role') == 'user')
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
-        prompt = self._build_prompt(info_state, avatar_name, language)
+        prompt = self._build_runtime_prompt(info_state, avatar_name, language, task, user_input)
+
+        return {
+            'history': history,
+            'user_input': user_input,
+            'language': language,
+            'session_id': session_id,
+            'turn_meta': turn_meta,
+            'no_response': no_response,
+            'user_turn_count': user_turn_count,
+            'avatar_profile': avatar_profile,
+            'prompt': prompt,
+            'task': task,
+            'state': state,
+            'answered_topic': answered_topic,
+            'answered_probe_depth': answered_probe_depth,
+        }
+
+    def _generate_for_task(self, context: dict) -> tuple[str, int]:
+        task_type = context['task']['type']
+        if task_type == 'urgent_close':
+            return URGENT_EXIT_PHRASE, 0
+        if task_type == 'close':
+            return EXIT_PHRASE, 0
 
         t0 = time.perf_counter()
-        response = self.llm.generate(history, prompt, temperature=0.75)
+        response = self.llm.generate(context['history'], context['prompt'], temperature=0.75)
         llm_latency_ms = int((time.perf_counter() - t0) * 1000)
-        log_screening(session_id, f"LLM ({llm_latency_ms}ms): {response}")
+        return response, llm_latency_ms
 
-        is_ending = self._is_goodbye(response, user_turn_count)
+    def _finalize_turn(self, msg, info_state, context: dict, response: str,
+                       llm_latency_ms: int, stream: bool) -> None:
+        history = context['history']
+        session_id = context['session_id']
+        user_turn_count = context['user_turn_count']
+        cleaned = self._clean_spoken_response(response)
+        if cleaned != response:
+            log_screening(session_id, f"CLEANED RESPONSE: {cleaned}")
+        response = cleaned or EXIT_PHRASE
+
+        log_label = "LLM (%sms) [stream]" if stream else "LLM (%sms)"
+        log_screening(session_id, f"{log_label % llm_latency_ms}: {response}")
+
+        is_ending = context['state'].get('phase') == 'REPORT' or self._is_goodbye(response, user_turn_count)
         if not is_ending and user_turn_count >= MAX_USER_TURNS:
             log_screening(session_id, f"FORCED ENDING at turn {user_turn_count}")
             response = EXIT_PHRASE
@@ -102,12 +216,21 @@ class ScreeningGoal(Goal):
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
         msg[MSG.RESPONSE] = response
+        self._save_turn(info_state, context, response, llm_latency_ms)
 
+    def _save_turn(self, info_state, context: dict, response: str, llm_latency_ms: int) -> None:
         visit_id = info_state.user.query('visit_id')
         phone_pin = info_state.user.query('patient_pin')
+        avatar_profile = context['avatar_profile']
         phase = info_state.user.query('screening_phase') or 'WELCOME'
         agent = info_state.user.query('avatar') or 'unknown'
-        voice = avatar_profile.get('lang', language)
+        voice = avatar_profile.get('lang', context['language'])
+        history = context['history']
+        turn_meta = context['turn_meta']
+        user_input = context['user_input']
+        answered_topic = context['answered_topic'] or {}
+        assistant_topic = context['task'].get('topic') or {}
+
         if visit_id:
             turn = len(history)
             if user_input:
@@ -117,8 +240,10 @@ class ScreeningGoal(Goal):
                     response_latency_ms=turn_meta.get('response_latency_ms'),
                     speech_confidence=turn_meta.get('speech_confidence'),
                     client_sent_at=turn_meta.get('client_sent_at'),
+                    question_category=answered_topic.get('category'),
+                    probe_depth=context['answered_probe_depth'],
                 )
-                if not no_response:
+                if not context['no_response']:
                     db.increment_visit_turns(visit_id)
                     events = turn_meta.get('events') or []
                     if events:
@@ -126,90 +251,113 @@ class ScreeningGoal(Goal):
             db.save_message(
                 visit_id, 'assistant', response, turn - 1, agent, voice,
                 llm_latency_ms=llm_latency_ms,
+                question_category=assistant_topic.get('category'),
+                probe_depth=context['task'].get('probe_depth'),
             )
             db.update_visit_phase(visit_id, phase)
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
-    def execute_goal_stream(self, msg, info_state):
-        """Generator: yields raw token strings; performs all DB side-effects in finally."""
-        history = info_state.user.query('conversation_history') or []
-        user_input = msg.get(MSG.ORIG_TEXT, '')
-        language = info_state.user.query('language') or 'en'
-        session_id = info_state.user.query('session_id') or 'unknown'
-        turn_meta = msg.get('turn_meta') or {}
-        no_response = turn_meta.get('no_response', False)
+    def _get_screening_state(self, info_state) -> dict:
+        state = info_state.user.query('screening_state')
+        if state:
+            return state
+        topics = []
+        question_block = info_state.user.query('question_instructions') or ''
+        for block in [p for p in question_block.split('\n\n') if ':' in p]:
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            category = lines[0].rstrip(':')
+            questions = []
+            for line in lines[1:]:
+                match = re.search(r'"(.+)"', line)
+                if match:
+                    questions.append(match.group(1))
+            if questions:
+                topics.append({'category': category, 'questions': questions, 'sensitivity': 99})
+        state = build_screening_state(topics)
+        info_state.user.update('screening_state', state)
+        return state
 
-        if user_input:
-            history.append({"role": "user", "content": user_input})
-            info_state.user.update('conversation_history', history)
-            log_screening(session_id, f"USER: {user_input}")
+    def _skip_current_question(self, state: dict) -> dict:
+        if state.get('phase') == 'INTRO':
+            state['phase'] = 'SCREENING'
+            state['awaiting'] = 'main_answer'
+            return {'type': 'ask_main', 'probe_depth': 0, 'topic': current_topic(state)}
+        advance_topic(state)
+        if current_topic(state):
+            return {'type': 'ack_then_next', 'probe_depth': 0, 'topic': current_topic(state)}
+        state['phase'] = 'FINAL_QUESTION'
+        state['awaiting'] = 'final_answer'
+        state['asked_final_care_team_question'] = True
+        return {'type': 'ask_final', 'probe_depth': None, 'topic': None}
 
-        user_turn_count = sum(1 for m in history if m.get('role') == 'user')
-        avatar_profile = info_state.user.query('avatar_profile') or {}
-        avatar_name = avatar_profile.get('name', 'Assistant')
+    def _build_runtime_prompt(self, info_state, avatar_name: str, language: str,
+                              task: dict, user_input: str) -> str:
         prompt = self._build_prompt(info_state, avatar_name, language)
+        prompt += "\n\nRUNTIME TURN DIRECTIVE:\n"
+        prompt += self._task_directive(task, user_input)
+        return prompt
 
-        full_tokens = []
-        t0 = time.perf_counter()
-        try:
-            for token in self.llm.generate_stream(history, prompt, temperature=0.75):
-                full_tokens.append(token)
-                yield token
-        finally:
-            response = ''.join(full_tokens)
-            llm_latency_ms = int((time.perf_counter() - t0) * 1000)
-            log_screening(session_id, f"LLM ({llm_latency_ms}ms) [stream]: {response}")
+    def _task_directive(self, task: dict, user_input: str) -> str:
+        task_type = task['type']
+        topic = task.get('topic') or {}
+        category = topic.get('category', '')
+        question = topic.get('questions', [''])[0] if topic else ''
 
-            is_ending = self._is_goodbye(response, user_turn_count)
-            if not is_ending and user_turn_count >= MAX_USER_TURNS:
-                log_screening(session_id, f"FORCED ENDING at turn {user_turn_count}")
-                response = EXIT_PHRASE
-                is_ending = True
-            log_screening(session_id, f"_is_goodbye check: {is_ending}")
+        if task_type == 'ask_readiness':
+            return (
+                "The patient just gave their name or introduced themselves. "
+                "Briefly greet them by name if you know it, then ask if they are ready to begin. "
+                "Do not ask a screening question yet. Ask only one question."
+            )
+        if task_type == 'ask_main':
+            return (
+                f"Current task: ask the main screening question for {category}. "
+                f"Ask this source question in patient-friendly spoken language: \"{question}\" "
+                f"{self._sensitive_topic_instruction(category)}"
+                "Ask only one question."
+            )
+        if task_type == 'ask_followup':
+            return (
+                f"Current task: ask one conversational follow-up for {category}. "
+                f"The patient just answered: \"{user_input}\". "
+                "Do not move to the next topic yet. "
+                "Do not ask another listed source screening question. "
+                "Briefly reflect what they said, then ask one open follow-up that helps the care team understand what that answer means in daily life. "
+                "Begin the follow-up with What, How, or Tell me about. Ask only one question."
+            )
+        if task_type == 'ack_then_next':
+            return (
+                f"Current task: move to the next topic, {category}. "
+                f"Briefly acknowledge the patient's last answer. Then ask this source question in patient-friendly spoken language: \"{question}\" "
+                f"{self._sensitive_topic_instruction(category)}"
+                "Ask only one question."
+            )
+        if task_type == 'ask_final':
+            return (
+                "All six screening topics are complete. Briefly acknowledge the patient's last answer. "
+                "Then ask: Is there anything you would like me to pass along to your care team on your behalf? "
+                "Ask only that one question."
+            )
+        return "Output only patient-facing speech. Ask only one question."
 
-            if is_ending:
-                info_state.user.update('screening_phase', 'REPORT')
-                log_screening(session_id, "PHASE CHANGED TO: REPORT")
-                try:
-                    summary = self._generate_summary(history, response)
-                    info_state.user.update('last_summary', summary)
-                    log_screening(session_id, f"SUMMARY: {summary}")
-                except Exception as exc:
-                    log_screening(session_id, f"SUMMARY FAILED: {exc}")
-                    logger.warning("Summary generation failed for %s: %s", session_id, exc)
+    def _sensitive_topic_instruction(self, category: str) -> str:
+        if category in {'Housing', 'Food', 'Interpersonal Safety'}:
+            return (
+                f"Before the question, add one brief normalizing sentence about {category.lower()} challenges being common during treatment. "
+            )
+        return ''
 
-            history.append({"role": "assistant", "content": response})
-            info_state.user.update('conversation_history', history)
-            msg[MSG.RESPONSE] = response
-
-            visit_id = info_state.user.query('visit_id')
-            phone_pin = info_state.user.query('patient_pin')
-            phase = info_state.user.query('screening_phase') or 'WELCOME'
-            agent = info_state.user.query('avatar') or 'unknown'
-            voice = avatar_profile.get('lang', language)
-            if visit_id:
-                turn = len(history)
-                if user_input:
-                    db.save_message(
-                        visit_id, 'user', user_input, turn - 2, agent, voice,
-                        input_modality=turn_meta.get('input_modality'),
-                        response_latency_ms=turn_meta.get('response_latency_ms'),
-                        speech_confidence=turn_meta.get('speech_confidence'),
-                        client_sent_at=turn_meta.get('client_sent_at'),
-                    )
-                    if not no_response:
-                        db.increment_visit_turns(visit_id)
-                        events = turn_meta.get('events') or []
-                        if events:
-                            db.save_turn_events(visit_id, turn - 2, events)
-                db.save_message(
-                    visit_id, 'assistant', response, turn - 1, agent, voice,
-                    llm_latency_ms=llm_latency_ms,
-                )
-                db.update_visit_phase(visit_id, phase)
-            if phone_pin:
-                db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
+    def _clean_spoken_response(self, text: str) -> str:
+        lines = []
+        for line in (text or '').splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if META_LINE_RE.match(stripped):
+                continue
+            lines.append(stripped)
+        return ' '.join(lines).strip()
 
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""
