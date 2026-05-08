@@ -30,11 +30,11 @@ AVATAR_PROFILES = {
     },
     'black_male': {
         'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 215,
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 196,
     },
     'latino_male': {
         'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 186,
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 188,
     },
     'white_female': {
         'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en',
