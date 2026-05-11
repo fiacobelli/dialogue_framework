@@ -340,7 +340,8 @@ class ScreeningGoal(Goal):
         if task_type == 'ask_final':
             return (
                 "All six screening topics are complete. Briefly acknowledge the patient's last answer. "
-                "Then ask: Is there anything you would like me to pass along to your care team on your behalf? "
+                "Then ask: Are there any other issues you would like your care team to know about "
+                "in any other aspects of your life, or any further details on something in particular? "
                 "Ask only that one question."
             )
         if task_type == 'close':
