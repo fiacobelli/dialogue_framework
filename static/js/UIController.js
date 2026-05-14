@@ -1,22 +1,19 @@
 /**
- * UIController - Handles all DOM updates and visual feedback
- * Single source of truth for UI state
+ * UIController - Handles all DOM updates and visual feedback.
  */
 
 class UIController {
     constructor() {
         this.elements = {};
-        this.currentPhase = null;
-        this.phases = ['WELCOME', 'INTRO', 'RAPPORT', 'BEFORE', 'DURING', 'HOPE', 'PHOTOS'];
         this.wordRevealInterval = null;
         this.pendingWords = [];
         this.currentWordIndex = 0;
     }
 
-    /** Initialize DOM element references. */
     init() {
         this.elements = {
             conversationScreen: document.getElementById('conversation-screen'),
+            conversationUI: document.getElementById('conversationUI'),
             messageBubble: document.getElementById('messageBubble'),
             micBtn: document.getElementById('micBtn'),
             micHint: document.getElementById('micHint'),
@@ -25,22 +22,44 @@ class UIController {
             photoSection: document.getElementById('photoSection'),
             generateSection: document.getElementById('generateSection'),
             micrositePreview: document.getElementById('micrositePreview'),
-            repeatBtn: document.getElementById('repeatBtn')
+            repeatBtn: document.getElementById('repeatBtn'),
+            avatarFrame: document.getElementById('avatarFrame'),
+            waveform: document.getElementById('waveform'),
+            progressWrap: document.getElementById('progress-bar-wrap'),
+            progressFill: document.getElementById('progress-bar-fill'),
         };
     }
 
     showConversation() {
-        this.elements.conversationScreen.style.display = 'block';
+        if (this.elements.conversationUI) {
+            this.elements.conversationUI.style.display = 'flex';
+        }
     }
 
-    /** Display message in the avatar speech bubble. */
+    hideConversation() {
+        if (this.elements.conversationUI) {
+            this.elements.conversationUI.style.display = 'none';
+        }
+    }
+
     showMessage(text) {
+        this.elements.messageBubble.classList.remove('pulsing');
         this.elements.messageBubble.textContent = text;
     }
 
-    /** Display message word-by-word synchronized with speech. */
+    clearMessage() {
+        this.elements.messageBubble.classList.remove('pulsing');
+        this.elements.messageBubble.textContent = '';
+    }
+
+    appendMessage(text) {
+        const current = this.elements.messageBubble.textContent;
+        this.elements.messageBubble.textContent = current ? `${current} ${text}` : text;
+    }
+
     showMessageAnimated(text, wordsPerMinute = 150) {
         this.stopMessageAnimation();
+        this.elements.messageBubble.classList.remove('pulsing');
 
         this.pendingWords = text.split(/\s+/);
         this.currentWordIndex = 0;
@@ -50,8 +69,9 @@ class UIController {
 
         this.wordRevealInterval = setInterval(() => {
             if (this.currentWordIndex < this.pendingWords.length) {
-                const visibleText = this.pendingWords.slice(0, this.currentWordIndex + 1).join(' ');
-                this.elements.messageBubble.textContent = visibleText;
+                this.elements.messageBubble.textContent = this.pendingWords
+                    .slice(0, this.currentWordIndex + 1)
+                    .join(' ');
                 this.currentWordIndex++;
             } else {
                 this.stopMessageAnimation();
@@ -59,7 +79,6 @@ class UIController {
         }, msPerWord);
     }
 
-    /** Stop animation and show all remaining text. */
     stopMessageAnimation() {
         if (this.wordRevealInterval) {
             clearInterval(this.wordRevealInterval);
@@ -76,35 +95,50 @@ class UIController {
         this.elements.status.textContent = msg;
     }
 
-    // Turn state visuals
     showIdle() {
-        this.elements.micBtn.classList.remove('listening', 'disabled');
-        this.elements.micHint.textContent = 'Tap to speak';
+        this.elements.micBtn.classList.remove('listening', 'disabled', 'paused');
+        this.elements.micHint.textContent = 'Speak when ready';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
     }
 
     showListening() {
-        this.hideRepeatButton();
         this.elements.micBtn.classList.add('listening');
-        this.elements.micBtn.classList.remove('disabled');
-        this.elements.micHint.textContent = 'Listening... tap when done';
+        this.elements.micBtn.classList.remove('disabled', 'paused');
+        this.elements.micHint.textContent = 'Listening...';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
     }
 
     showProcessing() {
-        this.hideRepeatButton();
-        this.elements.micBtn.classList.remove('listening');
+        this.elements.micBtn.classList.remove('listening', 'paused');
         this.elements.micBtn.classList.add('disabled');
         this.elements.micHint.textContent = 'Processing...';
-        this.setStatus('Thinking...');
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
+        this.elements.messageBubble?.classList.add('pulsing');
+        this.setStatus('');
     }
 
     showSpeaking() {
-        this.hideRepeatButton();
-        this.elements.micBtn.classList.add('disabled');
-        this.elements.micBtn.classList.remove('listening');
-        this.elements.micHint.textContent = 'Assistant is speaking...';
+        this.elements.micBtn.classList.remove('listening', 'disabled', 'paused');
+        this.elements.micHint.textContent = 'Tap to pause';
+        this.elements.avatarFrame?.classList.add('speaking');
+        this.elements.waveform?.classList.remove('hidden');
     }
 
-    // Transcript display
+    showPaused() {
+        this.elements.micBtn.classList.add('paused');
+        this.elements.micBtn.classList.remove('listening', 'disabled');
+        this.elements.micHint.textContent = 'Tap mic to resume';
+        this.elements.waveform?.classList.add('hidden');
+    }
+
+    showResumed() {
+        this.elements.micBtn.classList.remove('paused');
+        this.elements.micHint.textContent = 'Speak when ready';
+    }
+
     showTranscript(text, isInterim = false) {
         this.elements.input.value = text;
         if (isInterim) {
@@ -120,33 +154,36 @@ class UIController {
     }
 
     showRepeatButton() {
-        if (this.elements.repeatBtn) this.elements.repeatBtn.style.display = 'block';
+        if (this.elements.repeatBtn) this.elements.repeatBtn.style.display = 'inline-block';
     }
 
     hideRepeatButton() {
         if (this.elements.repeatBtn) this.elements.repeatBtn.style.display = 'none';
     }
 
-    /** Update phase indicator dots. */
+    showProgress(turns, max) {
+        if (!this.elements.progressWrap || !this.elements.progressFill) return;
+        const pct = Math.min(100, Math.round((turns / max) * 100));
+        this.elements.progressFill.style.width = `${pct}%`;
+        this.elements.progressWrap.classList.remove('hidden');
+    }
+
+    hideProgress() {
+        this.elements.progressWrap?.classList.add('hidden');
+    }
+
     updatePhase(phase) {
-        this.currentPhase = phase;
-        document.querySelectorAll('.dot').forEach(el => el.classList.remove('active', 'done'));
-
-        const idx = this.phases.indexOf(phase);
-        for (let i = 0; i < idx; i++) {
-            const dot = document.getElementById('dot-' + this.phases[i].toLowerCase());
-            if (dot) dot.classList.add('done');
-        }
-        const activeDot = document.getElementById('dot-' + phase.toLowerCase());
-        if (activeDot) activeDot.classList.add('active');
-
         if (phase === 'PHOTOS' || phase === 'COMPLETE') {
-            this.elements.photoSection.classList.add('visible');
-            this.showQRSection();
+            this.showPhotoFlow();
         }
     }
 
-    // QR code display
+    showPhotoFlow() {
+        this.hideConversation();
+        this.elements.photoSection?.classList.add('visible');
+        this.showQRSection();
+    }
+
     showQRSection() {
         const section = document.getElementById('qrSection');
         if (section) section.style.display = 'block';
@@ -167,10 +204,9 @@ class UIController {
         if (el) el.textContent = `${count}/${max} photos uploaded`;
     }
 
-    // Photo handling
     showPhotoSlot(index, url) {
-        const slot = document.getElementById('photo' + index);
-        if (slot) slot.innerHTML = `<img src="${url}">`;
+        const slot = document.getElementById(`photo${index}`);
+        if (slot) slot.innerHTML = `<img src="${url}" alt="Uploaded photo">`;
     }
 
     showGenerateSection() {
@@ -186,9 +222,8 @@ class UIController {
         }
     }
 
-    /** Render microsite preview with share buttons. */
     showMicrositePreview(data) {
-        document.getElementById('siteName').textContent = data.name + "'s Story";
+        document.getElementById('siteName').textContent = `${data.name}'s Story`;
 
         const content = data.my_story
             ? `<strong>My Story:</strong> ${data.my_story}<br><br>
@@ -198,25 +233,24 @@ class UIController {
 
         document.getElementById('siteContent').innerHTML = content;
         document.getElementById('sitePhotos').innerHTML = data.photos
-            .map(p => `<div class="photo-slot"><img src="${p}"></div>`)
+            .map(p => `<div class="photo-slot"><img src="${p}" alt="Donor page photo"></div>`)
             .join('');
 
         const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
         document.getElementById('micrositeUrl').innerHTML = `<a href="${fullUrl}" target="_blank">${fullUrl}</a>`;
         document.getElementById('viewBtn').href = fullUrl;
         document.getElementById('shareFb').href =
-            'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(fullUrl);
+            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`;
         document.getElementById('shareWa').href =
-            'https://wa.me/?text=' + encodeURIComponent(data.name + "'s Story: " + fullUrl);
+            `https://wa.me/?text=${encodeURIComponent(`${data.name}'s Story: ${fullUrl}`)}`;
         document.getElementById('shareEmail').href =
-            'mailto:?subject=' + encodeURIComponent(data.name + "'s Story") +
-            '&body=' + encodeURIComponent(fullUrl);
+            `mailto:?subject=${encodeURIComponent(`${data.name}'s Story`)}` +
+            `&body=${encodeURIComponent(fullUrl)}`;
 
         this.elements.micrositePreview.classList.add('visible');
         return fullUrl;
     }
 
-    /** Show celebration section with CTA button. */
     showCelebration(micrositeUrl) {
         if (!micrositeUrl) {
             console.error('showCelebration: missing URL');
@@ -234,5 +268,4 @@ class UIController {
     }
 }
 
-// Singleton instance
 const ui = new UIController();

@@ -1,3 +1,7 @@
+// Silence thresholds for two-tier VAD timer.
+const SILENCE_DELAY_MS = 2500;
+const EXTENDED_SILENCE_DELAY_MS = 4000;
+
 // Language config for speech recognition
 const LANG_CONFIG = {
     'en': { recognition: 'en-US', voicePrefix: 'en' },

@@ -3,74 +3,146 @@
 <head>
     <title>Choose Your Assistant</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <style>
-        .avatar-selection { max-width: 700px; margin: 0 auto; padding: 20px; }
-        .avatar-selection h1 { text-align: center; margin-bottom: 10px; }
-        .avatar-selection > p { text-align: center; color: #666; margin-bottom: 20px; }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: clamp(20px, 4vw, 48px);
+            background: linear-gradient(150deg, #FEF3E8 0%, #FEF6EC 60%, #FFF8F2 100%);
+            animation: fade-in 0.5s ease-out both;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .selection-header {
+            text-align: center;
+            margin-bottom: clamp(24px, 4vw, 40px);
+        }
+
+        .selection-header h1 {
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 700;
+            color: #1C1917;
+            margin-bottom: 10px;
+        }
+
+        .selection-header p {
+            font-size: clamp(16px, 2.5vw, 20px);
+            color: #78716C;
+        }
 
         .avatar-options {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: clamp(14px, 2.5vw, 22px);
+            margin-bottom: clamp(28px, 4vw, 44px);
+            width: 100%;
+            max-width: 720px;
         }
+
+        @media (min-width: 600px) {
+            .avatar-options {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
         .avatar-option {
-            border: 3px solid #ddd;
-            border-radius: 12px;
-            padding: 12px;
+            background: #FFFDF9;
+            border: 2.5px solid #F0E9E2;
+            border-radius: 20px;
+            padding: 16px;
             cursor: pointer;
-            transition: all 0.2s;
-            background: white;
-            width: 160px;
+            transition: all 0.2s ease-out;
+            width: clamp(140px, 20vw, 200px);
             text-align: center;
+            box-shadow: 0 2px 12px rgba(28, 25, 23, 0.07);
         }
-        .avatar-option:hover { border-color: #4CAF50; }
-        .avatar-option.selected { border-color: #4CAF50; background: #e8f5e9; }
-        .avatar-option h3 { margin: 8px 0 0; font-size: 1.1em; }
+
+        .avatar-option:hover {
+            border-color: #E86F2C;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 28px rgba(232, 111, 44, 0.2);
+        }
+
+        .avatar-option.selected {
+            border-color: #E86F2C;
+            background: #FEF3E8;
+            box-shadow: 0 8px 28px rgba(232, 111, 44, 0.25);
+            transform: translateY(-4px);
+        }
 
         .avatar-thumb {
             width: 100%;
             aspect-ratio: 3 / 4;
             overflow: hidden;
             border-radius: 12px;
-            margin: 0 auto;
+            position: relative;
         }
+
         .avatar-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
+        .avatar-option.selected .avatar-thumb::after {
+            content: '✓';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #E86F2C;
+            color: white;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .start-btn {
             display: block;
-            width: 100%;
-            max-width: 300px;
-            margin: 25px auto 0;
-            padding: 15px;
-            font-size: 1.1em;
-            background: #4CAF50;
+            padding: clamp(16px, 2.5vw, 20px) clamp(48px, 8vw, 72px);
+            font-size: clamp(18px, 2.8vw, 22px);
+            font-weight: 600;
+            background: #E86F2C;
             color: white;
             border: none;
-            border-radius: 8px;
-            cursor: pointer;
+            border-radius: 14px;
+            box-shadow: 0 4px 18px rgba(232, 111, 44, 0.4);
+            transition: all 0.2s ease-out;
         }
-        .start-btn:hover:not(:disabled) { background: #45a049; }
-        .start-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        .start-btn:hover:not(:disabled) {
+            background: #C45D20;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(232, 111, 44, 0.45);
+        }
+
+        .start-btn:disabled {
+            background: #C8BEB8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
-    <div class="avatar-selection">
-        <div class="card">
-            <h1>Choose Your Assistant</h1>
-            <p>Select who you'd like to guide you through creating your donor page</p>
-
-            <div class="avatar-options" id="avatarOptions"></div>
-
-            <button class="start-btn" id="startBtn" disabled>Start Interview</button>
-        </div>
+    <div class="selection-header">
+        <h1>Choose Your Guide</h1>
+        <p>Select who you'd like to help create your donor page</p>
     </div>
+
+    <div class="avatar-options" id="avatarOptions"></div>
+
+    <button class="start-btn" id="startBtn" disabled>Start Interview</button>
 
     <script>
         const appBasePath = {{ request.script_root | tojson }};
@@ -85,9 +157,14 @@
             document.getElementById('startBtn').disabled = false;
         }
 
-        // Build option cards with local avatar thumbnails
-        const optionsContainer = document.getElementById('avatarOptions');
-        Object.entries(avatars).forEach(([id, profile], index) => {
+        const entries = Object.entries(avatars);
+        for (let i = entries.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [entries[i], entries[j]] = [entries[j], entries[i]];
+        }
+
+        const container = document.getElementById('avatarOptions');
+        entries.forEach(([id, profile], index) => {
             const card = document.createElement('div');
             card.className = 'avatar-option';
             card.dataset.avatar = id;
@@ -97,15 +174,14 @@
                     <img src="${appUrl(`/static/photos/avatars/${profile.scene_id}.png`)}" alt="${profile.name} avatar"${index > 0 ? ' loading="lazy"' : ''}>
                 </div>`;
             card.onclick = () => selectAvatar(id);
-            optionsContainer.appendChild(card);
+            container.appendChild(card);
         });
 
         document.getElementById('startBtn').onclick = () => {
-            if (selectedAvatar) {
-                const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
-                interviewUrl.searchParams.set('avatar', selectedAvatar);
-                window.location.href = interviewUrl.toString();
-            }
+            if (!selectedAvatar) return;
+            const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
+            interviewUrl.searchParams.set('avatar', selectedAvatar);
+            window.location.href = interviewUrl.toString();
         };
     </script>
 </body>

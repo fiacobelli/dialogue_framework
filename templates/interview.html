@@ -5,21 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
 
-    <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
+    <style>
+        @media (min-width: 768px) {
+            html, body { height: 100%; overflow: hidden; }
+        }
+    </style>
+
     <script>
+        window._playingAudioEls = new Set();
+
+        (function() {
+            const _origPlay = HTMLAudioElement.prototype.play;
+            const _origPause = HTMLAudioElement.prototype.pause;
+            window._origAudioPause = _origPause;
+
+            HTMLAudioElement.prototype.play = function() {
+                window._playingAudioEls.add(this);
+                return _origPlay.call(this);
+            };
+            HTMLAudioElement.prototype.pause = function() {
+                window._playingAudioEls.delete(this);
+                return _origPause.call(this);
+            };
+        })();
+
         const avatarProfile = {{ avatar_profile | tojson }};
         let language = avatarProfile.language || 1;
         let voice = avatarProfile.voice || 11;
         let engine = avatarProfile.engine || 4;
 
         function vh_sceneLoaded() {
-            console.log('SitePal loaded');
             window.sitePalReady = true;
             document.dispatchEvent(new Event('sitePalReady'));
         }
 
         function vh_talkEnded() {
-            console.log('SitePal talk ended');
             document.dispatchEvent(new Event('sitePalTalkEnded'));
         }
 
@@ -27,103 +47,147 @@
             if (window.sitePalReady && typeof sayText === 'function') {
                 sayText(text, voice, language, engine);
             } else {
-                // Fallback to Web Speech
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.rate = 0.9;
                 utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
                 speechSynthesis.speak(utterance);
             }
         }
+
+        function stopSpeakText() {
+            window._playingAudioEls.forEach(el => {
+                try {
+                    el.volume = 0;
+                    const dur = el.duration;
+                    if (isFinite(dur) && dur > 0) {
+                        el.currentTime = dur;
+                    } else if (window._origAudioPause) {
+                        window._origAudioPause.call(el);
+                    }
+                } catch (_) {}
+            });
+            window._playingAudioEls.clear();
+            if (!window.sitePalReady) {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.cancel();
+            }
+        }
     </script>
 </head>
-<body>
-    <div class="container">
-        <div id="conversation-screen">
-            <div class="card">
-                <h1>Create Your Donor Page</h1>
-                <div class="phase-dots">
-                    <span class="dot" id="dot-before"></span>
-                    <span class="dot" id="dot-during"></span>
-                    <span class="dot" id="dot-hope"></span>
-                    <span class="dot" id="dot-photos"></span>
+<body class="microsite-interview-page">
+    <div id="conversation-screen">
+        <div class="avatar-panel">
+            <div class="avatar-frame" id="avatarFrame">
+                <img id="avatarPreview" loading="eager"
+                     src="{{ url_for('static', filename='photos/avatars/' ~ avatar_scene_id ~ '.png') }}"
+                     alt="Your donor page guide">
+                <div id="avatar">
+                    <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
+                    <script type="text/javascript">
+                        AC_VHost_Embed(8688641, 400, 533, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                    </script>
                 </div>
+            </div>
+        </div>
 
-                <!-- SitePal embed - copied exactly from index.html -->
-                <div class="avatar-container">
-                    <div id="avatar">
-                        <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
-                        <script type="text/javascript">
-                            AC_VHost_Embed(8688641, 300, 400, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
-                        </script>
+        <div class="interaction-panel">
+            <div id="conversationUI">
+                <div class="convo-top">
+                    <div id="progress-bar-wrap" class="hidden">
+                        <div id="progress-bar-fill"></div>
                     </div>
+                    <div class="message-bubble" id="messageBubble">Loading...</div>
+                    <button type="button" id="repeatBtn" style="display:none;">&#8635; Repeat</button>
                 </div>
 
-                <div class="message-bubble" id="messageBubble">Loading...</div>
-                <button type="button" class="repeat-btn" id="repeatBtn" style="display:none;">↻ Repeat</button>
-                <div class="mic-container">
-                    <button id="micBtn">🎤</button>
-                    <span class="mic-hint" id="micHint">Tap to speak</span>
+                <div class="convo-bottom">
+                    <div class="mic-container">
+                        <div class="mic-wrapper">
+                            <button id="micBtn" type="button" aria-label="Toggle microphone">
+                                <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="9" y="2" width="6" height="13" rx="3" fill="white"/>
+                                    <path d="M5 11a7 7 0 0 0 14 0" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+                                    <line x1="12" y1="18" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                                    <line x1="9" y1="22" x2="15" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                            <span class="mic-ring"></span>
+                            <span class="mic-ring"></span>
+                            <span class="mic-ring"></span>
+                        </div>
+                        <div class="waveform hidden" id="waveform">
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                        </div>
+                        <span class="mic-hint" id="micHint">Speak when ready</span>
+                    </div>
+
+                    <div class="input-row">
+                        <span class="input-row-label">Or type your answer</span>
+                        <div class="input-row-controls">
+                            <input type="text" id="input" placeholder="Type here...">
+                            <button id="sendBtn" type="button">Send</button>
+                        </div>
+                    </div>
+                    <div id="status"></div>
                 </div>
-                <div class="input-row">
-                    <input type="text" id="input" placeholder="Or type here...">
-                    <button id="sendBtn">Send</button>
-                </div>
-                <div id="status"></div>
             </div>
 
-            <div class="card photo-section" id="photoSection">
-                <h3>Add Your Photos</h3>
-                <p>Upload 3 photos for your donor page</p>
+            <div class="photo-section" id="photoSection">
+                <h2>Add Your Photos</h2>
+                <p>Upload 3 photos for your donor page.</p>
 
-                <!-- QR Code for mobile upload -->
-                <div id="qrSection" style="display:none; text-align:center; margin:20px 0;">
+                <div id="qrSection" class="qr-section" style="display:none;">
                     <p>Scan with your phone to upload photos:</p>
-                    <img id="qrCode" style="max-width:200px; margin:10px auto;">
-                    <p style="font-size:0.9em; color:#666;">
-                        Or open: <a id="uploadLink" href="#" target="_blank"></a>
-                    </p>
-                    <p id="photoProgress" style="font-weight:bold; margin-top:15px;">0/3 photos uploaded</p>
+                    <img id="qrCode" alt="Mobile upload QR code">
+                    <p class="upload-link-line">Or open: <a id="uploadLink" href="#" target="_blank"></a></p>
+                    <p id="photoProgress">0/3 photos uploaded</p>
                 </div>
 
-                <p style="margin-top:15px; color:#888;">Or upload directly from this device:</p>
+                <p class="direct-upload-copy">Or upload directly from this device:</p>
                 <div class="photo-grid">
                     <div class="photo-slot" id="photo0">+</div>
                     <div class="photo-slot" id="photo1">+</div>
                     <div class="photo-slot" id="photo2">+</div>
                 </div>
                 <input type="file" id="photoInput" accept="image/*" style="display:none">
-                <button class="upload-btn" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
+                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
             </div>
 
-            <div class="card" id="generateSection" style="display:none;">
+            <div id="generateSection" class="generate-section" style="display:none;">
                 <div class="name-input">
-                    <label>Your Name for the Website:</label>
+                    <label for="patientName">Your name for the website</label>
                     <input type="text" id="patientName" placeholder="Enter your name">
                 </div>
-                <button id="generateBtn">Generate My Donor Page</button>
+                <button id="generateBtn" type="button">Generate My Donor Page</button>
             </div>
 
-            <div class="card celebration-section" id="celebrationSection" style="display:none;">
-                <h2>Your Page is Ready!</h2>
+            <div class="celebration-section" id="celebrationSection" style="display:none;">
+                <h2>Your Page is Ready</h2>
                 <a href="javascript:void(0)" target="_blank" class="view-page-cta" id="viewPageCTA">
                     View Your Donor Page
                 </a>
                 <p class="cta-hint">Opens in a new tab</p>
             </div>
 
-            <div class="card microsite-preview" id="micrositePreview">
+            <div class="microsite-preview" id="micrositePreview">
                 <h2 id="siteName"></h2>
                 <div class="photo-grid" id="sitePhotos"></div>
                 <div class="microsite-content" id="siteContent"></div>
                 <div class="microsite-url" id="micrositeUrl"></div>
                 <div class="share-section">
-                    <h4>Share Your Page</h4>
+                    <h3>Share Your Page</h3>
                     <div class="share-buttons">
                         <a href="#" target="_blank" class="share-btn view" id="viewBtn">View Full Page</a>
                         <a href="#" target="_blank" class="share-btn fb" id="shareFb">Facebook</a>
                         <a href="#" target="_blank" class="share-btn wa" id="shareWa">WhatsApp</a>
                         <a href="#" class="share-btn email" id="shareEmail">Email</a>
-                        <button class="share-btn copy" id="copyLinkBtn">Copy Link</button>
+                        <button class="share-btn copy" type="button" id="copyLinkBtn">Copy Link</button>
                     </div>
                 </div>
             </div>
@@ -135,6 +199,7 @@
         window.AVATAR_ID = {{ avatar_id | tojson }};
         window.AVATAR_PROFILE = {{ avatar_profile | tojson }};
     </script>
+    <script src="{{ url_for('static', filename='js/vad/bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/TurnManager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/SpeechManager.js') }}"></script>

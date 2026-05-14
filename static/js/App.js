@@ -1,6 +1,5 @@
 /**
- * App - Main orchestration layer
- * Wires together all modules, handles events
+ * App - Main orchestration layer for transplant donor-page interviews.
  */
 
 class App {
@@ -8,17 +7,19 @@ class App {
         this.micrositeUrl = '';
         this.photoPollingInterval = null;
         this.generationInProgress = false;
+        this.conversationActive = false;
         this._lastSpokenText = '';
+        this._emptyCount = 0;
+        this._paused = false;
+        this._agentPaused = false;
+        this._speechActivated = false;
     }
 
-    /** Initialize app and start conversation. */
     async init() {
         ui.init();
         this._setupTurnStateHandlers();
         this._setupSpeechHandlers();
         this._setupUIEvents();
-
-        // Start conversation automatically
         await this.startConversation();
     }
 
@@ -27,73 +28,97 @@ class App {
             console.log(`Turn: ${from} -> ${to}`);
         });
 
-        turnManager.on(TurnState.IDLE, () => ui.showIdle());
-        turnManager.on(TurnState.USER_SPEAKING, () => ui.showListening());
-        turnManager.on(TurnState.PROCESSING, () => ui.showProcessing());
+        turnManager.on(TurnState.IDLE, () => {
+            if (!this._agentPaused && !this._paused) ui.showIdle();
+        });
+        turnManager.on(TurnState.USER_SPEAKING, () => {
+            ui.showListening();
+            ui.hideRepeatButton();
+        });
+        turnManager.on(TurnState.PROCESSING, () => {
+            ui.showProcessing();
+            ui.hideRepeatButton();
+        });
         turnManager.on(TurnState.SYSTEM_SPEAKING, () => ui.showSpeaking());
     }
 
     _setupSpeechHandlers() {
-        speechManager.on('transcript', ({ full }) => {
-            ui.showTranscript(full, true);
-        });
+        speechManager.on('transcript', ({ full }) => ui.showTranscript(full, false));
 
         speechManager.on('complete', async ({ transcript }) => {
-            ui.hideRepeatButton();
+            this._emptyCount = 0;
             ui.showTranscript(transcript, false);
             await this._processUserInput(transcript);
         });
 
         speechManager.on('empty', () => {
-            ui.setStatus('I didn\'t hear anything. Tap to try again.');
+            this._emptyCount++;
+            if (this.conversationActive && !this._paused && this._emptyCount < 2) {
+                speechManager.startListening();
+            } else {
+                this._emptyCount = 0;
+                ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
+                ui.showIdle();
+            }
         });
 
-        speechManager.on('silence', () => {
-            ui.setStatus('Got it!');
-        });
+        speechManager.on('silence', () => ui.setStatus('Got it!'));
 
-        speechManager.on('speakStart', () => {
+        speechManager.on('speakStart', ({ text }) => {
             ui.showSpeaking();
+            if (text) ui.showMessageAnimated(text);
         });
 
         speechManager.on('speakEnd', () => {
             ui.stopMessageAnimation();
-            ui.showIdle();
             ui.setStatus('');
-            if (this._lastSpokenText) ui.showRepeatButton();
+            if (this._agentPaused) {
+                ui.showPaused();
+            } else {
+                if (this._lastSpokenText) ui.showRepeatButton();
+                if (this.conversationActive && !this._paused) {
+                    speechManager.startListening();
+                } else {
+                    ui.showIdle();
+                }
+            }
+        });
+
+        speechManager.on('recognitionEnded', () => {
+            if (this.conversationActive && !this._paused && turnManager.getState() === TurnState.IDLE) {
+                speechManager.startListening();
+            }
         });
 
         speechManager.on('error', ({ type, message }) => {
             console.error('Speech error:', type, message);
-            ui.setStatus('Error: ' + (message || type));
+            if (type !== 'no-speech' && type !== 'aborted') {
+                ui.setStatus(message || "I had a little trouble with the microphone. You can try again or type your answer.");
+            }
             turnManager.reset();
         });
     }
 
     _setupUIEvents() {
-        // Mic button
         const micBtn = document.getElementById('micBtn');
-        micBtn.addEventListener('click', () => this.toggleMic());
+        if (micBtn) micBtn.addEventListener('click', () => this.toggleMic());
 
-        // Text input
         const input = document.getElementById('input');
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendTextInput();
-        });
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.sendTextInput();
+            });
+        }
 
-        // Send button
         const sendBtn = document.getElementById('sendBtn');
         if (sendBtn) sendBtn.addEventListener('click', () => this.sendTextInput());
 
-        // Photo upload
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
 
-        // Generate button
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
 
-        // Copy link button
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
 
@@ -101,10 +126,23 @@ class App {
         if (repeatBtn) repeatBtn.addEventListener('click', () => this.repeatLastMessage());
     }
 
+    _waitForSitePal(timeoutMs = 15000) {
+        if (window.sitePalReady) return Promise.resolve();
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                document.removeEventListener('sitePalReady', onReady);
+                resolve();
+            }, timeoutMs);
+            const onReady = () => {
+                clearTimeout(timer);
+                resolve();
+            };
+            document.addEventListener('sitePalReady', onReady, { once: true });
+        });
+    }
+
     async startConversation() {
         const avatarProfile = window.AVATAR_PROFILE || {};
-
-        // Default to English
         speechManager.setLanguage('en-US');
         speechManager.setVoiceConfig({
             lang: avatarProfile.lang || 'en',
@@ -112,39 +150,90 @@ class App {
         });
 
         ui.showConversation();
-        ui.setStatus('Connecting...');
+        ui.setStatus('Loading...');
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const avatarId = window.AVATAR_ID || urlParams.get('avatar') || 'black_female';
-            const data = await conversationAPI.startSession('en', avatarId);
-            ui.updatePhase(data.phase);
-            ui.showMessageAnimated(data.prompt);
+            const [data] = await Promise.all([
+                conversationAPI.startSession('en', avatarId),
+                this._waitForSitePal()
+            ]);
+
+            this.conversationActive = true;
+            this._paused = false;
             this._lastSpokenText = data.prompt;
+            ui.showMessage(data.prompt);
             ui.setStatus('Tap anywhere to hear greeting');
 
-            // Play greeting on first click
-            document.addEventListener('click', function playGreeting() {
-                speechManager.speak(data.prompt);
-                document.removeEventListener('click', playGreeting);
-            }, { once: true });
+            const preview = document.getElementById('avatarPreview');
+            if (preview) {
+                preview.classList.add('fade-out');
+                setTimeout(() => { preview.style.display = 'none'; }, 400);
+            }
+
+            document.addEventListener('click', () => this._activateSpeechAndGreeting(data.prompt), { once: true });
         } catch (err) {
             ui.setStatus('Connection failed. Please refresh.');
             console.error(err);
         }
     }
 
-    /** Toggle microphone on/off based on current turn state. */
+    async _activateSpeechAndGreeting(prompt) {
+        if (this._speechActivated) return;
+        this._speechActivated = true;
+        ui.setStatus('');
+        await speechManager.initVAD();
+        await speechManager.speak(prompt);
+    }
+
     toggleMic() {
         const state = turnManager.getState();
+
+        if (!this._speechActivated && this.conversationActive) {
+            this._activateSpeechAndGreeting(this._lastSpokenText);
+            return;
+        }
+
+        if (state === TurnState.SYSTEM_SPEAKING) {
+            this._agentPaused = true;
+            ui.showPaused();
+            speechManager.stopSpeaking();
+            return;
+        }
+
+        if (this._agentPaused) {
+            this._agentPaused = false;
+            speechManager.speak(this._lastSpokenText);
+            return;
+        }
+
         if (state === TurnState.USER_SPEAKING) {
-            speechManager.stopListening();
-        } else if (state === TurnState.IDLE) {
+            if (speechManager._vadReady) {
+                speechManager.stopListening();
+            } else {
+                this._paused = true;
+                speechManager.pauseListening();
+                ui.showPaused();
+            }
+            return;
+        }
+
+        if (state !== TurnState.IDLE) return;
+
+        if (this._paused) {
+            this._paused = false;
+            ui.showResumed();
+            if (this.conversationActive) speechManager.startListening();
+        } else if (this.conversationActive) {
+            this._paused = true;
+            speechManager.pauseListening();
+            ui.showPaused();
+        } else {
             speechManager.startListening();
         }
     }
 
-    /** Send text input to backend and process response. */
     async sendTextInput() {
         const input = document.getElementById('input');
         const text = input.value.trim();
@@ -160,7 +249,6 @@ class App {
         await this._processUserInput(text);
     }
 
-    /** Process user input through the dialogue system. */
     async _processUserInput(text) {
         if (!conversationAPI.getSessionId()) {
             ui.setStatus('No active session.');
@@ -170,15 +258,19 @@ class App {
 
         try {
             ui.hideRepeatButton();
+            this._lastSpokenText = '';
+            ui.clearMessage();
+
             const data = await conversationAPI.sendMessage(text);
-            ui.showMessageAnimated(data.prompt);
-            ui.updatePhase(data.phase);
             this._lastSpokenText = data.prompt;
+            ui.showMessage(data.prompt);
             ui.setStatus('');
 
-            // Start QR/photo flow when entering PHOTOS phase
             if (data.phase === 'PHOTOS') {
+                this.conversationActive = false;
+                await speechManager.speak(data.prompt);
                 this.startPhotoFlow();
+                return;
             }
 
             await speechManager.speak(data.prompt);
@@ -190,8 +282,10 @@ class App {
         }
     }
 
-    /** Start QR code display and photo polling. */
     async startPhotoFlow() {
+        ui.updatePhase('PHOTOS');
+        speechManager.destroy();
+
         try {
             const qrData = await conversationAPI.getQRCode();
             ui.setQRCode(qrData.qr_image, qrData.upload_url);
@@ -241,13 +335,12 @@ class App {
                 }
             }
         } catch (err) {
-            ui.setStatus('Upload failed: ' + err.message);
+            ui.setStatus(`Upload failed: ${err.message}`);
             console.error(err);
         }
         fileInput.value = '';
     }
 
-    /** Auto-generate microsite after photos are uploaded. */
     async autoGenerate() {
         if (this.generationInProgress) return;
         this.generationInProgress = true;
@@ -255,25 +348,16 @@ class App {
 
         try {
             const data = await conversationAPI.generateMicrosite('Patient');
-
             const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
             this.micrositeUrl = fullUrl;
 
-            // Avatar celebration message
-            const message = `Wonderful news, ${data.name}! Your donor page is ready! Click the button below to see it and share it with your loved ones.`;
-            ui.showMessageAnimated(message);
             ui.showCelebration(fullUrl);
-            this._lastSpokenText = message;
-
-            // Use speechManager for proper turn handling (returns Promise)
-            await speechManager.speak(message);
-            ui.setStatus('');
+            this._lastSpokenText = `Wonderful news, ${data.name}! Your donor page is ready.`;
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
             ui.setStatus('Generation failed. Please try again.');
         } finally {
-            // Always reset flag
             this.generationInProgress = false;
         }
     }
@@ -296,7 +380,7 @@ class App {
         navigator.clipboard.writeText(this.micrositeUrl).then(() => {
             const btn = document.getElementById('copyLinkBtn');
             btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = 'Copy Link', 2000);
+            setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
         });
     }
 
@@ -310,9 +394,7 @@ class App {
     }
 }
 
-// Create instances and wire them together
 const speechManager = new SpeechManager(turnManager);
 const app = new App();
 
-// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => app.init());
