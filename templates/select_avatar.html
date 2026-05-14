@@ -102,7 +102,9 @@
 
         document.getElementById('startBtn').onclick = () => {
             if (selectedAvatar) {
-                window.location.href = '/interview?avatar=' + selectedAvatar;
+                const interviewUrl = new URL('{{ url_for("interview") }}', window.location.origin);
+                interviewUrl.searchParams.set('avatar', selectedAvatar);
+                window.location.href = interviewUrl.toString();
             }
         };
     </script>
