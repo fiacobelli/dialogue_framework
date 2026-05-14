@@ -96,16 +96,21 @@ class App {
     }
 
     async startConversation() {
+        const avatarProfile = window.AVATAR_PROFILE || {};
+
         // Default to English
         speechManager.setLanguage('en-US');
-        speechManager.setVoiceConfig({ lang: 'en', gender: 'female' });
+        speechManager.setVoiceConfig({
+            lang: avatarProfile.lang || 'en',
+            gender: avatarProfile.gender || 'female'
+        });
 
         ui.showConversation();
         ui.setStatus('Connecting...');
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
-            const avatarId = urlParams.get('avatar') || 'mary';
+            const avatarId = window.AVATAR_ID || urlParams.get('avatar') || 'black_female';
             const data = await conversationAPI.startSession('en', avatarId);
             ui.updatePhase(data.phase);
             ui.showMessageAnimated(data.prompt);

@@ -4,7 +4,14 @@ from flask import Flask, render_template, send_from_directory, request
 from decouple import config
 import os
 
-from .config import PHOTOS_DIR, MICROSITES_DIR, FLASK_PORT, FLASK_DEBUG, AVATAR_PROFILES
+from .config import (
+    PHOTOS_DIR,
+    MICROSITES_DIR,
+    FLASK_PORT,
+    FLASK_DEBUG,
+    AVATAR_PROFILES,
+    DEFAULT_AVATAR_ID,
+)
 from .routes_api import api_bp
 from .routes_photos import photos_bp
 from .session_store import has_session, get_session
@@ -28,9 +35,16 @@ def index():
 @app.route('/interview')
 def interview():
     """Render interview page with selected avatar."""
-    avatar_id = request.args.get('avatar', 'mary')
-    avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['mary'])
-    return render_template('interview.html', avatar_scene_id=avatar_profile['scene_id'])
+    avatar_id = request.args.get('avatar', DEFAULT_AVATAR_ID)
+    if avatar_id not in AVATAR_PROFILES:
+        avatar_id = DEFAULT_AVATAR_ID
+    avatar_profile = AVATAR_PROFILES[avatar_id]
+    return render_template(
+        'interview.html',
+        avatar_scene_id=avatar_profile['scene_id'],
+        avatar_id=avatar_id,
+        avatar_profile=avatar_profile,
+    )
 
 
 @app.route('/avatar-preview/<int:scene_id>')

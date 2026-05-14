@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify
 import uuid
 
 from strings import MSG
-from .config import AVATAR_PROFILES, WELCOME_BACK
+from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID
 from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import microsite
@@ -17,7 +17,7 @@ def new_session():
     """Create or resume a session. Returns opening prompt and phase."""
     patient_id = None
     lang = request.args.get('lang', 'en')
-    avatar_id = request.args.get('avatar', 'mary')
+    avatar_id = request.args.get('avatar', DEFAULT_AVATAR_ID)
 
     if request.method == 'POST' and request.json:
         patient_id = request.json.get('patient_id')
@@ -31,7 +31,9 @@ def new_session():
     info_state = s['info_state']
     goal_mgr = s['goal_mgr']
 
-    avatar_profile = AVATAR_PROFILES.get(avatar_id, AVATAR_PROFILES['mary'])
+    if avatar_id not in AVATAR_PROFILES:
+        avatar_id = DEFAULT_AVATAR_ID
+    avatar_profile = AVATAR_PROFILES[avatar_id]
     if lang == 'en' and avatar_profile['lang'] != 'en':
         lang = avatar_profile['lang']
 

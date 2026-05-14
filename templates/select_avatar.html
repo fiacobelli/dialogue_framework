@@ -31,18 +31,16 @@
         .avatar-option h3 { margin: 8px 0 0; font-size: 1.1em; }
 
         .avatar-thumb {
-            width: 140px;
-            height: 165px;
+            width: 100%;
+            aspect-ratio: 3 / 4;
             overflow: hidden;
+            border-radius: 12px;
             margin: 0 auto;
         }
-        .avatar-thumb iframe {
-            width: 250px;
-            height: 300px;
-            border: none;
-            pointer-events: none;
-            transform: scale(0.55);
-            transform-origin: top left;
+        .avatar-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .start-btn {
@@ -87,17 +85,17 @@
             document.getElementById('startBtn').disabled = false;
         }
 
-        // Build option cards with scaled iframe thumbnails
+        // Build option cards with local avatar thumbnails
         const optionsContainer = document.getElementById('avatarOptions');
         Object.entries(avatars).forEach(([id, profile], index) => {
             const card = document.createElement('div');
             card.className = 'avatar-option';
             card.dataset.avatar = id;
+            card.setAttribute('aria-label', `Select ${profile.name} avatar`);
             card.innerHTML = `
                 <div class="avatar-thumb">
-                    <iframe src="${appUrl(`/avatar-preview/${profile.scene_id}`)}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
-                </div>
-                <h3>${profile.name}</h3>`;
+                    <img src="${appUrl(`/static/photos/avatars/${profile.scene_id}.png`)}" alt="${profile.name} avatar"${index > 0 ? ' loading="lazy"' : ''}>
+                </div>`;
             card.onclick = () => selectAvatar(id);
             optionsContainer.appendChild(card);
         });

@@ -13,11 +13,34 @@ KB_FILE = config('KB_FILE', default='domains/interview.json')
 LANGUAGE_NAMES = {'en': 'English'} #, 'es': 'Spanish', 'ar': 'Arabic'}
 
 # Avatar profiles for SitePal assistant
-# scene_id is the SitePal scene identifier for each avatar
+DEFAULT_AVATAR_ID = 'black_female'
+
 AVATAR_PROFILES = {
-    'mary': {'name': 'Mary', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en'},
-    'jane': {'name': 'Jane', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en'},
-    'laura': {'name': 'Laura', 'scene_id': 2768650, 'gender': 'female', 'lang': 'en'},
+    # Race mapping provided by Prof (W=White, L=Latino, B=Black)
+    'black_female': {
+        'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en',
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 202,
+    },
+    'latina_female': {
+        'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en',
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
+    },
+    'white_male': {
+        'name': 'Ludi', 'scene_id': 2774645, 'gender': 'male', 'lang': 'en',
+        'race': 'W', 'engine': 11, 'language': 1, 'voice': 192,
+    },
+    'black_male': {
+        'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'lang': 'en',
+        'race': 'B', 'engine': 11, 'language': 1, 'voice': 196,
+    },
+    'latino_male': {
+        'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'lang': 'en',
+        'race': 'L', 'engine': 11, 'language': 1, 'voice': 188,
+    },
+    'white_female': {
+        'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en',
+        'race': 'W', 'engine': 11, 'language': 1, 'voice': 187,
+    },
 }
 
 # Server Configuration
