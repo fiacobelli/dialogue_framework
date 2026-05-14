@@ -2,7 +2,7 @@
 import os
 import re
 import json
-from flask import render_template
+from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 
 
@@ -62,7 +62,7 @@ Conversation:
     return "Patient"
 
 
-def generate(info_state, provider, name: str, base_url: str, session_id: str) -> dict:
+def generate(info_state, provider, name: str, session_id: str) -> dict:
     """Generate microsite content and save HTML file."""
     # Get conversation history
     history = info_state.user.query('conversation_history') or []
@@ -86,8 +86,9 @@ def generate(info_state, provider, name: str, base_url: str, session_id: str) ->
         }
 
     # Build URLs
-    microsite_url = f"{base_url}/site/{session_id}"
-    photo_urls = [f"/photos/{p}" for p in photos]
+    microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
+    microsite_path = url_for('serve_microsite', session_id=session_id)
+    photo_urls = [url_for('serve_photo', filename=p) for p in photos]
 
     # Render and save HTML
     html = render_template('microsite.html',
@@ -110,7 +111,8 @@ def generate(info_state, provider, name: str, base_url: str, session_id: str) ->
         'name': name,
         'content': raw_content,
         'photos': photo_urls,
-        'microsite_url': f'/site/{session_id}',
+        'microsite_url': microsite_path,
+        'microsite_absolute_url': microsite_url,
     }
 
     info_state.user.update('microsite', result)

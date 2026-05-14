@@ -3,7 +3,7 @@
 <head>
     <title>Create Your Donor Page</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/interview.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
 
     <!-- SitePal setup - MUST be before embed (copied from Prof's avatar.js) -->
     <script>
@@ -128,11 +128,14 @@
         </div>
     </div>
 
-    <script src="/static/js/config.js"></script>
-    <script src="/static/js/TurnManager.js"></script>
-    <script src="/static/js/SpeechManager.js"></script>
-    <script src="/static/js/ConversationAPI.js"></script>
-    <script src="/static/js/UIController.js"></script>
-    <script src="/static/js/App.js"></script>
+    <script>
+        window.APP_BASE_PATH = {{ request.script_root | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/TurnManager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/SpeechManager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ConversationAPI.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/UIController.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/App.js') }}"></script>
 </body>
 </html>

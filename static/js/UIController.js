@@ -189,9 +189,9 @@ class UIController {
             .map(p => `<div class="photo-slot"><img src="${p}"></div>`)
             .join('');
 
-        const fullUrl = window.location.origin + data.microsite_url;
+        const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
         document.getElementById('micrositeUrl').innerHTML = `<a href="${fullUrl}" target="_blank">${fullUrl}</a>`;
-        document.getElementById('viewBtn').href = data.microsite_url;
+        document.getElementById('viewBtn').href = fullUrl;
         document.getElementById('shareFb').href =
             'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(fullUrl);
         document.getElementById('shareWa').href =

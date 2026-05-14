@@ -242,8 +242,7 @@ class App {
         try {
             const data = await conversationAPI.generateMicrosite('Patient');
 
-            // Build full URL for consistency
-            const fullUrl = window.location.origin + data.microsite_url;
+            const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
             this.micrositeUrl = fullUrl;
 
             // Avatar celebration message

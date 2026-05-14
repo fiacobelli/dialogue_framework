@@ -1,6 +1,6 @@
 """Photo and QR code routes blueprint."""
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, url_for
 import os
 import io
 import base64
@@ -76,7 +76,7 @@ def get_qr_code(session_id):
     if not has_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
-    upload_url = f"{request.host_url}upload/{session_id}"
+    upload_url = url_for('mobile_upload', session_id=session_id, _external=True)
 
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(upload_url)

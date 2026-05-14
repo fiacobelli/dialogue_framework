@@ -4,14 +4,20 @@
  */
 
 class ConversationAPI {
-    constructor(baseUrl = '') {
-        this.baseUrl = baseUrl;
+    constructor(baseUrl = window.APP_BASE_PATH || '') {
+        this.baseUrl = baseUrl.replace(/\/$/, '');
         this.sessionId = null;
+    }
+
+    _url(path) {
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${this.baseUrl}${normalizedPath}`;
     }
 
     /** Start new session and get opening prompt. */
     async startSession(lang, avatarId) {
-        const res = await fetch(`${this.baseUrl}/api/session?lang=${lang}&avatar=${avatarId}`);
+        const params = new URLSearchParams({ lang, avatar: avatarId });
+        const res = await fetch(this._url(`/api/session?${params.toString()}`));
         if (!res.ok) throw new Error('Failed to start session');
 
         const data = await res.json();
@@ -27,7 +33,7 @@ class ConversationAPI {
     async sendMessage(text) {
         if (!this.sessionId) throw new Error('No active session');
 
-        const res = await fetch(`${this.baseUrl}/api/chat`, {
+        const res = await fetch(this._url('/api/chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -48,7 +54,7 @@ class ConversationAPI {
         formData.append('session_id', this.sessionId);
         formData.append('photo', file);
 
-        const res = await fetch(`${this.baseUrl}/api/upload`, {
+        const res = await fetch(this._url('/api/upload'), {
             method: 'POST',
             body: formData
         });
@@ -62,7 +68,7 @@ class ConversationAPI {
     async generateMicrosite(name) {
         if (!this.sessionId) throw new Error('No active session');
 
-        const res = await fetch(`${this.baseUrl}/api/generate`, {
+        const res = await fetch(this._url('/api/generate'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -77,14 +83,14 @@ class ConversationAPI {
 
     async getQRCode() {
         if (!this.sessionId) throw new Error('No active session');
-        const res = await fetch(`${this.baseUrl}/api/qr/${this.sessionId}`);
+        const res = await fetch(this._url(`/api/qr/${this.sessionId}`));
         if (!res.ok) throw new Error('Failed to get QR code');
         return await res.json();
     }
 
     async getPhotoStatus() {
         if (!this.sessionId) throw new Error('No active session');
-        const res = await fetch(`${this.baseUrl}/api/photos/${this.sessionId}`);
+        const res = await fetch(this._url(`/api/photos/${this.sessionId}`));
         if (!res.ok) throw new Error('Failed to get photo status');
         return await res.json();
     }

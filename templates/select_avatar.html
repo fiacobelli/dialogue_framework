@@ -3,7 +3,7 @@
 <head>
     <title>Choose Your Assistant</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/interview.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
     <style>
         .avatar-selection { max-width: 700px; margin: 0 auto; padding: 20px; }
         .avatar-selection h1 { text-align: center; margin-bottom: 10px; }
@@ -75,6 +75,8 @@
     </div>
 
     <script>
+        const appBasePath = {{ request.script_root | tojson }};
+        const appUrl = (path) => `${appBasePath}${path.startsWith('/') ? path : '/' + path}`;
         const avatars = {{ avatars | tojson }};
         let selectedAvatar = null;
 
@@ -93,7 +95,7 @@
             card.dataset.avatar = id;
             card.innerHTML = `
                 <div class="avatar-thumb">
-                    <iframe src="/avatar-preview/${profile.scene_id}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
+                    <iframe src="${appUrl(`/avatar-preview/${profile.scene_id}`)}"${index > 0 ? ' loading="lazy"' : ''}></iframe>
                 </div>
                 <h3>${profile.name}</h3>`;
             card.onclick = () => selectAvatar(id);
@@ -102,7 +104,7 @@
 
         document.getElementById('startBtn').onclick = () => {
             if (selectedAvatar) {
-                const interviewUrl = new URL('{{ url_for("interview") }}', window.location.origin);
+                const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
                 interviewUrl.searchParams.set('avatar', selectedAvatar);
                 window.location.href = interviewUrl.toString();
             }

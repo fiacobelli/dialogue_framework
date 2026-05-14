@@ -3,7 +3,7 @@
 <head>
     <title>Upload Photos - Donor Page</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/interview.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
     <style>
         .upload-container { max-width: 400px; margin: 0 auto; padding: 20px; }
         .upload-prompt { text-align: center; margin-bottom: 20px; color: #555; }
@@ -53,6 +53,8 @@
     </div>
 
     <script>
+        const appBasePath = {{ request.script_root | tojson }};
+        const appUrl = (path) => `${appBasePath}${path.startsWith('/') ? path : '/' + path}`;
         const sessionId = '{{ session_id }}';
         let currentSlot = 0;
         let uploadedCount = 0;
@@ -73,7 +75,7 @@
             setStatus('Uploading...', '');
 
             try {
-                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const res = await fetch(appUrl('/api/upload'), { method: 'POST', body: formData });
                 const data = await res.json();
 
                 if (data.error) {
@@ -115,7 +117,7 @@
         }
 
         // Check existing photos on load
-        fetch(`/api/photos/${sessionId}`)
+        fetch(appUrl(`/api/photos/${sessionId}`))
             .then(r => r.json())
             .then(data => {
                 uploadedCount = data.photo_count || 0;

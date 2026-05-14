@@ -111,15 +111,13 @@ def generate_microsite():
     info_state = s['info_state']
     provider = s['goal_mgr'].goal.llm
     name = data.get('name', '').strip()
-    base_url = request.host_url.rstrip('/')
-
     # Extract name from conversation if not provided or default
     if not name or name.lower() == 'patient':
         history = info_state.user.query('conversation_history') or []
         name = microsite.extract_name_from_conversation(history, provider)
 
     try:
-        result = microsite.generate(info_state, provider, name, base_url, session_id)
+        result = microsite.generate(info_state, provider, name, session_id)
         return jsonify(result)
     except Exception as e:
         import traceback

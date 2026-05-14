@@ -20,14 +20,12 @@ os.makedirs(MICROSITES_DIR, exist_ok=True)
 
 
 @app.route('/')
-@app.route('/microsite')
 def index():
     """Render avatar selection page."""
     return render_template('select_avatar.html', avatars=AVATAR_PROFILES)
 
 
 @app.route('/interview')
-@app.route('/microsite/interview')
 def interview():
     """Render interview page with selected avatar."""
     avatar_id = request.args.get('avatar', 'mary')
