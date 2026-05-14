@@ -3,7 +3,13 @@ import os
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import PHOTOS_PROMPT, LANGUAGE_NAMES
+from .config import LANGUAGE_NAMES
+from .interview_flow import (
+    build_interview_state,
+    build_opening_directive,
+    build_runtime_directive,
+    decide_next_task,
+)
 
 LOGS_DIR = 'logs'
 
@@ -30,6 +36,7 @@ class InterviewGoal(Goal):
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
         session_id = info_state.user.query('session_id') or 'unknown'
+        state = info_state.user.query('interview_state') or build_interview_state()
 
         # Add user message to history
         if user_input:
@@ -37,10 +44,15 @@ class InterviewGoal(Goal):
             info_state.user.update('conversation_history', history)
             log_interview(session_id, f"USER: {user_input}")
 
+        task = decide_next_task(state)
+        info_state.user.update('interview_state', state)
+        info_state.user.update('interview_phase', task['phase'])
+        log_interview(session_id, f"FLOW_TASK: {task['type']} phase={task['phase']} step={state.get('last_step_id')}")
+
         # Generate response using LLM with system prompt
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
-        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
+        prompt = self._build_prompt(avatar_name, language, build_runtime_directive(task))
         if language != 'en':
             lang_name = LANGUAGE_NAMES.get(language, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
@@ -48,12 +60,15 @@ class InterviewGoal(Goal):
         response = self.llm.generate(history, prompt)
         log_interview(session_id, f"LLM: {response}")
 
-        # Check if LLM said goodbye (interview complete) - check AFTER generating
-        is_ending = self._is_goodbye(response)
+        # Code owns normal completion; phrase detection remains as a safety net.
+        is_ending = task['type'] == 'close_to_photos' or self._is_goodbye(response)
         log_interview(session_id, f"_is_goodbye check: {is_ending}")
 
         if is_ending:
             info_state.user.update('interview_phase', 'PHOTOS')
+            state['phase'] = 'PHOTOS'
+            state['complete'] = True
+            info_state.user.update('interview_state', state)
             log_interview(session_id, "PHASE CHANGED TO: PHOTOS")
 
         history.append({"role": "assistant", "content": response})
@@ -71,6 +86,10 @@ class InterviewGoal(Goal):
             'please upload 3 photos',
         ]
         return any(phrase in text_lower for phrase in end_phrases)
+
+    def _build_prompt(self, avatar_name: str, language: str, runtime_directive: str) -> str:
+        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
+        return f"{prompt}\n\n{runtime_directive}"
 
     def get_next_prompt(self, msg, info_state) -> dict:
         msg[MSG.PROMPT] = msg.get(MSG.RESPONSE, '')
@@ -91,7 +110,11 @@ class InterviewGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant') -> str:
         """Generate opening greeting using LLM."""
-        prompt = self.system_prompt.replace('{avatar_name}', avatar_name)
+        state = build_interview_state()
+        info_state.user.update('interview_state', state)
+        info_state.user.update('interview_phase', 'WELCOME')
+
+        prompt = self.goal._build_prompt(avatar_name, lang, build_opening_directive())
         if lang != 'en':
             lang_name = LANGUAGE_NAMES.get(lang, 'English')
             prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
