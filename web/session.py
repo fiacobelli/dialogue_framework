@@ -24,6 +24,7 @@ def load_prompt(filepath: str) -> str:
 
 def create_session(session_id: str) -> dict:
     """Initialize a new dialogue session with all required components."""
+    os.makedirs(USER_MODELS_DIR, exist_ok=True)
     user_file = os.path.join(USER_MODELS_DIR, f'{session_id}.pkl')
     info_state = InformationState(user_file, KB_FILE)
     info_state.bel.add(BELSTR.DONE, False)
