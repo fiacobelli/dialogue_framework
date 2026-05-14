@@ -24,7 +24,8 @@ class UIController {
             status: document.getElementById('status'),
             photoSection: document.getElementById('photoSection'),
             generateSection: document.getElementById('generateSection'),
-            micrositePreview: document.getElementById('micrositePreview')
+            micrositePreview: document.getElementById('micrositePreview'),
+            repeatBtn: document.getElementById('repeatBtn')
         };
     }
 
@@ -82,12 +83,14 @@ class UIController {
     }
 
     showListening() {
+        this.hideRepeatButton();
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled');
         this.elements.micHint.textContent = 'Listening... tap when done';
     }
 
     showProcessing() {
+        this.hideRepeatButton();
         this.elements.micBtn.classList.remove('listening');
         this.elements.micBtn.classList.add('disabled');
         this.elements.micHint.textContent = 'Processing...';
@@ -95,6 +98,7 @@ class UIController {
     }
 
     showSpeaking() {
+        this.hideRepeatButton();
         this.elements.micBtn.classList.add('disabled');
         this.elements.micBtn.classList.remove('listening');
         this.elements.micHint.textContent = 'Assistant is speaking...';
@@ -113,6 +117,14 @@ class UIController {
     clearTranscript() {
         this.elements.input.value = '';
         this.elements.input.classList.remove('interim');
+    }
+
+    showRepeatButton() {
+        if (this.elements.repeatBtn) this.elements.repeatBtn.style.display = 'block';
+    }
+
+    hideRepeatButton() {
+        if (this.elements.repeatBtn) this.elements.repeatBtn.style.display = 'none';
     }
 
     /** Update phase indicator dots. */

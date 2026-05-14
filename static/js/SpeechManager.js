@@ -125,9 +125,26 @@ class SpeechManager {
         }
         if (!this.turnManager.startUserTurn()) return false;
 
+        const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (!isSecure) {
+            this.turnManager.reset();
+            this._emit('error', { type: 'insecure_context', message: 'Microphone access requires HTTPS. Please use the secure site.' });
+            return false;
+        }
+
         this.transcript = '';
         this.recognition.lang = this.lang;
-        this.recognition.start();
+        try {
+            this.recognition.start();
+        } catch (err) {
+            console.error('Speech recognition failed to start', err);
+            this.turnManager.reset();
+            this._emit('error', {
+                type: err?.name || 'start_failed',
+                message: 'Microphone could not start. Please ensure speech recognition is allowed for this site.'
+            });
+            return false;
+        }
         this._emit('listening', {});
         return true;
     }

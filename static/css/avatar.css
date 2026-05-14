@@ -41,6 +41,29 @@
     text-align: center;
 }
 
+.repeat-btn {
+    display: block;
+    margin: 0 auto 8px;
+    padding: 8px 14px;
+    border: 1px solid #cbd5e0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #2c5282;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.repeat-btn:hover {
+    background: #ebf8ff;
+    border-color: #90cdf4;
+}
+
+.repeat-btn:disabled {
+    color: #a0aec0;
+    cursor: not-allowed;
+}
+
 .mic-container {
     display: flex;
     flex-direction: column;

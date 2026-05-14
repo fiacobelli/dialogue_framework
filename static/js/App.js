@@ -8,6 +8,7 @@ class App {
         this.micrositeUrl = '';
         this.photoPollingInterval = null;
         this.generationInProgress = false;
+        this._lastSpokenText = '';
     }
 
     /** Initialize app and start conversation. */
@@ -38,6 +39,7 @@ class App {
         });
 
         speechManager.on('complete', async ({ transcript }) => {
+            ui.hideRepeatButton();
             ui.showTranscript(transcript, false);
             await this._processUserInput(transcript);
         });
@@ -58,6 +60,7 @@ class App {
             ui.stopMessageAnimation();
             ui.showIdle();
             ui.setStatus('');
+            if (this._lastSpokenText) ui.showRepeatButton();
         });
 
         speechManager.on('error', ({ type, message }) => {
@@ -93,6 +96,9 @@ class App {
         // Copy link button
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
+
+        const repeatBtn = document.getElementById('repeatBtn');
+        if (repeatBtn) repeatBtn.addEventListener('click', () => this.repeatLastMessage());
     }
 
     async startConversation() {
@@ -114,6 +120,7 @@ class App {
             const data = await conversationAPI.startSession('en', avatarId);
             ui.updatePhase(data.phase);
             ui.showMessageAnimated(data.prompt);
+            this._lastSpokenText = data.prompt;
             ui.setStatus('Tap anywhere to hear greeting');
 
             // Play greeting on first click
@@ -162,9 +169,11 @@ class App {
         }
 
         try {
+            ui.hideRepeatButton();
             const data = await conversationAPI.sendMessage(text);
             ui.showMessageAnimated(data.prompt);
             ui.updatePhase(data.phase);
+            this._lastSpokenText = data.prompt;
             ui.setStatus('');
 
             // Start QR/photo flow when entering PHOTOS phase
@@ -254,6 +263,7 @@ class App {
             const message = `Wonderful news, ${data.name}! Your donor page is ready! Click the button below to see it and share it with your loved ones.`;
             ui.showMessageAnimated(message);
             ui.showCelebration(fullUrl);
+            this._lastSpokenText = message;
 
             // Use speechManager for proper turn handling (returns Promise)
             await speechManager.speak(message);
@@ -287,6 +297,15 @@ class App {
             const btn = document.getElementById('copyLinkBtn');
             btn.textContent = 'Copied!';
             setTimeout(() => btn.textContent = 'Copy Link', 2000);
+        });
+    }
+
+    repeatLastMessage() {
+        if (!this._lastSpokenText || turnManager.getState() !== TurnState.IDLE) return;
+        ui.hideRepeatButton();
+        speechManager.speak(this._lastSpokenText).catch((err) => {
+            console.error('Repeat failed:', err);
+            ui.showIdle();
         });
     }
 }
