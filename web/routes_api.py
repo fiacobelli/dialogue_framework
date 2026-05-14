@@ -46,7 +46,12 @@ def new_session():
     is_returning = phase != 'WELCOME'
 
     avatar_name = avatar_profile.get('name', 'Assistant')
-    opening = goal_mgr.get_opening(info_state, lang, avatar_name)
+    opening = goal_mgr.get_opening(
+        info_state,
+        lang,
+        avatar_name,
+        is_returning=is_returning,
+    )
     if is_returning:
         opening = f"{WELCOME_BACK.get(lang, WELCOME_BACK['en'])} {opening}"
 

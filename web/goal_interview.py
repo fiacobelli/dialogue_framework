@@ -6,7 +6,6 @@ from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
 from .interview_flow import (
     build_interview_state,
-    build_opening_directive,
     build_runtime_directive,
     decide_next_task,
 )
@@ -108,19 +107,30 @@ class InterviewGoalManager:
         self.goal.execute_goal(msg, info_state)
         self.goal.get_next_prompt(msg, info_state)
 
-    def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant') -> str:
-        """Generate opening greeting using LLM."""
+    def get_opening(
+        self,
+        info_state,
+        lang: str = 'en',
+        avatar_name: str = 'Assistant',
+        is_returning: bool = False,
+    ) -> str:
+        """Return a deterministic opening greeting."""
         state = build_interview_state()
         info_state.user.update('interview_state', state)
         info_state.user.update('interview_phase', 'WELCOME')
-
-        prompt = self.goal._build_prompt(avatar_name, lang, build_opening_directive())
-        if lang != 'en':
-            lang_name = LANGUAGE_NAMES.get(lang, 'English')
-            prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
-
-        # Generate opening with empty history
-        opening = self.goal.llm.generate([], prompt)
+        if is_returning:
+            opening = (
+                f"Welcome back, I'm {avatar_name}. "
+                "I'm glad you're here again. "
+                "Let's continue telling your story together."
+            )
+        else:
+            opening = (
+                f"Hi there, I'm {avatar_name}. "
+                "I'm here to help tell your story through a special webpage that might help you find a kidney donor. "
+                "I want you to feel completely comfortable sharing as much or as little as you'd like with me. "
+                "Can you tell me a little bit about yourself?"
+            )
 
         # Store in conversation history
         history = [{"role": "assistant", "content": opening}]
