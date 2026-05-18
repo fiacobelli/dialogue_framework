@@ -23,6 +23,7 @@ class UIController {
             status: document.getElementById('status'),
             photoSection: document.getElementById('photoSection'),
             generateSection: document.getElementById('generateSection'),
+            reviewSection: document.getElementById('reviewSection'),
             micrositePreview: document.getElementById('micrositePreview'),
             repeatBtn: document.getElementById('repeatBtn'),
             avatarFrame: document.getElementById('avatarFrame'),
@@ -234,28 +235,106 @@ class UIController {
 
     showGenerateSection() {
         this.elements.generateSection.style.display = 'block';
+        if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
+        const btn = document.getElementById('generateBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Generate My Donor Page';
+        }
     }
 
     showGenerating() {
         this.elements.generateSection.style.display = 'block';
+        if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Creating your donor page...';
+            btn.textContent = 'Drafting your donor page...';
         }
+    }
+
+    showDraftReview(data) {
+        if (this.elements.photoSection) this.elements.photoSection.classList.remove('visible');
+        if (this.elements.generateSection) this.elements.generateSection.style.display = 'none';
+        if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'block';
+
+        const fields = {
+            reviewName: data.name || '',
+            reviewHeadline: data.headline || '',
+            reviewStory: data.my_story || '',
+            reviewStruggle: data.my_struggle || '',
+            reviewHope: data.my_hope || '',
+        };
+        Object.entries(fields).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        });
+
+        const photoWrap = document.getElementById('reviewPhotos');
+        if (photoWrap) {
+            photoWrap.textContent = '';
+            (data.photos || []).forEach((url) => {
+                const slot = document.createElement('div');
+                slot.className = 'photo-slot';
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Selected donor page photo';
+                slot.appendChild(img);
+                photoWrap.appendChild(slot);
+            });
+        }
+    }
+
+    getDraftReviewEdits() {
+        return {
+            name: document.getElementById('reviewName')?.value.trim() || '',
+            headline: document.getElementById('reviewHeadline')?.value.trim() || '',
+            my_story: document.getElementById('reviewStory')?.value.trim() || '',
+            my_struggle: document.getElementById('reviewStruggle')?.value.trim() || '',
+            my_hope: document.getElementById('reviewHope')?.value.trim() || '',
+        };
+    }
+
+    showPublishing() {
+        const btn = document.getElementById('publishBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Publishing...';
+        }
+        this.setStatus('');
+    }
+
+    showPublished() {
+        const btn = document.getElementById('publishBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Publish My Donor Page';
+        }
+        if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
     }
 
     showMicrositePreview(data) {
         document.getElementById('siteName').textContent = `${data.name}'s Story`;
 
-        const content = data.my_story
-            ? `<strong>My Story:</strong> ${data.my_story}<br><br>
-               <strong>Living with Kidney Disease:</strong> ${data.my_struggle}<br><br>
-               <strong>Why I Need Your Help:</strong> ${data.my_hope}`
-            : data.content;
-
-        document.getElementById('siteContent').innerHTML = content;
-        document.getElementById('sitePhotos').innerHTML = data.photos
+        const contentEl = document.getElementById('siteContent');
+        contentEl.textContent = '';
+        if (data.my_story) {
+            [
+                ['My Story', data.my_story],
+                ['Living with Kidney Disease', data.my_struggle],
+                ['Why I Need Your Help', data.my_hope],
+            ].forEach(([label, value]) => {
+                const strong = document.createElement('strong');
+                strong.textContent = `${label}:`;
+                contentEl.appendChild(strong);
+                contentEl.appendChild(document.createTextNode(` ${value || ''}`));
+                contentEl.appendChild(document.createElement('br'));
+                contentEl.appendChild(document.createElement('br'));
+            });
+        } else {
+            contentEl.textContent = data.content || '';
+        }
+        document.getElementById('sitePhotos').innerHTML = (data.photos || [])
             .map(p => `<div class="photo-slot"><img src="${p}" alt="Donor page photo"></div>`)
             .join('');
 

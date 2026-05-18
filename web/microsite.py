@@ -5,6 +5,8 @@ import json
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 
+CONTENT_FIELDS = ('headline', 'my_story', 'my_struggle', 'my_hope')
+
 
 def load_prompt(filepath: str) -> str:
     try:
@@ -62,41 +64,41 @@ Conversation:
     return "Patient"
 
 
-def generate(info_state, provider, name: str, session_id: str) -> dict:
-    """Generate microsite content and save HTML file."""
-    # Get conversation history
-    history = info_state.user.query('conversation_history') or []
-    conversation = format_conversation(history)
-    photos = info_state.user.query('photos') or []
+def _clean_text(value) -> str:
+    if value is None:
+        return ''
+    return str(value).strip()
 
-    # Generate content via LLM
-    prompt_template = load_prompt(MICROSITE_PROMPT_FILE)
-    prompt = prompt_template.format(name=name, conversation=conversation)
-    raw_content = provider.generate([{"role": "user", "content": prompt}])
 
-    # Parse JSON from response
-    try:
-        content_json = parse_llm_json(raw_content)
-    except (json.JSONDecodeError, AttributeError):
-        content_json = {
-            'headline': f"{name} needs a kidney donor",
-            'my_story': raw_content[:500] if raw_content else "My story...",
-            'my_struggle': "Living with kidney disease has been challenging...",
-            'my_hope': "A kidney transplant would change my life..."
-        }
+def _normalize_content(content: dict, name: str) -> dict:
+    """Return complete draft fields with safe fallbacks for missing LLM keys."""
+    content = content or {}
+    normalized = {field: _clean_text(content.get(field)) for field in CONTENT_FIELDS}
+    if not normalized['headline']:
+        normalized['headline'] = f"{name} needs a kidney donor"
+    if not normalized['my_story']:
+        normalized['my_story'] = "My story is still being written."
+    if not normalized['my_struggle']:
+        normalized['my_struggle'] = "Living with kidney disease has been challenging."
+    if not normalized['my_hope']:
+        normalized['my_hope'] = "A kidney transplant would change my life."
+    return normalized
 
-    # Build URLs
+
+def _photo_urls(photos: list) -> list:
+    return [url_for('serve_photo', filename=p) for p in photos]
+
+
+def _render_and_save(session_id: str, name: str, content: dict, photo_urls: list) -> tuple[str, str]:
     microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
     microsite_path = url_for('serve_microsite', session_id=session_id)
-    photo_urls = [url_for('serve_photo', filename=p) for p in photos]
 
-    # Render and save HTML
     html = render_template('microsite.html',
         name=name,
-        headline=content_json.get('headline', ''),
-        my_story=content_json.get('my_story', ''),
-        my_struggle=content_json.get('my_struggle', ''),
-        my_hope=content_json.get('my_hope', ''),
+        headline=content.get('headline', ''),
+        my_story=content.get('my_story', ''),
+        my_struggle=content.get('my_struggle', ''),
+        my_hope=content.get('my_hope', ''),
         photos=photo_urls,
         url=microsite_url
     )
@@ -105,17 +107,97 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(html)
 
-    # Build response - spread content_json first so our values take precedence
+    return microsite_path, microsite_url
+
+
+def _build_result(
+    content: dict,
+    name: str,
+    raw_content: str,
+    photo_urls: list,
+    *,
+    microsite_path: str | None = None,
+    microsite_url: str | None = None,
+    published: bool = False,
+) -> dict:
     result = {
-        **content_json,
+        **content,
         'name': name,
         'content': raw_content,
         'photos': photo_urls,
         'microsite_url': microsite_path,
         'microsite_absolute_url': microsite_url,
+        'published': published,
     }
+    return result
 
+
+def generate(info_state, provider, name: str, session_id: str) -> dict:
+    """Generate donor-page draft content without publishing the public page."""
+    history = info_state.user.query('conversation_history') or []
+    conversation = format_conversation(history)
+    photos = info_state.user.query('photos') or []
+
+    prompt_template = load_prompt(MICROSITE_PROMPT_FILE)
+    prompt = prompt_template.format(name=name, conversation=conversation)
+    raw_content = provider.generate([{"role": "user", "content": prompt}])
+
+    try:
+        content_json = parse_llm_json(raw_content)
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        content_json = {
+            'headline': f"{name} needs a kidney donor",
+            'my_story': raw_content[:500] if raw_content else "My story is still being written.",
+            'my_struggle': "Living with kidney disease has been challenging.",
+            'my_hope': "A kidney transplant would change my life."
+        }
+
+    content = _normalize_content(content_json, name)
+    result = _build_result(content, name, raw_content, _photo_urls(photos), published=False)
+
+    info_state.user.update('microsite_draft', result)
+    info_state.user.update('microsite_draft_status', 'draft')
+    info_state.save_user_model()
+
+    return result
+
+
+def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
+    """Publish the reviewed donor-page draft and return its public URL."""
+    draft = info_state.user.query('microsite_draft')
+    if not draft:
+        raise ValueError('No donor-page draft is available to publish.')
+
+    edits = edits or {}
+    name = _clean_text(edits.get('name')) or _clean_text(draft.get('name')) or 'Patient'
+    content_input = {
+        field: _clean_text(edits.get(field)) or _clean_text(draft.get(field))
+        for field in CONTENT_FIELDS
+    }
+    content = _normalize_content(content_input, name)
+    photos = info_state.user.query('photos') or []
+    photo_urls = _photo_urls(photos)
+    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_urls)
+
+    result = _build_result(
+        content,
+        name,
+        draft.get('content', ''),
+        photo_urls,
+        microsite_path=microsite_path,
+        microsite_url=microsite_url,
+        published=True,
+    )
+
+    if name != draft.get('name'):
+        info_state.user.update('patient_name', name)
+        info_state.user.update('patient_name_status', 'corrected')
+        info_state.user.update('patient_name_source', 'review_edit')
+
+    info_state.user.update('microsite_draft', result)
+    info_state.user.update('microsite_draft_status', 'published')
     info_state.user.update('microsite', result)
+    info_state.user.update('interview_phase', 'COMPLETE')
     info_state.save_user_model()
 
     return result

@@ -177,6 +177,35 @@
                 <button id="generateBtn" type="button">Generate My Donor Page</button>
             </div>
 
+            <div class="review-section" id="reviewSection" style="display:none;">
+                <p class="eyebrow">Review before publishing</p>
+                <h2>Check Your Donor Page Draft</h2>
+                <p class="review-copy">Make sure the name and story are accurate. You can edit anything below before the page is published.</p>
+
+                <div class="review-field">
+                    <label for="reviewName">Name</label>
+                    <input type="text" id="reviewName">
+                </div>
+                <div class="review-field">
+                    <label for="reviewHeadline">Headline</label>
+                    <input type="text" id="reviewHeadline">
+                </div>
+                <div class="review-field">
+                    <label for="reviewStory">My Story</label>
+                    <textarea id="reviewStory" rows="5"></textarea>
+                </div>
+                <div class="review-field">
+                    <label for="reviewStruggle">Living with Kidney Disease</label>
+                    <textarea id="reviewStruggle" rows="5"></textarea>
+                </div>
+                <div class="review-field">
+                    <label for="reviewHope">Why I Need Your Help</label>
+                    <textarea id="reviewHope" rows="5"></textarea>
+                </div>
+                <div class="photo-grid" id="reviewPhotos"></div>
+                <button id="publishBtn" type="button">Publish My Donor Page</button>
+            </div>
+
             <div class="celebration-section" id="celebrationSection" style="display:none;">
                 <h2>Your Page is Ready</h2>
                 <a href="javascript:void(0)" target="_blank" class="view-page-cta" id="viewPageCTA">

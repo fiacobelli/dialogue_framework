@@ -512,6 +512,7 @@
 /* ── Microsite photo and generation flow ─────────────────────────────────── */
 .photo-section,
 .generate-section,
+.review-section,
 .celebration-section,
 .microsite-preview {
     display: none;
@@ -529,6 +530,7 @@
 
 .photo-section h2,
 .generate-section h2,
+.review-section h2,
 .celebration-section h2,
 .microsite-preview h2 {
     text-align: center;
@@ -536,9 +538,55 @@
 }
 
 .photo-section p,
+.review-section p,
 .celebration-section p {
     color: #78716C;
     text-align: center;
+}
+
+.review-section .eyebrow {
+    color: #E86F2C;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.review-copy {
+    margin-bottom: 18px;
+}
+
+.review-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 14px;
+}
+
+.review-field label {
+    color: #78716C;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.review-field input,
+.review-field textarea {
+    width: 100%;
+    border: 2px solid #E7DDD5;
+    border-radius: 12px;
+    background: #FFFDF9;
+    color: #1C1917;
+    font: inherit;
+    line-height: 1.5;
+    outline: none;
+    padding: 12px 14px;
+    resize: vertical;
+}
+
+.review-field input:focus,
+.review-field textarea:focus {
+    border-color: #E86F2C;
 }
 
 .qr-section {
@@ -601,7 +649,8 @@
 }
 
 .upload-btn,
-#generateBtn {
+#generateBtn,
+#publishBtn {
     display: block;
     width: 100%;
     max-width: 280px;
@@ -615,8 +664,14 @@
 }
 
 .upload-btn:hover,
-#generateBtn:hover {
+#generateBtn:hover,
+#publishBtn:hover {
     background: #3C946A;
+}
+
+#publishBtn:disabled {
+    background: #C8BEB8;
+    cursor: not-allowed;
 }
 
 .name-input {
@@ -720,6 +775,7 @@
 @media (min-width: 768px) {
     .photo-section,
     .generate-section,
+    .review-section,
     .celebration-section,
     .microsite-preview {
         max-height: 100%;

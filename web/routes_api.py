@@ -164,3 +164,29 @@ def generate_microsite():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/publish', methods=['POST'])
+def publish_microsite():
+    """Publish a reviewed donor-page draft."""
+    data = request.json or {}
+    session_id = data.get('session_id')
+
+    if not session_id or not has_session(session_id):
+        return jsonify({'error': 'Invalid session'}), 400
+
+    s = get_session(session_id)
+    info_state = s['info_state']
+    ready, detail = validate_generation_ready(info_state)
+    if not ready:
+        return jsonify(detail), 409
+
+    try:
+        result = microsite.publish(info_state, session_id, data.get('edits') or {})
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': 'draft_not_ready', 'message': str(e)}), 409
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

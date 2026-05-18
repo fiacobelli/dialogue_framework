@@ -119,6 +119,9 @@ class App {
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
 
+        const publishBtn = document.getElementById('publishBtn');
+        if (publishBtn) publishBtn.addEventListener('click', () => this.publish());
+
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
 
@@ -365,11 +368,9 @@ class App {
 
         try {
             const data = await conversationAPI.generateMicrosite('Patient');
-            const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
-            this.micrositeUrl = fullUrl;
-
-            ui.showCelebration(fullUrl);
-            this._lastSpokenText = `Wonderful news, ${data.name}! Your donor page is ready.`;
+            ui.showDraftReview(data);
+            ui.setStatus('Review your draft, then publish when it looks right.');
+            this._lastSpokenText = `I drafted your donor page, ${data.name}. Please review it before publishing.`;
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
@@ -385,11 +386,33 @@ class App {
 
         try {
             const data = await conversationAPI.generateMicrosite(name);
-            this.micrositeUrl = ui.showMicrositePreview(data);
-            ui.setStatus('Done!');
+            ui.showDraftReview(data);
+            ui.setStatus('Review your draft, then publish when it looks right.');
         } catch (err) {
             ui.setStatus('Generation failed. Please try again.');
             console.error(err);
+        }
+    }
+
+    async publish() {
+        ui.showPublishing();
+
+        try {
+            const data = await conversationAPI.publishMicrosite(ui.getDraftReviewEdits());
+            const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
+            this.micrositeUrl = fullUrl;
+            ui.showPublished();
+            ui.showCelebration(fullUrl);
+            ui.showMicrositePreview(data);
+            ui.setStatus('Published.');
+        } catch (err) {
+            ui.setStatus('Publish failed. Please try again.');
+            console.error(err);
+            const btn = document.getElementById('publishBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Publish My Donor Page';
+            }
         }
     }
 

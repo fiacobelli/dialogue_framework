@@ -81,6 +81,23 @@ class ConversationAPI {
         return await res.json();
     }
 
+    /** Publish a reviewed donor-page draft. */
+    async publishMicrosite(edits) {
+        if (!this.sessionId) throw new Error('No active session');
+
+        const res = await fetch(this._url('/api/publish'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: this.sessionId,
+                edits: edits || {}
+            })
+        });
+
+        if (!res.ok) throw new Error('Failed to publish microsite');
+        return await res.json();
+    }
+
     async getQRCode() {
         if (!this.sessionId) throw new Error('No active session');
         const res = await fetch(this._url(`/api/qr/${this.sessionId}`));

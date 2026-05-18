@@ -1,9 +1,11 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from information_state import InformationState
 from strings import MSG
+from web.app import app
 from web.goal_interview import InterviewGoal
 from web.interview_flow import (
     FINAL_PHOTOS_PROMPT,
@@ -12,6 +14,7 @@ from web.interview_flow import (
     extract_patient_name,
     sufficiency_decision,
 )
+from web import microsite
 from web.routes_api import validate_generation_ready
 
 
@@ -87,6 +90,16 @@ class FakeLLM:
     def generate(self, messages, system_prompt=None):
         self.calls += 1
         return 'How would receiving a kidney transplant change your life?'
+
+
+class FakeMicrositeLLM:
+    def generate(self, messages, system_prompt=None):
+        return """{
+            "headline": "Sophia is looking for a kidney donor",
+            "my_story": "Sophia enjoys time with family.",
+            "my_struggle": "Dialysis has made daily life difficult.",
+            "my_hope": "A transplant would help Sophia regain energy."
+        }"""
 
 
 class InterviewGoalTests(unittest.TestCase):
@@ -167,6 +180,35 @@ class GenerationGateTests(unittest.TestCase):
 
         self.assertTrue(ready)
         self.assertEqual(detail['name'], 'Sophia')
+
+
+class MicrositeReviewTests(unittest.TestCase):
+    def _info_state(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        info_state = InformationState(os.path.join(tmp.name, 'user.pkl'), 'domains/interview.json')
+        info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
+        return info_state
+
+    def test_generate_creates_draft_and_publish_writes_public_page(self):
+        info_state = self._info_state()
+        with tempfile.TemporaryDirectory() as site_dir:
+            with patch.object(microsite, 'MICROSITES_DIR', site_dir):
+                with app.test_request_context('/microsite'):
+                    draft = microsite.generate(info_state, FakeMicrositeLLM(), 'Sophia', 'unit-review')
+                    self.assertFalse(draft['published'])
+                    self.assertIsNone(draft['microsite_url'])
+                    self.assertFalse(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
+
+                    published = microsite.publish(
+                        info_state,
+                        'unit-review',
+                        {'my_story': 'Edited story approved by Sophia.'}
+                    )
+
+                    self.assertTrue(published['published'])
+                    self.assertEqual(published['my_story'], 'Edited story approved by Sophia.')
+                    self.assertTrue(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
 
 
 if __name__ == '__main__':
