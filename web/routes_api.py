@@ -4,12 +4,40 @@ from flask import Blueprint, request, jsonify
 import uuid
 
 from strings import MSG
-from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID
+from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import microsite
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+def validate_generation_ready(info_state) -> tuple[bool, dict]:
+    """Return whether the current session is allowed to generate a donor page."""
+    state = info_state.user.query('interview_state') or {}
+    phase = info_state.user.query('interview_phase') or state.get('phase')
+    photos = info_state.user.query('photos') or []
+    patient_name = info_state.user.query('patient_name') or state.get('patient_name')
+    name_status = info_state.user.query('patient_name_status') or state.get('patient_name_status')
+
+    missing = []
+    if phase not in {'PHOTOS', 'COMPLETE'} or not state.get('complete'):
+        missing.append('story_complete')
+    if not patient_name or name_status not in {'confirmed', 'corrected'}:
+        missing.append('confirmed_name')
+    if len(photos) < MAX_PHOTOS:
+        missing.append('photos')
+
+    if missing:
+        return False, {
+            'error': 'generation_not_ready',
+            'message': 'The donor page is not ready to generate yet.',
+            'missing': missing,
+            'photo_count': len(photos),
+            'max_photos': MAX_PHOTOS,
+            'phase': phase,
+        }
+    return True, {'name': patient_name}
 
 
 @api_bp.route('/session', methods=['GET', 'POST'])
@@ -117,11 +145,17 @@ def generate_microsite():
     s = get_session(session_id)
     info_state = s['info_state']
     provider = s['goal_mgr'].goal.llm
-    name = data.get('name', '').strip()
-    # Extract name from conversation if not provided or default
-    if not name or name.lower() == 'patient':
-        history = info_state.user.query('conversation_history') or []
-        name = microsite.extract_name_from_conversation(history, provider)
+    ready, detail = validate_generation_ready(info_state)
+    if not ready:
+        return jsonify(detail), 409
+
+    name = detail['name']
+    requested_name = data.get('name', '').strip()
+    if requested_name and requested_name.lower() != 'patient' and requested_name != name:
+        name = requested_name
+        info_state.user.update('patient_name', name)
+        info_state.user.update('patient_name_status', 'corrected')
+        info_state.user.update('patient_name_source', 'manual_edit')
 
     try:
         result = microsite.generate(info_state, provider, name, session_id)

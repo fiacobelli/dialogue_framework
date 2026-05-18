@@ -4,10 +4,12 @@ INTERVIEW TRANSCRIPT:
 {conversation}
 
 CONTENT REQUIREMENTS:
-- Use specific details, names, places from the interview
-- First person voice as {name}
-- Match emotional tone (hopeful, determined, warm, urgent)
-- Make it personal and compelling - this needs to convince someone to donate
+- Use only details that are explicitly supported by the interview transcript.
+- Do not invent children, hobbies, jobs, personality traits, city details, family moments, emotions, or medical details.
+- If the transcript is thin, write conservative copy and avoid unsupported specifics.
+- First person voice as {name}.
+- Match the patient's stated tone, but do not exaggerate.
+- Make the page personal and compelling without adding facts.
 
 Return ONLY valid JSON (no markdown):
-{{"headline": "One powerful sentence (10-15 words) capturing their story and need", "my_story": "A detailed paragraph (4-6 sentences) about who they are - personality, family, work, hobbies, what makes them unique. Include specific details from the interview.", "my_struggle": "A detailed paragraph (5-7 sentences) about their kidney disease journey - when it started, how dialysis affects daily life, what they've had to give up, the physical and emotional toll.", "my_hope": "An emotional paragraph (5-7 sentences) about what a transplant would mean - specific dreams, family moments they want to experience. End with a heartfelt appeal to potential donors."}}
+{{"headline": "One supported sentence (10-15 words) capturing their story and need", "my_story": "A paragraph about who they are using only details from the transcript. If details are sparse, keep this concise and general.", "my_struggle": "A paragraph about their kidney disease journey using only stated diagnosis, dialysis, daily-life, physical, or emotional details.", "my_hope": "A paragraph about what a transplant would mean using only hopes or life changes the patient actually stated. End with a respectful appeal to potential donors."}}

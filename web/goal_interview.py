@@ -8,6 +8,8 @@ from .interview_flow import (
     build_interview_state,
     build_runtime_directive,
     decide_next_task,
+    deterministic_response,
+    normalize_state,
 )
 
 LOGS_DIR = 'logs'
@@ -35,7 +37,8 @@ class InterviewGoal(Goal):
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
         session_id = info_state.user.query('session_id') or 'unknown'
-        state = info_state.user.query('interview_state') or build_interview_state()
+        state = normalize_state(info_state.user.query('interview_state') or build_interview_state())
+        previous_state = dict(state)
 
         # Add user message to history
         if user_input:
@@ -43,24 +46,31 @@ class InterviewGoal(Goal):
             info_state.user.update('conversation_history', history)
             log_interview(session_id, f"USER: {user_input}")
 
-        task = decide_next_task(state)
+        task = decide_next_task(state, user_input)
         info_state.user.update('interview_state', state)
         info_state.user.update('interview_phase', task['phase'])
-        log_interview(session_id, f"FLOW_TASK: {task['type']} phase={task['phase']} step={state.get('last_step_id')}")
+        info_state.user.update('patient_name', state.get('patient_name'))
+        info_state.user.update('patient_name_status', state.get('patient_name_status'))
+        info_state.user.update('patient_name_source', state.get('patient_name_source'))
+        log_interview(
+            session_id,
+            f"FLOW_TASK: {task['type']} phase={task['phase']} "
+            f"step={state.get('last_step_id')} previous={previous_state} decision={state.get('last_decision')}"
+        )
 
-        # Generate response using LLM with system prompt
+        response = deterministic_response(task, state)
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
-        prompt = self._build_prompt(avatar_name, language, build_runtime_directive(task))
-        if language != 'en':
-            lang_name = LANGUAGE_NAMES.get(language, 'English')
-            prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
-
-        response = self.llm.generate(history, prompt)
+        if response is None:
+            prompt = self._build_prompt(avatar_name, language, build_runtime_directive(task))
+            if language != 'en':
+                lang_name = LANGUAGE_NAMES.get(language, 'English')
+                prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
+            response = self.llm.generate(history, prompt)
         log_interview(session_id, f"LLM: {response}")
 
-        # Code owns normal completion; phrase detection remains as a safety net.
-        is_ending = task['type'] == 'close_to_photos' or self._is_goodbye(response)
+        # Code owns completion. Phrase matching must never force an early photo transition.
+        is_ending = task['type'] == 'close_to_photos'
         log_interview(session_id, f"_is_goodbye check: {is_ending}")
 
         if is_ending:
@@ -122,14 +132,14 @@ class InterviewGoalManager:
             opening = (
                 f"Welcome back, I'm {avatar_name}. "
                 "I'm glad you're here again. "
-                "Let's continue telling your story together."
+                "Let's continue telling your story together. What name would you like me to use for your donor page?"
             )
         else:
             opening = (
                 f"Hi there, I'm {avatar_name}. "
-                "I'm here to help tell your story through a special webpage that might help you find a kidney donor. "
-                "I want you to feel completely comfortable sharing as much or as little as you'd like with me. "
-                "Can you tell me a little bit about yourself?"
+                "I'm here to help create a donor page by learning your story in your own words. "
+                "You can skip anything or correct me at any point. "
+                "What name would you like me to use for your donor page?"
             )
 
         # Store in conversation history
