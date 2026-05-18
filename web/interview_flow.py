@@ -74,6 +74,17 @@ SHORT_ANSWERS = {
     'sure', 'fine', 'good', 'not really', 'none',
 }
 
+ACKNOWLEDGEMENT_ONLY = {
+    'yes', 'yeah', 'yep', 'yup', 'yea',
+    'ok', 'okay', 'alright', 'all right', 'sure',
+    'fine', 'good', 'right', 'correct',
+}
+
+CLARIFICATION_REQUESTS = {
+    'what', 'huh', 'sorry', 'repeat', 'repeat that', 'say that again',
+    'can you repeat', 'could you repeat', 'what do you mean',
+}
+
 READY_TERMS = {'yes', 'yeah', 'yep', 'yup', 'ready', 'sure', 'ok', 'okay', 'start', 'begin', 'go ahead'}
 NOT_READY_TERMS = {'no', 'not yet', 'not ready', 'wait', 'hold on', 'later', 'stop', 'pause'}
 READINESS_QUESTION_TERMS = {'why', 'what for', 'what is this', 'how does this work', 'who will see', 'share'}
@@ -126,6 +137,26 @@ DETAIL_TERMS: dict[str, set[str]] = {
         'include', 'quote', 'photo', 'photos', 'story', 'message', 'tone',
         'nothing', 'none', 'no', 'everything', 'ready',
     },
+}
+
+SECTION_TRANSITIONS: dict[str, str] = {
+    'personal_background': "Let's start with who you are as a person.",
+    'medical_history': "Now I want to understand the beginning of your kidney journey.",
+    'daily_life': "Next, let's talk about what day-to-day life has been like.",
+    'transplant_hope': "Now let's talk about what a transplant could make possible for you.",
+    'donor_message': "Next, let's focus on what you would want a potential donor to understand.",
+    'support_network': "I also want to understand who has been walking through this with you.",
+    'final_details': "Before we move to photos, let's make sure we have not missed anything important.",
+}
+
+FOLLOWUP_QUESTIONS: dict[str, str] = {
+    'personal_background': 'Could you tell me a little more about who you are outside of your illness?',
+    'medical_history': 'Could you share a little more about when this kidney journey started for you?',
+    'daily_life': 'Could you tell me more about how kidney failure affects your normal day?',
+    'transplant_hope': 'Could you say more about what a transplant would help you do or feel again?',
+    'donor_message': 'Could you tell me more about what you would want a potential donor to understand about you?',
+    'support_network': 'Could you tell me a little more about who supports you, or whether support has been limited?',
+    'final_details': 'Could you tell me what else you would like included, or say that there is nothing else?',
 }
 
 
@@ -272,6 +303,40 @@ def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, An
     return {'sufficient': False, 'reason': 'missing_required_evidence', 'matched': matched}
 
 
+def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Detect non-answers before they can advance the story state."""
+    normalized = normalize_answer(text)
+    words = normalized.split()
+    turn_meta = turn_meta or {}
+    step_id = step.get('id') if step else None
+
+    if turn_meta.get('no_response') or not normalized:
+        return {'repair': True, 'reason': 'empty_or_no_response', 'matched': normalized}
+
+    if normalized in CLARIFICATION_REQUESTS or any(term == normalized for term in CLARIFICATION_REQUESTS):
+        return {'repair': True, 'reason': 'clarification_request', 'matched': normalized}
+
+    if len(words) <= 4 and any(term in normalized for term in CLARIFICATION_REQUESTS):
+        return {'repair': True, 'reason': 'clarification_request', 'matched': normalized}
+
+    explicit_none_allowed = step_id in {'support_network', 'final_details'} and _has_explicit_none(normalized)
+    if normalized in ACKNOWLEDGEMENT_ONLY or (normalized in {'no', 'nah', 'nope'} and not explicit_none_allowed):
+        return {'repair': True, 'reason': 'acknowledgement_only', 'matched': normalized}
+
+    if len(words) <= 2 and not explicit_none_allowed:
+        return {'repair': True, 'reason': 'too_short_fragment', 'matched': normalized}
+
+    confidence = turn_meta.get('speech_confidence')
+    try:
+        low_confidence = confidence is not None and float(confidence) > 0 and float(confidence) < 0.45
+    except (TypeError, ValueError):
+        low_confidence = False
+    if low_confidence and len(words) < 5:
+        return {'repair': True, 'reason': 'low_confidence_fragment', 'matched': normalized}
+
+    return {'repair': False, 'reason': 'answer_candidate', 'matched': normalized}
+
+
 def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     state['step_index'] = int(state.get('step_index') or 0) + 1
     state['followup_count'] = 0
@@ -287,7 +352,7 @@ def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]
     return {'type': task_type, 'phase': phase, 'step': step, **extra}
 
 
-def decide_next_task(state: dict[str, Any], user_input: str = '') -> dict[str, Any]:
+def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
     """Update state and return the next code-owned task."""
     normalized = normalize_state(state)
     state.clear()
@@ -330,6 +395,14 @@ def decide_next_task(state: dict[str, Any], user_input: str = '') -> dict[str, A
 
     if awaiting in {'main_answer', 'followup_answer'}:
         step = current_step(state)
+        guard = input_guard_decision(step, user_input, turn_meta)
+        if guard['repair']:
+            state['last_decision'] = {'input_guard': guard}
+            state['repair_count'] = int(state.get('repair_count') or 0) + 1
+            state['phase'] = step['phase'] if step else 'STORY'
+            state['awaiting'] = awaiting
+            return _task('repair_answer', state, phase=state['phase'], step=step, decision=guard)
+
         decision = sufficiency_decision(step, user_input)
         state['last_decision'] = {'sufficiency': decision}
         if step:
@@ -374,6 +447,9 @@ def decide_next_task(state: dict[str, Any], user_input: str = '') -> dict[str, A
 def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str | None:
     task_type = task.get('type')
     name = state.get('patient_name') or ''
+    step = task.get('step') or {}
+    step_id = step.get('id')
+    question = step.get('question')
     if task_type == 'repair_name':
         return "I want to make sure I get your name right for the donor page. What name would you like me to use?"
     if task_type == 'close_to_photos':
@@ -394,7 +470,64 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
             f"Thank you, {name}. I'll ask about your life, your kidney journey, and what a transplant could mean for you. "
             "You can skip anything or correct me at any point. Are you ready to begin?"
         )
+    if task_type == 'ask_main' and question:
+        return f"{SECTION_TRANSITIONS.get(step_id, 'Let us continue with your story')} {question}"
+    if task_type == 'ack_then_next' and question:
+        return f"Thank you for sharing that. {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
+    if task_type == 'ask_final' and question:
+        return f"Thank you, that helps tell your story. {SECTION_TRANSITIONS.get(step_id, 'Before we move on,')} {question}"
+    if task_type == 'ask_followup' and step_id:
+        return f"I want to make sure I capture this part clearly. {FOLLOWUP_QUESTIONS.get(step_id, question)}"
+    if task_type == 'repair_answer' and question:
+        decision = task.get('decision') or {}
+        if decision.get('reason') == 'clarification_request':
+            return f"Sure. I was asking about this part of your donor story: {question}"
+        return f"I only caught a little of that. {question}"
     return None
+
+
+def expected_question_text(task: dict[str, Any]) -> str | None:
+    """Return the exact question the backend expects this task to deliver."""
+    task_type = task.get('type')
+    step = task.get('step') or {}
+    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer'}:
+        return step.get('question')
+    if task_type == 'ask_followup':
+        return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
+    if task_type == 'repair_name':
+        return 'What name would you like me to use?'
+    if task_type in {'ask_readiness', 'answer_readiness_question'}:
+        return 'Are you ready to begin?'
+    return None
+
+
+def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | None:
+    task_type = task.get('type')
+    if task_type == 'repair_name':
+        return 'name'
+    if task_type in {'ask_readiness', 'answer_readiness_question'}:
+        return 'readiness'
+    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer'}:
+        return state.get('awaiting') or 'main_answer'
+    if task_type == 'ask_followup':
+        return 'followup_answer'
+    return None
+
+
+def build_outgoing_turn_contract(task: dict[str, Any], state: dict[str, Any], response: str, turn_id: str) -> dict[str, Any]:
+    """Record what the user actually received and what answer is expected next."""
+    question = expected_question_text(task)
+    step = task.get('step') or {}
+    delivery_validated = bool(question and question in response)
+    return {
+        'outgoing_turn_id': turn_id,
+        'asked_step_id': step.get('id'),
+        'asked_question_text': question,
+        'expected_answer_kind': expected_answer_kind(task, state),
+        'delivered_phase': task.get('phase'),
+        'delivery_validated': delivery_validated,
+        'task_type': task.get('type'),
+    }
 
 
 def build_runtime_directive(task: dict[str, Any]) -> str:

@@ -1,12 +1,14 @@
 """Interview goal - LLM-driven interview using system prompt."""
 import os
 import time
+import uuid
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
 from .interview_flow import (
     build_interview_state,
+    build_outgoing_turn_contract,
     build_runtime_directive,
     decide_next_task,
     deterministic_response,
@@ -40,6 +42,7 @@ class InterviewGoal(Goal):
         session_id = info_state.user.query('session_id') or 'unknown'
         state = normalize_state(info_state.user.query('interview_state') or build_interview_state())
         previous_state = dict(state)
+        answered_turn = previous_state.get('current_outgoing_turn') or {}
 
         # Add user message to history
         if user_input:
@@ -47,14 +50,9 @@ class InterviewGoal(Goal):
             info_state.user.update('conversation_history', history)
             log_interview(session_id, f"USER: {user_input}")
 
-        task = decide_next_task(state, user_input)
-        answered_awaiting = previous_state.get('awaiting')
-        answered_step_id = previous_state.get('last_step_id') or state.get('last_step_id')
-        info_state.user.update('interview_state', state)
-        info_state.user.update('interview_phase', task['phase'])
-        info_state.user.update('patient_name', state.get('patient_name'))
-        info_state.user.update('patient_name_status', state.get('patient_name_status'))
-        info_state.user.update('patient_name_source', state.get('patient_name_source'))
+        task = decide_next_task(state, user_input, msg.get('turn_meta'))
+        answered_awaiting = answered_turn.get('expected_answer_kind') or previous_state.get('awaiting')
+        answered_step_id = answered_turn.get('asked_step_id') or previous_state.get('last_step_id') or state.get('last_step_id')
         log_interview(
             session_id,
             f"FLOW_TASK: {task['type']} phase={task['phase']} "
@@ -74,7 +72,15 @@ class InterviewGoal(Goal):
             llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         else:
             llm_latency_ms = 0
+        outgoing_turn = build_outgoing_turn_contract(
+            task,
+            state,
+            response,
+            str(uuid.uuid4()),
+        )
+        state['current_outgoing_turn'] = outgoing_turn
         log_interview(session_id, f"LLM: {response}")
+        log_interview(session_id, f"OUTGOING_TURN: {outgoing_turn}")
 
         # Code owns completion. Phrase matching must never force an early photo transition.
         is_ending = task['type'] == 'close_to_photos'
@@ -84,8 +90,15 @@ class InterviewGoal(Goal):
             info_state.user.update('interview_phase', 'PHOTOS')
             state['phase'] = 'PHOTOS'
             state['complete'] = True
+            state['current_outgoing_turn'] = outgoing_turn
             info_state.user.update('interview_state', state)
             log_interview(session_id, "PHASE CHANGED TO: PHOTOS")
+
+        info_state.user.update('interview_state', state)
+        info_state.user.update('interview_phase', state.get('phase') or task['phase'])
+        info_state.user.update('patient_name', state.get('patient_name'))
+        info_state.user.update('patient_name_status', state.get('patient_name_status'))
+        info_state.user.update('patient_name_source', state.get('patient_name_source'))
 
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
@@ -93,6 +106,11 @@ class InterviewGoal(Goal):
         msg['interview_context'] = {
             'answered_awaiting': answered_awaiting,
             'answered_step_id': answered_step_id,
+            'answered_question_text': answered_turn.get('asked_question_text'),
+            'answered_outgoing_turn_id': answered_turn.get('outgoing_turn_id'),
+            'answered_delivery_validated': answered_turn.get('delivery_validated'),
+            'answered_phase': answered_turn.get('delivered_phase'),
+            'outgoing_turn': outgoing_turn,
         }
         msg['llm_latency_ms'] = llm_latency_ms
         msg[MSG.RESPONSE] = response
@@ -139,8 +157,6 @@ class InterviewGoalManager:
     ) -> str:
         """Return a deterministic opening greeting."""
         state = build_interview_state()
-        info_state.user.update('interview_state', state)
-        info_state.user.update('interview_phase', 'WELCOME')
         if is_returning:
             opening = (
                 f"Welcome back, I'm {avatar_name}. "
@@ -154,6 +170,18 @@ class InterviewGoalManager:
                 "You can skip anything or correct me at any point. "
                 "What name would you like me to use for your donor page?"
             )
+
+        state['current_outgoing_turn'] = {
+            'outgoing_turn_id': str(uuid.uuid4()),
+            'asked_step_id': None,
+            'asked_question_text': 'What name would you like me to use for your donor page?',
+            'expected_answer_kind': 'name',
+            'delivered_phase': 'WELCOME',
+            'delivery_validated': True,
+            'task_type': 'opening',
+        }
+        info_state.user.update('interview_state', state)
+        info_state.user.update('interview_phase', 'WELCOME')
 
         # Store in conversation history
         history = [{"role": "assistant", "content": opening}]

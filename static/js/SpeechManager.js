@@ -28,7 +28,9 @@ class SpeechManager {
         this._speakStartTime = null;
         this._speakEndTime = null;
         this._vadFireTime = null;
+        this._recognitionStartTime = null;
         this._speechConfidence = null;
+        this._lastInterimTranscript = '';
 
         this._initRecognition();
         this._loadVoices();
@@ -42,7 +44,7 @@ class SpeechManager {
         }
         this.recognition = new SR();
         this.recognition.continuous = true;
-        this.recognition.interimResults = false;
+        this.recognition.interimResults = true;
         this.recognition.onresult = (e) => this._handleResult(e);
         this.recognition.onerror = (e) => this._handleError(e);
         this.recognition.onend = () => this._handleEnd();
@@ -88,15 +90,17 @@ class SpeechManager {
                 onnxWASMBasePath: vadAssetPath,
                 model: 'legacy',
                 onSpeechStart: () => this._onVADSpeechStart(),
-                onSpeechEnd: () => {},
+                onSpeechEnd: () => this._onVADSpeechEnd(),
                 onVADMisfire: () => this._onVADMisfire(),
             });
             this._vadReady = true;
+            this.recordEvent('vad_init', { state: 'ready' });
             console.log('[SpeechManager] VAD ready');
         } catch (err) {
             console.warn('[SpeechManager] VAD init failed - using continuous recognition fallback:', err);
             this._vad = null;
             this._vadReady = false;
+            this.recordEvent('vad_init', { state: 'failed', reason: err?.message || 'unknown' });
         }
     }
 
@@ -113,10 +117,12 @@ class SpeechManager {
         if (!this.turnManager.startUserTurn()) return;
 
         this.transcript = '';
+        this._lastInterimTranscript = '';
         this._recognitionActive = true;
         this.recognition.lang = this.lang;
         try {
             this.recognition.start();
+            this._recognitionStartTime = performance.now();
             this.recordEvent('recognition_started');
             this._resetSilenceTimer(SILENCE_DELAY_MS);
         } catch (e) {
@@ -124,6 +130,12 @@ class SpeechManager {
             this._recognitionActive = false;
             this.turnManager.reset();
         }
+    }
+
+    _onVADSpeechEnd() {
+        if (!this._recognitionActive) return;
+        this.recordEvent('vad_speech_end');
+        this._resetSilenceTimer(VAD_END_GRACE_MS);
     }
 
     _onVADMisfire() {
@@ -157,6 +169,7 @@ class SpeechManager {
             }
         }
         if (final) this.transcript += final;
+        this._lastInterimTranscript = interim;
         this._emit('transcript', {
             final: this.transcript.trim(),
             interim,
@@ -166,6 +179,8 @@ class SpeechManager {
 
     _handleError(e) {
         this._clearSilenceTimer();
+        this.recordEvent('mic_error', { reason: e.error || 'unknown' });
+        this._recognitionActive = false;
         this._emit('error', { type: e.error, message: e.message });
         this.turnManager.reset();
     }
@@ -173,7 +188,7 @@ class SpeechManager {
     _handleEnd() {
         this._clearSilenceTimer();
         if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
-            this._finishListening();
+            this._finishListening('recognition_end');
         } else {
             this._emit('recognitionEnded', {});
         }
@@ -185,8 +200,9 @@ class SpeechManager {
             ? delay
             : (this._speechDetectedCount > 1 ? EXTENDED_SILENCE_DELAY_MS : SILENCE_DELAY_MS);
         this.silenceTimeout = setTimeout(() => {
+            this.recordEvent('silence_timeout', { duration_ms: d });
             this._emit('silence', { duration: d });
-            this._finishListening();
+            this._finishListening('silence_timeout');
         }, d);
     }
 
@@ -197,7 +213,7 @@ class SpeechManager {
         }
     }
 
-    _finishListening() {
+    _finishListening(endReason = 'manual_stop') {
         if (this._finishing) return;
         this._finishing = true;
         try {
@@ -207,10 +223,15 @@ class SpeechManager {
             if (this.recognition) {
                 try { this.recognition.stop(); } catch (_) {}
             }
-            this.recordEvent('recognition_ended');
+            const combinedText = `${this.transcript} ${this._lastInterimTranscript}`.trim();
+            const text = combinedText.replace(/\s+/g, ' ');
+            this.recordEvent('recognition_ended', {
+                end_reason: endReason,
+                transcript_words: text ? text.split(/\s+/).length : 0
+            });
 
-            const text = this.transcript.trim();
             this.transcript = '';
+            this._lastInterimTranscript = '';
             this._speechDetectedCount = 0;
 
             if (text) {
@@ -253,6 +274,7 @@ class SpeechManager {
         }
 
         this.transcript = '';
+        this._lastInterimTranscript = '';
         this._speechDetectedCount = 0;
         this._speechConfidence = null;
 
@@ -266,8 +288,14 @@ class SpeechManager {
         this.recognition.lang = this.lang;
         try {
             this.recognition.start();
+            this._recognitionActive = true;
+            this._recognitionStartTime = performance.now();
+            this._vadFireTime = this._recognitionStartTime;
+            this.recordEvent('recognition_started', { source: 'fallback' });
+            this._resetSilenceTimer(SILENCE_DELAY_MS);
         } catch (err) {
             console.error('Speech recognition failed to start', err);
+            this._recognitionActive = false;
             this.turnManager.reset();
             this._emit('error', {
                 type: err?.name || 'start_failed',
@@ -281,7 +309,7 @@ class SpeechManager {
 
     stopListening() {
         if (this._vadReady && this._vad) this._vad.pause();
-        this._finishListening();
+        this._finishListening('manual_stop');
     }
 
     speak(text) {

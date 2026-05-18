@@ -13,6 +13,9 @@ class UIController {
     init() {
         this.elements = {
             conversationScreen: document.getElementById('conversation-screen'),
+            avatarPanel: document.querySelector('.avatar-panel'),
+            interactionPanel: document.querySelector('.interaction-panel'),
+            hubBackBtn: document.getElementById('hubBackBtn'),
             beginOverlay: document.getElementById('beginOverlay'),
             beginBtn: document.getElementById('beginBtn'),
             conversationUI: document.getElementById('conversationUI'),
@@ -54,6 +57,7 @@ class UIController {
     }
 
     showConversation() {
+        this.setPostInterviewMode(false);
         this.hideBeginOverlay();
         if (this.elements.conversationUI) {
             this.elements.conversationUI.style.display = 'flex';
@@ -202,7 +206,15 @@ class UIController {
         }
     }
 
+    setPostInterviewMode(enabled) {
+        this.elements.conversationScreen?.classList.toggle('post-interview-mode', Boolean(enabled));
+        if (this.elements.hubBackBtn) {
+            this.elements.hubBackBtn.style.display = enabled ? 'inline-flex' : 'none';
+        }
+    }
+
     showPhotoFlow() {
+        this.setPostInterviewMode(true);
         this.hideConversation();
         this.elements.photoSection?.classList.add('visible');
         this.showQRSection();
@@ -254,6 +266,7 @@ class UIController {
     }
 
     showDraftReview(data) {
+        this.setPostInterviewMode(true);
         if (this.elements.photoSection) this.elements.photoSection.classList.remove('visible');
         if (this.elements.generateSection) this.elements.generateSection.style.display = 'none';
         if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'block';
@@ -305,6 +318,7 @@ class UIController {
     }
 
     showPublished() {
+        this.setPostInterviewMode(true);
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = false;

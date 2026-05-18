@@ -9,8 +9,10 @@ from web.app import app
 from web.goal_interview import InterviewGoal
 from web.interview_flow import (
     FINAL_PHOTOS_PROMPT,
+    build_outgoing_turn_contract,
     build_interview_state,
     decide_next_task,
+    deterministic_response,
     extract_patient_name,
     sufficiency_decision,
 )
@@ -52,11 +54,22 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['awaiting'], 'readiness')
         self.assertEqual(state['phase'], 'INTRO')
 
-    def test_short_story_answer_triggers_same_topic_followup(self):
+    def test_acknowledgement_only_story_answer_repairs_without_advancing(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
         task = decide_next_task(state, 'okay')
+
+        self.assertEqual(task['type'], 'repair_answer')
+        self.assertEqual(task['step']['id'], 'personal_background')
+        self.assertEqual(state['step_index'], 0)
+        self.assertEqual(state['awaiting'], 'main_answer')
+
+    def test_detailed_but_insufficient_answer_triggers_same_topic_followup(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        task = decide_next_task(state, 'I like my family')
 
         self.assertEqual(task['type'], 'ask_followup')
         self.assertEqual(task['step']['id'], 'personal_background')
@@ -83,6 +96,28 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertNotEqual(state['awaiting'], 'story_answer')
         self.assertEqual(state['version'], 2)
 
+    def test_active_story_turn_contains_exact_canonical_question(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        task = decide_next_task(state, 'yes')
+        response = deterministic_response(task, state)
+
+        self.assertIn(task['step']['question'], response)
+        self.assertEqual(response.count(task['step']['question']), 1)
+
+    def test_outgoing_turn_contract_records_delivered_question(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        task = decide_next_task(state, 'yes')
+        response = deterministic_response(task, state)
+        contract = build_outgoing_turn_contract(task, state, response, 'turn-1')
+
+        self.assertEqual(contract['outgoing_turn_id'], 'turn-1')
+        self.assertEqual(contract['asked_step_id'], 'personal_background')
+        self.assertEqual(contract['asked_question_text'], task['step']['question'])
+        self.assertEqual(contract['expected_answer_kind'], 'main_answer')
+        self.assertTrue(contract['delivery_validated'])
+
 
 class FakeLLM:
     def __init__(self):
@@ -104,6 +139,48 @@ class FakeMicrositeLLM:
 
 
 class InterviewGoalTests(unittest.TestCase):
+    def test_active_story_question_is_deterministic_and_does_not_call_llm(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            user_file = os.path.join(tmp, 'user.pkl')
+            info_state = InformationState(user_file, 'domains/interview.json')
+            info_state.user.update('session_id', 'unit-active')
+            info_state.user.update('avatar_profile', {'name': 'Ludi'})
+            info_state.user.update('interview_state', {
+                'version': 2,
+                'step_index': 0,
+                'phase': 'INTRO',
+                'awaiting': 'readiness',
+                'followup_count': 0,
+                'repair_count': 0,
+                'last_task': 'ask_readiness',
+                'last_step_id': None,
+                'complete': False,
+                'story_evidence': {},
+                'thin_evidence': {},
+                'patient_name': 'Sophia',
+                'patient_name_status': 'confirmed',
+                'patient_name_source': 'user_explicit',
+                'last_decision': None,
+                'current_outgoing_turn': {
+                    'outgoing_turn_id': 'opening-turn',
+                    'expected_answer_kind': 'readiness',
+                    'asked_question_text': 'Are you ready to begin?',
+                    'delivery_validated': True,
+                },
+            })
+
+            fake = FakeLLM()
+            goal = InterviewGoal(fake, 'You are {avatar_name}.')
+            msg = {MSG.ORIG_TEXT: 'yes'}
+
+            goal.execute_goal(msg, info_state)
+
+            self.assertEqual(fake.calls, 0)
+            self.assertIn('Can you tell me a little about yourself', msg[MSG.RESPONSE])
+            context = msg['interview_context']
+            self.assertEqual(context['answered_outgoing_turn_id'], 'opening-turn')
+            self.assertTrue(context['outgoing_turn']['delivery_validated'])
+
     def test_final_close_is_deterministic_and_does_not_use_llm_question(self):
         with tempfile.TemporaryDirectory() as tmp:
             user_file = os.path.join(tmp, 'user.pkl')
@@ -234,10 +311,25 @@ class DatabasePersistenceTests(unittest.TestCase):
             turn_number=1,
             phase='INTRO',
             task_type='ask_readiness',
+            answered_outgoing_turn_id='turn-0',
+            answered_question_text='What name would you like me to use for your donor page?',
             input_modality='typed',
             response_latency_ms=1200,
             answer_duration_ms=3000,
             retry_count=1,
+        )
+        db.save_message(
+            visit_id,
+            'assistant',
+            'Thank you, Sophia. Are you ready to begin?',
+            turn_number=1,
+            phase='INTRO',
+            task_type='ask_readiness',
+            outgoing_turn_id='turn-1',
+            asked_question_text='Are you ready to begin?',
+            expected_answer_kind='readiness',
+            delivery_validated=True,
+            input_modality='system',
         )
         db.save_turn_events(
             visit_id,
@@ -270,7 +362,13 @@ class DatabasePersistenceTests(unittest.TestCase):
         self.addCleanup(conn.close)
 
         self.assertEqual(conn.execute('SELECT COUNT(*) FROM visits').fetchone()[0], 1)
-        self.assertEqual(conn.execute('SELECT answer_duration_ms FROM messages').fetchone()[0], 3000)
+        user_row = conn.execute("SELECT * FROM messages WHERE role = 'user'").fetchone()
+        assistant_row = conn.execute("SELECT * FROM messages WHERE role = 'assistant'").fetchone()
+        self.assertEqual(user_row['answer_duration_ms'], 3000)
+        self.assertEqual(user_row['answered_outgoing_turn_id'], 'turn-0')
+        self.assertEqual(assistant_row['outgoing_turn_id'], 'turn-1')
+        self.assertEqual(assistant_row['asked_question_text'], 'Are you ready to begin?')
+        self.assertEqual(assistant_row['delivery_validated'], 1)
         self.assertEqual(conn.execute('SELECT COUNT(*) FROM turn_events').fetchone()[0], 2)
         self.assertEqual(conn.execute('SELECT photo_count FROM visits').fetchone()[0], 1)
         self.assertEqual(version, 1)

@@ -25,9 +25,12 @@ ALLOWED_EVENT_TYPES = {
     'resume_clicked',
     'repeat_clicked',
     'mic_error',
+    'vad_init',
+    'vad_speech_end',
+    'silence_timeout',
 }
 
-ALLOWED_EVENT_METADATA = {'source', 'reason', 'state', 'duration_ms'}
+ALLOWED_EVENT_METADATA = {'source', 'reason', 'state', 'duration_ms', 'end_reason', 'transcript_words'}
 
 
 def configure(path: str) -> None:
@@ -200,6 +203,21 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_drafts_visit_version ON donor_page_drafts(visit_id, version);
             """
         )
+        _ensure_columns(c, 'messages', {
+            'outgoing_turn_id': 'TEXT',
+            'asked_question_text': 'TEXT',
+            'expected_answer_kind': 'TEXT',
+            'delivery_validated': 'INTEGER',
+            'answered_outgoing_turn_id': 'TEXT',
+            'answered_question_text': 'TEXT',
+        })
+
+
+def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+    existing = {row['name'] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {definition}')
 
 
 def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:
@@ -293,8 +311,10 @@ def save_message(visit_id: str | None, role: str, content: str, *, turn_number: 
                 step_id, probe_depth, followup_count, sufficiency_reason, sufficiency_json,
                 input_modality, response_latency_ms, answer_duration_ms, answer_word_count,
                 answer_char_count, speech_confidence, no_response, retry_count, client_sent_at,
-                llm_latency_ms, tts_duration_ms, message_word_count, message_char_count, created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                llm_latency_ms, tts_duration_ms, message_word_count, message_char_count,
+                outgoing_turn_id, asked_question_text, expected_answer_kind, delivery_validated,
+                answered_outgoing_turn_id, answered_question_text, created_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 message_id,
@@ -323,6 +343,12 @@ def save_message(visit_id: str | None, role: str, content: str, *, turn_number: 
                 meta.get('tts_duration_ms'),
                 word_count,
                 char_count,
+                meta.get('outgoing_turn_id'),
+                meta.get('asked_question_text'),
+                meta.get('expected_answer_kind'),
+                None if meta.get('delivery_validated') is None else (1 if meta.get('delivery_validated') else 0),
+                meta.get('answered_outgoing_turn_id'),
+                meta.get('answered_question_text'),
                 now,
             ),
         )

@@ -12,6 +12,47 @@
         height: 100vh;      /* exact viewport — no page overflow */
         overflow: hidden;
     }
+
+    #conversation-screen.post-interview-mode {
+        display: block;
+        overflow-y: auto;
+    }
+}
+
+#conversation-screen.post-interview-mode {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 12% 8%, rgba(232, 111, 44, 0.16), transparent 28%),
+        linear-gradient(145deg, #FFF8EF 0%, #F3E5D8 52%, #E8DDD3 100%);
+}
+
+#conversation-screen.post-interview-mode .avatar-panel {
+    display: none;
+}
+
+#conversation-screen.post-interview-mode .interaction-panel {
+    min-height: 100vh;
+    width: min(1120px, calc(100% - 32px));
+    margin: 0 auto;
+    background: rgba(255, 253, 249, 0.94);
+    border-left: 1px solid rgba(232, 111, 44, 0.12);
+    border-right: 1px solid rgba(232, 111, 44, 0.12);
+    box-shadow: 0 28px 90px rgba(100, 70, 40, 0.14);
+    overflow-y: auto;
+}
+
+.hub-back-btn {
+    display: none;
+    align-self: flex-start;
+    color: #78716C;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    text-decoration: none;
+}
+
+.hub-back-btn:hover {
+    color: #E86F2C;
 }
 
 /* ── Avatar panel — warm gradient background, full height ─────────────────── */
@@ -523,6 +564,16 @@
     animation: fade-up 0.5s ease-out both;
 }
 
+#conversation-screen.post-interview-mode .photo-section,
+#conversation-screen.post-interview-mode .generate-section,
+#conversation-screen.post-interview-mode .review-section,
+#conversation-screen.post-interview-mode .celebration-section,
+#conversation-screen.post-interview-mode .microsite-preview {
+    max-width: 860px;
+    margin-top: 0;
+    margin-bottom: 28px;
+}
+
 .photo-section.visible,
 .microsite-preview.visible {
     display: block;
@@ -550,6 +601,16 @@
     font-weight: 800;
     letter-spacing: 0.08em;
     margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.photo-section .eyebrow {
+    color: #E86F2C;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-align: center;
     text-transform: uppercase;
 }
 
@@ -780,5 +841,14 @@
     .microsite-preview {
         max-height: 100%;
         overflow-y: auto;
+    }
+
+    #conversation-screen.post-interview-mode .photo-section,
+    #conversation-screen.post-interview-mode .generate-section,
+    #conversation-screen.post-interview-mode .review-section,
+    #conversation-screen.post-interview-mode .celebration-section,
+    #conversation-screen.post-interview-mode .microsite-preview {
+        max-height: none;
+        overflow-y: visible;
     }
 }

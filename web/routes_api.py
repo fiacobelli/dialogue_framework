@@ -129,6 +129,10 @@ def new_session():
         phase='WELCOME',
         task_type='opening',
         input_modality='system',
+        outgoing_turn_id=(info_state.user.query('interview_state') or {}).get('current_outgoing_turn', {}).get('outgoing_turn_id'),
+        asked_question_text='What name would you like me to use for your donor page?',
+        expected_answer_kind='name',
+        delivery_validated=True,
     )
     db.update_visit_from_info_state(visit_id, info_state)
 
@@ -188,10 +192,13 @@ def chat():
         'user',
         user_input,
         turn_number=turn_number,
-        phase=phase,
+        phase=context.get('answered_phase') or phase,
         awaiting=context.get('answered_awaiting'),
         task_type=task.get('type'),
         step_id=context.get('answered_step_id') or state.get('last_step_id') or step.get('id'),
+        answered_outgoing_turn_id=context.get('answered_outgoing_turn_id'),
+        answered_question_text=context.get('answered_question_text'),
+        delivery_validated=context.get('answered_delivery_validated'),
         probe_depth=1 if context.get('answered_awaiting') == 'followup_answer' else 0,
         followup_count=state.get('followup_count'),
         sufficiency_reason=sufficiency_reason,
@@ -218,6 +225,10 @@ def chat():
         followup_count=state.get('followup_count'),
         llm_latency_ms=msg.get('llm_latency_ms'),
         input_modality='system',
+        outgoing_turn_id=(context.get('outgoing_turn') or {}).get('outgoing_turn_id'),
+        asked_question_text=(context.get('outgoing_turn') or {}).get('asked_question_text'),
+        expected_answer_kind=(context.get('outgoing_turn') or {}).get('expected_answer_kind'),
+        delivery_validated=(context.get('outgoing_turn') or {}).get('delivery_validated'),
     )
     db.update_visit_from_info_state(visit_id, info_state)
 
