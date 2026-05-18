@@ -7,6 +7,7 @@ import os
 from .config import (
     PHOTOS_DIR,
     MICROSITES_DIR,
+    DB_PATH,
     FLASK_PORT,
     FLASK_DEBUG,
     AVATAR_PROFILES,
@@ -15,6 +16,7 @@ from .config import (
 from .routes_api import api_bp
 from .routes_photos import photos_bp
 from .session_store import has_session, get_session
+from .database import configure as db_configure, init_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
@@ -24,6 +26,9 @@ app.register_blueprint(photos_bp)
 
 os.makedirs(PHOTOS_DIR, exist_ok=True)
 os.makedirs(MICROSITES_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
+db_configure(DB_PATH)
+init_db()
 
 
 @app.route('/')

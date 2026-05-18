@@ -4,11 +4,13 @@ from flask import Blueprint, request, jsonify, url_for
 import os
 import io
 import base64
+import hashlib
 
 import qrcode
 
 from .config import PHOTOS_DIR, MAX_PHOTOS
 from .session_store import get_session, has_session
+from . import database as db
 
 photos_bp = Blueprint('photos', __name__, url_prefix='/api')
 
@@ -29,7 +31,8 @@ def upload_photo():
     if not photo.filename:
         return jsonify({'error': 'Empty photo filename'}), 400
 
-    info_state = get_session(session_id)['info_state']
+    s = get_session(session_id)
+    info_state = s['info_state']
 
     photos = info_state.user.query('photos') or []
     if len(photos) >= MAX_PHOTOS:
@@ -38,14 +41,27 @@ def upload_photo():
     photo_id = f"{session_id}_{len(photos)}.jpg"
     photo_path = os.path.join(PHOTOS_DIR, photo_id)
     photo.save(photo_path)
+    byte_size = os.path.getsize(photo_path)
+    with open(photo_path, 'rb') as f:
+        sha256 = hashlib.sha256(f.read()).hexdigest()
 
     photos.append(photo_id)
     info_state.user.update('photos', photos)
     info_state.save_user_model()
+    db.save_photo(
+        info_state.user.query('visit_id'),
+        photo_id,
+        len(photos) - 1,
+        source=request.form.get('source') or 'desktop',
+        mime_type=photo.mimetype,
+        byte_size=byte_size,
+        sha256=sha256,
+    )
 
     if len(photos) >= MAX_PHOTOS:
         info_state.user.update('interview_phase', 'COMPLETE')
         info_state.save_user_model()
+    db.update_visit_from_info_state(info_state.user.query('visit_id'), info_state)
 
     return jsonify({
         'status': 'ok',

@@ -5,6 +5,7 @@ from decouple import config
 USER_MODELS_DIR = config('USER_MODELS_DIR', default='user_models')
 PHOTOS_DIR = config('PHOTOS_DIR', default='photos')
 MICROSITES_DIR = config('MICROSITES_DIR', default='static/microsites')
+DB_PATH = config('DB_PATH', default='db/transplant.db')
 SYSTEM_PROMPT_FILE = config('SYSTEM_PROMPT_FILE', default='prompts/interviewer.txt')
 MICROSITE_PROMPT_FILE = config('MICROSITE_PROMPT_FILE', default='prompts/microsite.txt')
 KB_FILE = config('KB_FILE', default='domains/interview.json')

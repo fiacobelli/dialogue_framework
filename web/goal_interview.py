@@ -1,5 +1,6 @@
 """Interview goal - LLM-driven interview using system prompt."""
 import os
+import time
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
@@ -47,6 +48,8 @@ class InterviewGoal(Goal):
             log_interview(session_id, f"USER: {user_input}")
 
         task = decide_next_task(state, user_input)
+        answered_awaiting = previous_state.get('awaiting')
+        answered_step_id = previous_state.get('last_step_id') or state.get('last_step_id')
         info_state.user.update('interview_state', state)
         info_state.user.update('interview_phase', task['phase'])
         info_state.user.update('patient_name', state.get('patient_name'))
@@ -66,7 +69,11 @@ class InterviewGoal(Goal):
             if language != 'en':
                 lang_name = LANGUAGE_NAMES.get(language, 'English')
                 prompt += f"\n\nIMPORTANT: Respond entirely in {lang_name}."
+            t0 = time.perf_counter()
             response = self.llm.generate(history, prompt)
+            llm_latency_ms = int((time.perf_counter() - t0) * 1000)
+        else:
+            llm_latency_ms = 0
         log_interview(session_id, f"LLM: {response}")
 
         # Code owns completion. Phrase matching must never force an early photo transition.
@@ -82,6 +89,12 @@ class InterviewGoal(Goal):
 
         history.append({"role": "assistant", "content": response})
         info_state.user.update('conversation_history', history)
+        msg['interview_task'] = task
+        msg['interview_context'] = {
+            'answered_awaiting': answered_awaiting,
+            'answered_step_id': answered_step_id,
+        }
+        msg['llm_latency_ms'] = llm_latency_ms
         msg[MSG.RESPONSE] = response
 
     def _is_goodbye(self, text: str) -> bool:

@@ -104,8 +104,10 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_urls: list
     )
 
     filepath = os.path.join(MICROSITES_DIR, f'{session_id}.html')
-    with open(filepath, 'w', encoding='utf-8') as f:
+    tmp_filepath = f"{filepath}.tmp"
+    with open(tmp_filepath, 'w', encoding='utf-8') as f:
         f.write(html)
+    os.replace(tmp_filepath, filepath)
 
     return microsite_path, microsite_url
 

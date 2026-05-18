@@ -13,6 +13,9 @@ class App {
         this._paused = false;
         this._agentPaused = false;
         this._speechActivated = false;
+        this._retryCount = 0;
+        this._typedStartedAt = null;
+        this._typedEvents = [];
     }
 
     async init() {
@@ -48,11 +51,12 @@ class App {
         speechManager.on('complete', async ({ transcript }) => {
             this._emptyCount = 0;
             ui.showTranscript(transcript, false);
-            await this._processUserInput(transcript);
+            await this._processUserInput(transcript, 'voice');
         });
 
         speechManager.on('empty', () => {
             this._emptyCount++;
+            this._retryCount++;
             if (this.conversationActive && !this._paused && this._emptyCount < 2) {
                 speechManager.startListening();
             } else {
@@ -105,6 +109,7 @@ class App {
 
         const input = document.getElementById('input');
         if (input) {
+            input.addEventListener('input', () => this._markTypedStarted(input.value));
             input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') this.sendTextInput();
             });
@@ -126,7 +131,10 @@ class App {
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
 
         const repeatBtn = document.getElementById('repeatBtn');
-        if (repeatBtn) repeatBtn.addEventListener('click', () => this.repeatLastMessage());
+        if (repeatBtn) repeatBtn.addEventListener('click', () => {
+            speechManager.recordEvent('repeat_clicked');
+            this.repeatLastMessage();
+        });
 
         const beginBtn = document.getElementById('beginBtn');
         if (beginBtn) beginBtn.addEventListener('click', () => this.beginInterview());
@@ -217,6 +225,7 @@ class App {
 
         if (state === TurnState.SYSTEM_SPEAKING) {
             this._agentPaused = true;
+            speechManager.recordEvent('pause_clicked');
             ui.showPaused();
             speechManager.stopSpeaking();
             return;
@@ -224,6 +233,7 @@ class App {
 
         if (this._agentPaused) {
             this._agentPaused = false;
+            speechManager.recordEvent('resume_clicked');
             speechManager.speak(this._lastSpokenText);
             return;
         }
@@ -243,10 +253,12 @@ class App {
 
         if (this._paused) {
             this._paused = false;
+            speechManager.recordEvent('resume_clicked');
             ui.showResumed();
             if (this.conversationActive) speechManager.startListening();
         } else if (this.conversationActive) {
             this._paused = true;
+            speechManager.recordEvent('pause_clicked');
             speechManager.pauseListening();
             ui.showPaused();
         } else {
@@ -266,10 +278,70 @@ class App {
 
         ui.clearTranscript();
         ui.showProcessing();
-        await this._processUserInput(text);
+        this._markTypedSent();
+        await this._processUserInput(text, 'typed');
     }
 
-    async _processUserInput(text) {
+    _markTypedStarted(value) {
+        if (!value || this._typedStartedAt !== null) return;
+        this._typedStartedAt = performance.now();
+        this._typedEvents.push({ type: 'typed_started', ts: Math.round(this._typedStartedAt) });
+    }
+
+    _markTypedSent() {
+        const now = performance.now();
+        if (this._typedStartedAt === null) {
+            this._typedStartedAt = now;
+            this._typedEvents.push({ type: 'typed_started', ts: Math.round(now) });
+        }
+        this._typedEvents.push({ type: 'typed_sent', ts: Math.round(now) });
+    }
+
+    _durationBetween(events, startType, endType) {
+        const start = [...events].reverse().find(e => e.type === startType);
+        const end = [...events].reverse().find(e => e.type === endType);
+        if (!start || !end) return null;
+        return Math.max(0, Math.round(end.ts - start.ts));
+    }
+
+    _buildTurnMetadata(inputModality) {
+        const speechEvents = speechManager.consumeTurnEvents();
+        const typedEvents = this._typedEvents.slice();
+        const events = [...speechEvents, ...typedEvents];
+        const typedStarted = typedEvents.find(e => e.type === 'typed_started');
+        const typedSent = [...typedEvents].reverse().find(e => e.type === 'typed_sent');
+        const speakEnd = speechManager.getLastSpeakEndTime();
+        let responseLatency = inputModality === 'voice'
+            ? speechManager.getResponseLatency()
+            : null;
+        let answerDuration = inputModality === 'voice'
+            ? this._durationBetween(events, 'recognition_started', 'recognition_ended')
+            : null;
+
+        if (inputModality === 'typed' && typedSent) {
+            const responsePoint = typedStarted || typedSent;
+            responseLatency = speakEnd === null ? null : Math.max(0, Math.round(responsePoint.ts - speakEnd));
+            answerDuration = typedStarted ? Math.max(0, Math.round(typedSent.ts - typedStarted.ts)) : 0;
+        }
+
+        const metadata = {
+            input_modality: inputModality,
+            response_latency_ms: responseLatency,
+            answer_duration_ms: answerDuration,
+            speech_confidence: inputModality === 'voice' ? speechManager.getSpeechConfidence() : null,
+            client_sent_at: new Date().toISOString(),
+            retry_count: this._retryCount,
+            tts_duration_ms: speechManager.getLastTtsDuration(),
+            events
+        };
+
+        this._retryCount = 0;
+        this._typedStartedAt = null;
+        this._typedEvents = [];
+        return metadata;
+    }
+
+    async _processUserInput(text, inputModality = 'unknown') {
         if (!conversationAPI.getSessionId()) {
             ui.setStatus('No active session.');
             ui.showIdle();
@@ -281,7 +353,7 @@ class App {
             this._lastSpokenText = '';
             ui.clearMessage();
 
-            const data = await conversationAPI.sendMessage(text);
+            const data = await conversationAPI.sendMessage(text, this._buildTurnMetadata(inputModality));
             this._lastSpokenText = data.prompt;
             ui.showMessage(data.prompt);
             ui.setStatus('');

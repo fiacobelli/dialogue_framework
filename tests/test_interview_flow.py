@@ -15,6 +15,7 @@ from web.interview_flow import (
     sufficiency_decision,
 )
 from web import microsite
+from web import database as db
 from web.routes_api import validate_generation_ready
 
 
@@ -209,6 +210,70 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertTrue(published['published'])
                     self.assertEqual(published['my_story'], 'Edited story approved by Sophia.')
                     self.assertTrue(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
+
+
+class DatabasePersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        db.configure(os.path.join(self.tmp.name, 'transplant.db'))
+        db.init_db()
+
+    def test_visit_messages_events_photo_and_draft_are_saved(self):
+        visit_id = db.create_visit(
+            'session-1',
+            'en',
+            'black_male',
+            {'name': 'Ludi', 'voice': 196},
+            user_agent='unit-test',
+        )
+        user_message_id = db.save_message(
+            visit_id,
+            'user',
+            'My name is Sophia',
+            turn_number=1,
+            phase='INTRO',
+            task_type='ask_readiness',
+            input_modality='typed',
+            response_latency_ms=1200,
+            answer_duration_ms=3000,
+            retry_count=1,
+        )
+        db.save_turn_events(
+            visit_id,
+            user_message_id,
+            1,
+            [
+                {'type': 'typed_started', 'ts': 100},
+                {'type': 'typed_sent', 'ts': 3100},
+                {'type': 'not_allowed', 'ts': 3200},
+            ],
+        )
+        db.save_photo(visit_id, 'session-1_0.jpg', 0, byte_size=42, sha256='abc')
+        version = db.save_draft(
+            visit_id,
+            {
+                'name': 'Sophia',
+                'headline': 'Sophia needs a kidney donor',
+                'my_story': 'Story',
+                'my_struggle': 'Struggle',
+                'my_hope': 'Hope',
+                'content': '{"ok": true}',
+            },
+            status='draft',
+            generation_latency_ms=55,
+        )
+
+        import sqlite3
+        conn = sqlite3.connect(os.path.join(self.tmp.name, 'transplant.db'))
+        conn.row_factory = sqlite3.Row
+        self.addCleanup(conn.close)
+
+        self.assertEqual(conn.execute('SELECT COUNT(*) FROM visits').fetchone()[0], 1)
+        self.assertEqual(conn.execute('SELECT answer_duration_ms FROM messages').fetchone()[0], 3000)
+        self.assertEqual(conn.execute('SELECT COUNT(*) FROM turn_events').fetchone()[0], 2)
+        self.assertEqual(conn.execute('SELECT photo_count FROM visits').fetchone()[0], 1)
+        self.assertEqual(version, 1)
 
 
 if __name__ == '__main__':

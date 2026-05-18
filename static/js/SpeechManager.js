@@ -25,6 +25,7 @@ class SpeechManager {
         this._micStream = null;
 
         this._turnEvents = [];
+        this._speakStartTime = null;
         this._speakEndTime = null;
         this._vadFireTime = null;
         this._speechConfidence = null;
@@ -216,6 +217,7 @@ class SpeechManager {
                 this.turnManager.endUserTurn();
                 this._emit('complete', { transcript: text });
             } else {
+                this.recordEvent('empty_input');
                 this.turnManager.reset();
                 this._emit('empty', {});
             }
@@ -294,6 +296,7 @@ class SpeechManager {
         }
 
         this.recordEvent('tts_started');
+        this._speakStartTime = performance.now();
         this._emit('speakStart', { text });
 
         return new Promise((resolve) => {
@@ -312,8 +315,8 @@ class SpeechManager {
         });
     }
 
-    recordEvent(type) {
-        this._turnEvents.push({ type, ts: performance.now() });
+    recordEvent(type, metadata = {}) {
+        this._turnEvents.push({ type, ts: Math.round(performance.now()), metadata });
     }
 
     consumeTurnEvents() {
@@ -325,6 +328,15 @@ class SpeechManager {
     getResponseLatency() {
         if (this._speakEndTime === null || this._vadFireTime === null) return null;
         return Math.round(this._vadFireTime - this._speakEndTime);
+    }
+
+    getLastSpeakEndTime() {
+        return this._speakEndTime;
+    }
+
+    getLastTtsDuration() {
+        if (this._speakStartTime === null || this._speakEndTime === null) return null;
+        return Math.round(this._speakEndTime - this._speakStartTime);
     }
 
     getSpeechConfidence() {

@@ -8,8 +8,39 @@ from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
 from .session_store import get_session, set_session, has_session
 from . import microsite
+from . import database as db
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+def _turn_meta(data: dict) -> dict:
+    return {
+        'input_modality': data.get('input_modality'),
+        'response_latency_ms': data.get('response_latency_ms'),
+        'answer_duration_ms': data.get('answer_duration_ms'),
+        'speech_confidence': data.get('speech_confidence'),
+        'client_sent_at': data.get('client_sent_at'),
+        'retry_count': data.get('retry_count', 0),
+        'no_response': data.get('no_response', False),
+        'tts_duration_ms': data.get('tts_duration_ms'),
+        'events': data.get('events', []),
+    }
+
+
+def _message_turn_number(info_state) -> int:
+    history = info_state.user.query('conversation_history') or []
+    return max(1, sum(1 for msg in history if msg.get('role') == 'user'))
+
+
+def _sufficiency_meta(task: dict) -> tuple[str | None, dict | None]:
+    decision = task.get('decision') or {}
+    if isinstance(decision, dict) and 'sufficient' in decision:
+        sufficiency = decision
+    else:
+        sufficiency = decision.get('sufficiency') if isinstance(decision, dict) else None
+    if isinstance(sufficiency, dict):
+        return sufficiency.get('reason'), sufficiency
+    return None, None
 
 
 def validate_generation_ready(info_state) -> tuple[bool, dict]:
@@ -68,6 +99,14 @@ def new_session():
     info_state.user.update('language', lang)
     info_state.user.update('avatar', avatar_id)
     info_state.user.update('avatar_profile', avatar_profile)
+    visit_id = db.create_visit(
+        session_id,
+        lang,
+        avatar_id,
+        avatar_profile,
+        user_agent=request.headers.get('User-Agent', ''),
+    )
+    info_state.user.update('visit_id', visit_id)
     info_state.save_user_model()
 
     phase = info_state.user.query('interview_phase') or 'WELCOME'
@@ -82,6 +121,16 @@ def new_session():
     )
     if is_returning:
         opening = f"{WELCOME_BACK.get(lang, WELCOME_BACK['en'])} {opening}"
+    db.save_message(
+        visit_id,
+        'assistant',
+        opening,
+        turn_number=0,
+        phase='WELCOME',
+        task_type='opening',
+        input_modality='system',
+    )
+    db.update_visit_from_info_state(visit_id, info_state)
 
     return jsonify({
         'session_id': session_id,
@@ -101,7 +150,7 @@ def get_avatars():
 @api_bp.route('/chat', methods=['POST'])
 def chat():
     """Process user message and return LLM response."""
-    data = request.json
+    data = request.json or {}
     session_id = data.get('session_id')
     user_input = data.get('input', '').strip()
 
@@ -116,6 +165,7 @@ def chat():
     msg = s['msg']
 
     msg[MSG.POSSIBLE_RESPONSES] = [(1.0, user_input)]
+    msg['turn_meta'] = _turn_meta(data or {})
 
     if nlu.check(msg):
         dialogue_mgr.manage(msg)
@@ -123,6 +173,53 @@ def chat():
     phase = info_state.user.query('interview_phase') or 'WELCOME'
     done = phase in ['PHOTOS', 'COMPLETE']
     prompt = nlg.get_prompt(msg)
+    visit_id = info_state.user.query('visit_id')
+    turn_number = _message_turn_number(info_state)
+    task = msg.get('interview_task') or {}
+    context = msg.get('interview_context') or {}
+    state = info_state.user.query('interview_state') or {}
+    step = task.get('step') or {}
+    turn_meta = msg.get('turn_meta') or {}
+    sufficiency_reason, sufficiency = _sufficiency_meta(task)
+    db.update_assistant_tts(visit_id, turn_number - 1, turn_meta.get('tts_duration_ms'))
+
+    user_message_id = db.save_message(
+        visit_id,
+        'user',
+        user_input,
+        turn_number=turn_number,
+        phase=phase,
+        awaiting=context.get('answered_awaiting'),
+        task_type=task.get('type'),
+        step_id=context.get('answered_step_id') or state.get('last_step_id') or step.get('id'),
+        probe_depth=1 if context.get('answered_awaiting') == 'followup_answer' else 0,
+        followup_count=state.get('followup_count'),
+        sufficiency_reason=sufficiency_reason,
+        sufficiency=sufficiency,
+        input_modality=turn_meta.get('input_modality'),
+        response_latency_ms=turn_meta.get('response_latency_ms'),
+        answer_duration_ms=turn_meta.get('answer_duration_ms'),
+        speech_confidence=turn_meta.get('speech_confidence'),
+        client_sent_at=turn_meta.get('client_sent_at'),
+        retry_count=turn_meta.get('retry_count'),
+        no_response=turn_meta.get('no_response'),
+    )
+    db.save_turn_events(visit_id, user_message_id, turn_number, turn_meta.get('events') or [])
+    db.save_message(
+        visit_id,
+        'assistant',
+        prompt,
+        turn_number=turn_number,
+        phase=phase,
+        awaiting=state.get('awaiting'),
+        task_type=task.get('type'),
+        step_id=state.get('last_step_id') or step.get('id'),
+        probe_depth=task.get('probe_depth'),
+        followup_count=state.get('followup_count'),
+        llm_latency_ms=msg.get('llm_latency_ms'),
+        input_modality='system',
+    )
+    db.update_visit_from_info_state(visit_id, info_state)
 
     info_state.save_user_model()
 
@@ -145,6 +242,7 @@ def generate_microsite():
     s = get_session(session_id)
     info_state = s['info_state']
     provider = s['goal_mgr'].goal.llm
+    visit_id = info_state.user.query('visit_id')
     ready, detail = validate_generation_ready(info_state)
     if not ready:
         return jsonify(detail), 409
@@ -158,7 +256,12 @@ def generate_microsite():
         info_state.user.update('patient_name_source', 'manual_edit')
 
     try:
+        import time
+        t0 = time.perf_counter()
         result = microsite.generate(info_state, provider, name, session_id)
+        latency = int((time.perf_counter() - t0) * 1000)
+        db.save_draft(visit_id, result, status='draft', generation_latency_ms=latency)
+        db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
     except Exception as e:
         import traceback
@@ -177,12 +280,15 @@ def publish_microsite():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    visit_id = info_state.user.query('visit_id')
     ready, detail = validate_generation_ready(info_state)
     if not ready:
         return jsonify(detail), 409
 
     try:
         result = microsite.publish(info_state, session_id, data.get('edits') or {})
+        db.save_draft(visit_id, result, status='published')
+        db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
     except ValueError as e:
         return jsonify({'error': 'draft_not_ready', 'message': str(e)}), 409

@@ -30,7 +30,7 @@ class ConversationAPI {
     }
 
     /** Send user message and get response. */
-    async sendMessage(text) {
+    async sendMessage(text, metadata = {}) {
         if (!this.sessionId) throw new Error('No active session');
 
         const res = await fetch(this._url('/api/chat'), {
@@ -38,7 +38,8 @@ class ConversationAPI {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 session_id: this.sessionId,
-                input: text
+                input: text,
+                ...metadata
             })
         });
 
