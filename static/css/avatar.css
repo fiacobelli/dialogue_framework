@@ -341,6 +341,20 @@
     color: #1C1917;
     text-align: center;
 }
+.begin-overlay .eyebrow {
+    color: #E86F2C;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.begin-copy {
+    color: #78716C;
+    font-size: clamp(15px, 2vw, 18px);
+    line-height: 1.65;
+    max-width: 420px;
+    text-align: center;
+}
 .begin-btn {
     padding: clamp(15px, 2.2vw, 19px) clamp(36px, 5vw, 52px);
     font-size: clamp(17px, 2.2vw, 21px);

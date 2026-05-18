@@ -13,6 +13,8 @@ class UIController {
     init() {
         this.elements = {
             conversationScreen: document.getElementById('conversation-screen'),
+            beginOverlay: document.getElementById('beginOverlay'),
+            beginBtn: document.getElementById('beginBtn'),
             conversationUI: document.getElementById('conversationUI'),
             messageBubble: document.getElementById('messageBubble'),
             micBtn: document.getElementById('micBtn'),
@@ -30,7 +32,28 @@ class UIController {
         };
     }
 
+    showBeginOverlay() {
+        if (this.elements.beginOverlay) {
+            this.elements.beginOverlay.style.display = 'flex';
+        }
+        this.hideConversation();
+    }
+
+    hideBeginOverlay() {
+        if (this.elements.beginOverlay) {
+            this.elements.beginOverlay.style.display = 'none';
+        }
+    }
+
+    setBeginLoading(isLoading) {
+        const btn = this.elements.beginBtn;
+        if (!btn) return;
+        btn.disabled = Boolean(isLoading);
+        btn.textContent = isLoading ? 'Getting Ludi ready...' : 'Begin interview';
+    }
+
     showConversation() {
+        this.hideBeginOverlay();
         if (this.elements.conversationUI) {
             this.elements.conversationUI.style.display = 'flex';
         }

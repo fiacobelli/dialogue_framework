@@ -91,6 +91,16 @@
         </div>
 
         <div class="interaction-panel">
+            <div class="begin-overlay" id="beginOverlay" style="display:none;">
+                <p class="eyebrow">Donor page interview</p>
+                <h2>Tell your story with Ludi</h2>
+                <p class="begin-copy">
+                    Ludi will ask a few questions, listen to your answers, then help you add photos for your donor page.
+                    You can speak or type, skip anything, and correct details at any time.
+                </p>
+                <button type="button" class="begin-btn" id="beginBtn">Begin interview</button>
+            </div>
+
             <div id="conversationUI">
                 <div class="convo-top">
                     <div id="progress-bar-wrap" class="hidden">
@@ -139,8 +149,8 @@
             </div>
 
             <div class="photo-section" id="photoSection">
-                <h2>Add Your Photos</h2>
-                <p>Upload 3 photos for your donor page.</p>
+                <h2>Add Photos for Your Donor Page</h2>
+                <p>The story part is complete. Add 3 photos you would like shown on the page.</p>
 
                 <div id="qrSection" class="qr-section" style="display:none;">
                     <p>Scan with your phone to upload photos:</p>
@@ -161,8 +171,8 @@
 
             <div id="generateSection" class="generate-section" style="display:none;">
                 <div class="name-input">
-                    <label for="patientName">Your name for the website</label>
-                    <input type="text" id="patientName" placeholder="Enter your name">
+                    <label for="patientName">Name to show on the donor page</label>
+                    <input type="text" id="patientName" placeholder="Use the name you gave Ludi">
                 </div>
                 <button id="generateBtn" type="button">Generate My Donor Page</button>
             </div>

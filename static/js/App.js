@@ -124,6 +124,9 @@ class App {
 
         const repeatBtn = document.getElementById('repeatBtn');
         if (repeatBtn) repeatBtn.addEventListener('click', () => this.repeatLastMessage());
+
+        const beginBtn = document.getElementById('beginBtn');
+        if (beginBtn) beginBtn.addEventListener('click', () => this.beginInterview());
     }
 
     _waitForSitePal(timeoutMs = 15000) {
@@ -160,38 +163,52 @@ class App {
                 this._waitForSitePal()
             ]);
 
-            this.conversationActive = true;
+            this.conversationActive = false;
             this._paused = false;
             this._lastSpokenText = data.prompt;
             ui.showMessage(data.prompt);
-            ui.setStatus('Tap anywhere to hear greeting');
+            ui.showBeginOverlay();
+            ui.setStatus('');
 
             const preview = document.getElementById('avatarPreview');
             if (preview) {
                 preview.classList.add('fade-out');
                 setTimeout(() => { preview.style.display = 'none'; }, 400);
             }
-
-            document.addEventListener('click', () => this._activateSpeechAndGreeting(data.prompt), { once: true });
         } catch (err) {
             ui.setStatus('Connection failed. Please refresh.');
             console.error(err);
         }
     }
 
-    async _activateSpeechAndGreeting(prompt) {
+    async beginInterview() {
         if (this._speechActivated) return;
         this._speechActivated = true;
-        ui.setStatus('');
-        await speechManager.initVAD();
-        await speechManager.speak(prompt);
+        ui.setBeginLoading(true);
+        ui.showConversation();
+        ui.setStatus('Preparing microphone...');
+
+        try {
+            await speechManager.initVAD();
+            this.conversationActive = true;
+            this._paused = false;
+            ui.setStatus('');
+            await speechManager.speak(this._lastSpokenText);
+        } catch (err) {
+            console.error('Failed to begin interview:', err);
+            this._speechActivated = false;
+            this.conversationActive = false;
+            ui.showBeginOverlay();
+            ui.setBeginLoading(false);
+            ui.setStatus('Could not start audio. You can try again or type your answer.');
+        }
     }
 
     toggleMic() {
         const state = turnManager.getState();
 
         if (!this._speechActivated && this.conversationActive) {
-            this._activateSpeechAndGreeting(this._lastSpokenText);
+            this.beginInterview();
             return;
         }
 
