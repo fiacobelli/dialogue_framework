@@ -39,6 +39,7 @@ class App {
             const meta = {
                 input_modality:      'voice',
                 response_latency_ms: speechManager.getResponseLatency(),
+                response_latency_source: speechManager.getResponseLatencySource(),
                 speech_confidence:   speechManager.getSpeechConfidence(),
                 client_sent_at:      new Date().toISOString(),
                 events:              speechManager.consumeTurnEvents(),
@@ -140,13 +141,14 @@ class App {
         ui.showConversation();
         document.getElementById('micBtn')?.classList.remove('hidden');
         ui.setStatus('Loading...');
-        speechManager.initVAD();
+        const vadInit = speechManager.initVAD();
 
         try {
             const avatarId = window.AVATAR_ID || 'black_female';
             const [data] = await Promise.all([
                 conversationAPI.startSession('en', avatarId, this.patientPin),
-                this._waitForSitePal()
+                this._waitForSitePal(),
+                vadInit
             ]);
             this.conversationActive = true;
             this._paused = false;
@@ -234,19 +236,39 @@ class App {
     async _skipCurrentQuestion() {
         if (!conversationAPI.getSessionId()) return;
         try {
-            const data = await conversationAPI.sendMessage('', { no_response: true });
-            this._lastSpokenText = data.prompt;
-            ui.showMessage(data.prompt);
+            speechManager.recordEvent('no_response_sent');
+            const meta = {
+                no_response: true,
+                input_modality: 'voice',
+                client_sent_at: new Date().toISOString(),
+                events: speechManager.consumeTurnEvents(),
+            };
+            let phase = 'SCREENING', done = false, errored = false;
+            this._lastSpokenText = '';
+            ui.clearMessage();
+            await conversationAPI.sendMessageStream('', meta, {
+                onSentence: (sentence) => {
+                    ui.appendMessage(sentence);
+                    this._lastSpokenText += (this._lastSpokenText ? ' ' : '') + sentence;
+                },
+                onDone: (event) => { phase = event.phase; done = event.done; },
+                onError: (message) => {
+                    errored = true;
+                    console.error('Skip stream failed:', message);
+                }
+            });
+            if (errored || !this._lastSpokenText) throw new Error('Skip failed');
             ui.setStatus('');
-            if (data.phase === 'REPORT') {
+            if (done || phase === 'REPORT') {
                 this.conversationActive = false;
-                await speechManager.speak(data.prompt);
+                await speechManager.speak(this._lastSpokenText);
                 this.classifyAndReport();
                 return;
             }
-            await speechManager.speak(data.prompt);
+            await speechManager.speak(this._lastSpokenText);
         } catch (err) {
             console.error('Skip failed:', err);
+            turnManager.reset();
             ui.showIdle();
         }
     }

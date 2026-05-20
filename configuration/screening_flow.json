@@ -152,5 +152,50 @@
     "a month",
     "most days"
   ],
+  "repair_patterns": {
+    "repeat": [
+      "repeat",
+      "say that again",
+      "say it again",
+      "what did you say",
+      "could you repeat",
+      "can you repeat"
+    ],
+    "louder": [
+      "speak louder",
+      "a bit louder",
+      "little louder",
+      "can you speak up",
+      "could you speak up",
+      "can you hear",
+      "can't hear",
+      "cannot hear"
+    ],
+    "retry": [
+      "try again",
+      "start again",
+      "do it again",
+      "go again"
+    ],
+    "mic_issue": [
+      "microphone",
+      "mic",
+      "not picking up",
+      "didn't hear",
+      "did not hear",
+      "not hearing"
+    ],
+    "pause": [
+      "pause the mic",
+      "pause this",
+      "hold on",
+      "wait a second",
+      "wait a minute"
+    ],
+    "resume": [
+      "resume the mic",
+      "continue listening"
+    ]
+  },
   "min_detail_words": 10
 }

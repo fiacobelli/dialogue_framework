@@ -71,6 +71,7 @@ def init_db() -> None:
                 timestamp TEXT,
                 input_modality TEXT,
                 response_latency_ms INTEGER,
+                response_latency_source TEXT,
                 speech_confidence REAL,
                 client_sent_at TEXT,
                 llm_latency_ms INTEGER,
@@ -126,6 +127,7 @@ def migrate_db() -> None:
     new_message_cols = [
         "ALTER TABLE messages ADD COLUMN input_modality TEXT",
         "ALTER TABLE messages ADD COLUMN response_latency_ms INTEGER",
+        "ALTER TABLE messages ADD COLUMN response_latency_source TEXT",
         "ALTER TABLE messages ADD COLUMN speech_confidence REAL",
         "ALTER TABLE messages ADD COLUMN client_sent_at TEXT",
         "ALTER TABLE messages ADD COLUMN llm_latency_ms INTEGER",
@@ -195,6 +197,7 @@ def create_visit(phone_pin: str, avatar_id: str, language: str,
 def save_message(visit_id: str, role: str, content: str, turn_number: int,
                  agent: str = None, voice: str = None,
                  input_modality: str = None, response_latency_ms: int = None,
+                 response_latency_source: str = None,
                  speech_confidence: float = None, client_sent_at: str = None,
                  llm_latency_ms: int = None, question_category: str = None,
                  probe_depth: int = None) -> None:
@@ -203,12 +206,14 @@ def save_message(visit_id: str, role: str, content: str, turn_number: int,
             """
             INSERT INTO messages(
                 visit_id, role, content, turn_number, agent, voice, timestamp,
-                input_modality, response_latency_ms, speech_confidence, client_sent_at,
+                input_modality, response_latency_ms, response_latency_source,
+                speech_confidence, client_sent_at,
                 llm_latency_ms, question_category, probe_depth
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (visit_id, role, content, turn_number, agent, voice, _now(),
-             input_modality, response_latency_ms, speech_confidence, client_sent_at,
+             input_modality, response_latency_ms, response_latency_source,
+             speech_confidence, client_sent_at,
              llm_latency_ms, question_category, probe_depth),
         )
 
@@ -222,12 +227,22 @@ def save_turn_events(visit_id: str, turn_number: int, events: list[dict]) -> Non
     import json
     if not events:
         return
-    rows = [
-        (visit_id, turn_number, e['event_type'], e['client_ts_ms'],
-         json.dumps(e.get('metadata', {})))
-        for e in events
-        if e.get('event_type') and e.get('client_ts_ms') is not None
-    ]
+    rows = []
+    for e in events:
+        event_type = e.get('event_type') or e.get('type')
+        client_ts = e.get('client_ts_ms')
+        if client_ts is None:
+            client_ts = e.get('ts')
+        if not event_type or client_ts is None:
+            continue
+        try:
+            client_ts = int(round(float(client_ts)))
+        except (TypeError, ValueError):
+            continue
+        metadata = e.get('metadata') or {}
+        if not isinstance(metadata, dict):
+            metadata = {'value': metadata}
+        rows.append((visit_id, turn_number, event_type, client_ts, json.dumps(metadata)))
     if not rows:
         return
     with _conn() as c:

@@ -112,19 +112,17 @@ def chat():
 
     s = get_session(session_id)
     info_state = s['info_state']
-    dialogue_mgr = s['dialogue_mgr']
-    nlu = s['nlu']
-    nlg = s['nlg']
+    goal = s['goal_mgr'].goal
     msg = s['msg']
 
+    msg[MSG.ORIG_TEXT] = user_input
     msg[MSG.POSSIBLE_RESPONSES] = [(1.0, user_input)]
     msg['turn_meta'] = _turn_meta(data)
 
-    if nlu.check(msg):
-        dialogue_mgr.manage(msg)
+    goal.execute_goal(msg, info_state)
 
     phase = info_state.user.query('screening_phase') or 'WELCOME'
-    prompt = nlg.get_prompt(msg)
+    prompt = msg.get(MSG.RESPONSE) or "Let's try that again. Please answer when you're ready."
     info_state.save_user_model()
 
     return jsonify({
@@ -242,6 +240,7 @@ def _turn_meta(data: dict) -> dict:
     return {
         'input_modality': data.get('input_modality'),
         'response_latency_ms': data.get('response_latency_ms'),
+        'response_latency_source': data.get('response_latency_source'),
         'speech_confidence': data.get('speech_confidence'),
         'client_sent_at': data.get('client_sent_at'),
         'no_response': data.get('no_response', False),

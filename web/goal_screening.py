@@ -13,6 +13,7 @@ from .screening_flow import (
     advance_topic,
     current_topic,
     decide_next_task,
+    repair_decision,
 )
 
 LOGS_DIR = 'logs'
@@ -83,40 +84,12 @@ class ScreeningGoal(Goal):
         self._finalize_turn(msg, info_state, context, response, latency, stream=False)
 
     def execute_goal_stream(self, msg, info_state):
-        """Stream cleaned sentence chunks and finalize DB/state afterward."""
+        """Yield a full retried LLM response for route-level sentence streaming."""
         context = self._prepare_turn(msg, info_state)
 
-        if context['task']['type'] == 'urgent_close':
-            response, latency = self._generate_for_task(context)
-            self._finalize_turn(msg, info_state, context, response, latency, stream=True)
-            yield msg[MSG.RESPONSE]
-            return
-
-        full_parts = []
-        buffer = ''
-        t0 = time.perf_counter()
-        for token in self.llm.generate_stream(context['history'], context['prompt'], temperature=0.75):
-            buffer += token
-            while True:
-                match = STREAM_SENTENCE_BOUNDARY.search(buffer)
-                if not match:
-                    break
-                raw_sentence = buffer[:match.start()].strip()
-                buffer = buffer[match.end():]
-                cleaned = self._clean_spoken_response(raw_sentence)
-                if cleaned:
-                    full_parts.append(cleaned)
-                    yield cleaned + ' '
-
-        if buffer.strip():
-            cleaned = self._clean_spoken_response(buffer)
-            if cleaned:
-                full_parts.append(cleaned)
-                yield cleaned
-
-        response = ' '.join(full_parts).strip()
-        latency = int((time.perf_counter() - t0) * 1000)
+        response, latency = self._generate_for_task(context)
         self._finalize_turn(msg, info_state, context, response, latency, stream=True)
+        yield msg[MSG.RESPONSE]
 
     def _prepare_turn(self, msg, info_state) -> dict:
         history = info_state.user.query('conversation_history') or []
@@ -126,8 +99,47 @@ class ScreeningGoal(Goal):
         turn_meta = msg.get('turn_meta') or {}
         no_response = turn_meta.get('no_response', False)
         state = self._get_screening_state(info_state)
-        answered_topic = current_topic(state)
-        answered_probe_depth = 1 if state.get('awaiting') == 'followup_answer' else 0
+        awaiting = state.get('awaiting')
+        answered_topic = (
+            current_topic(state)
+            if state.get('phase') == 'SCREENING' and awaiting in {'main_answer', 'followup_answer'}
+            else None
+        )
+        answered_probe_depth = 1 if awaiting == 'followup_answer' else (0 if answered_topic else None)
+        repair = repair_decision(user_input)
+
+        if user_input and repair['is_repair']:
+            task = {
+                'type': 'repair',
+                'probe_depth': None,
+                'topic': None,
+                'repair_intent': repair['intent'],
+                'repair_matched': repair['matched'],
+            }
+            state['last_task'] = task['type']
+            state['last_topic_category'] = None
+            state['last_probe_depth'] = None
+            state['last_repair_decision'] = repair
+            info_state.user.update('screening_state', state)
+            info_state.user.update('screening_phase', 'REPORT' if state.get('phase') == 'REPORT' else 'SCREENING')
+            log_screening(session_id, f"REPAIR_DECISION: {repair} | TEXT: {user_input}")
+            user_turn_count = sum(1 for m in history if m.get('role') == 'user')
+            avatar_profile = info_state.user.query('avatar_profile') or {}
+            return {
+                'history': history,
+                'user_input': user_input,
+                'language': language,
+                'session_id': session_id,
+                'turn_meta': turn_meta,
+                'no_response': no_response,
+                'user_turn_count': user_turn_count,
+                'avatar_profile': avatar_profile,
+                'prompt': '',
+                'task': task,
+                'state': state,
+                'answered_topic': None,
+                'answered_probe_depth': None,
+            }
 
         if user_input:
             history.append({"role": "user", "content": user_input})
@@ -172,6 +184,8 @@ class ScreeningGoal(Goal):
 
     def _generate_for_task(self, context: dict) -> tuple[str, int]:
         task_type = context['task']['type']
+        if task_type == 'repair':
+            return self._repair_response(context), 0
         if task_type == 'urgent_close':
             return URGENT_EXIT_PHRASE, 0
 
@@ -192,6 +206,11 @@ class ScreeningGoal(Goal):
 
         log_label = "LLM (%sms) [stream]" if stream else "LLM (%sms)"
         log_screening(session_id, f"{log_label % llm_latency_ms}: {response}")
+
+        if context['task']['type'] == 'repair':
+            msg[MSG.RESPONSE] = response
+            self._save_repair_event(info_state, context)
+            return
 
         is_ending = context['state'].get('phase') == 'REPORT' or self._is_goodbye(response, user_turn_count)
         if not is_ending and user_turn_count >= MAX_USER_TURNS:
@@ -236,6 +255,7 @@ class ScreeningGoal(Goal):
                     visit_id, 'user', user_input, turn - 2, agent, voice,
                     input_modality=turn_meta.get('input_modality'),
                     response_latency_ms=turn_meta.get('response_latency_ms'),
+                    response_latency_source=turn_meta.get('response_latency_source'),
                     speech_confidence=turn_meta.get('speech_confidence'),
                     client_sent_at=turn_meta.get('client_sent_at'),
                     question_category=answered_topic.get('category'),
@@ -253,6 +273,23 @@ class ScreeningGoal(Goal):
                 probe_depth=context['task'].get('probe_depth'),
             )
             db.update_visit_phase(visit_id, phase)
+        if phone_pin:
+            db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
+
+    def _save_repair_event(self, info_state, context: dict) -> None:
+        visit_id = info_state.user.query('visit_id')
+        phone_pin = info_state.user.query('patient_pin')
+        if visit_id:
+            turn_number = len(context['history'])
+            db.save_turn_events(visit_id, turn_number, [{
+                'event_type': 'repair_detected',
+                'client_ts_ms': int(time.time() * 1000),
+                'metadata': {
+                    'intent': context['task'].get('repair_intent'),
+                    'matched': context['task'].get('repair_matched'),
+                    'text': context['user_input'],
+                },
+            }])
         if phone_pin:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
@@ -308,6 +345,12 @@ class ScreeningGoal(Goal):
                 "Briefly greet them by name if you know it, then ask if they are ready to begin. "
                 "Do not ask a screening question yet. Ask only one question."
             )
+        if task_type == 'ask_name_retry':
+            return (
+                "The patient has not clearly shared their name yet. "
+                "Briefly say you did not catch their name, then ask for their name again. "
+                "Do not ask if they are ready yet. Do not ask a screening question. Ask only one question."
+            )
         if task_type == 'ask_main':
             return (
                 f"Current task: ask the main screening question for {category}. "
@@ -353,7 +396,22 @@ class ScreeningGoal(Goal):
                 f"End with this exact sentence: \"{EXIT_PHRASE}\" "
                 "Do not ask another question. This is the final spoken response."
             )
+        if task_type == 'repair':
+            return "Current task: handle an operational repair request. Do not advance the screening."
         return "Output only patient-facing speech. Ask only one question."
+
+    def _repair_response(self, context: dict) -> str:
+        history = context['history']
+        last_assistant = next(
+            (m.get('content', '') for m in reversed(history) if m.get('role') == 'assistant'),
+            '',
+        )
+        intent = context['task'].get('repair_intent')
+        if intent in {'repeat', 'louder'} and last_assistant:
+            return f"No problem, I'll repeat that. {last_assistant}"
+        if intent == 'pause':
+            return "No problem. We can pause for a moment. When you're ready, you can continue."
+        return "No problem. Let's try that again. Please answer the last question when you're ready."
 
     def _sensitive_topic_instruction(self, category: str) -> str:
         if category in {'Housing', 'Food', 'Interpersonal Safety'}:
@@ -371,7 +429,14 @@ class ScreeningGoal(Goal):
             if META_LINE_RE.match(stripped):
                 continue
             lines.append(stripped)
-        return ' '.join(lines).strip()
+        cleaned = ' '.join(lines)
+        cleaned = re.sub(
+            r"\s*\([^)]*(?:note|rule|instruction|move on|response|topic|follow)[^)]*\)\s*",
+            " ",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        return re.sub(r'\s+', ' ', cleaned).strip()
 
     def _generate_summary(self, history: list, last_response: str) -> str:
         """Ask the LLM for a one-paragraph summary. Strip any preamble."""

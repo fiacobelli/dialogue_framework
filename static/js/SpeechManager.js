@@ -32,6 +32,7 @@ class SpeechManager {
         this._turnEvents    = [];    // browser-side event timeline for current turn
         this._speakEndTime  = null;  // performance.now() at sitePalTalkEnded
         this._vadFireTime   = null;  // performance.now() at first VAD fire
+        this._latencySource = null;  // vad | fallback | unknown
         this._speechConfidence = null; // running avg of final-result confidences
 
         this._initRecognition();
@@ -68,14 +69,16 @@ class SpeechManager {
     async initVAD() {
         if (!window.vad || !window.vad.MicVAD) {
             console.warn('[SpeechManager] VAD library not loaded — using continuous recognition fallback');
+            this.recordEvent('vad_init', { status: 'missing' });
             return;
         }
+        let origGUM = null;
         try {
             // Temporarily wrap getUserMedia to capture the stream reference.
             // We need it to explicitly stop tracks in destroy() — VAD.destroy()
             // alone does not reliably clear the browser's mic indicator in Chrome.
             const self = this;
-            const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
             navigator.mediaDevices.getUserMedia = async (constraints) => {
                 const stream = await origGUM(constraints);
                 self._micStream = stream;
@@ -88,15 +91,18 @@ class SpeechManager {
                 onnxWASMBasePath: '/static/js/vad/',
                 model: 'legacy',
                 onSpeechStart: () => this._onVADSpeechStart(),
-                onSpeechEnd:   () => {},
+                onSpeechEnd:   () => this.recordEvent('vad_speech_end'),
                 onVADMisfire:  () => this._onVADMisfire(),
             });
             this._vadReady = true;
+            this.recordEvent('vad_init', { status: 'ready' });
             console.log('[SpeechManager] VAD ready');
         } catch (err) {
             console.warn('[SpeechManager] VAD init failed — using continuous recognition fallback:', err);
+            this.recordEvent('vad_init', { status: 'failed', message: String(err && err.message ? err.message : err) });
             this._vad = null;
             this._vadReady = false;
+            if (origGUM) navigator.mediaDevices.getUserMedia = origGUM;
         }
     }
 
@@ -104,8 +110,11 @@ class SpeechManager {
 
     _onVADSpeechStart() {
         this._speechDetectedCount++;           // MUST be first — no guards before this
-        this._vadFireTime = performance.now();
-        this.recordEvent('vad_fired');
+        if (this._vadFireTime === null) {
+            this._vadFireTime = performance.now();
+            this._latencySource = 'vad';
+        }
+        this.recordEvent('vad_fired', { count: this._speechDetectedCount });
 
         if (this._recognitionActive) {
             // Mid-sentence re-fire: extend the silence window so the patient isn't cut off
@@ -130,6 +139,7 @@ class SpeechManager {
     }
 
     _onVADMisfire() {
+        this.recordEvent('vad_misfire');
         if (!this._recognitionActive) return;
         this._clearSilenceTimer();
         this._recognitionActive = false;
@@ -241,6 +251,8 @@ class SpeechManager {
         this.transcript = '';
         this._speechDetectedCount = 0;
         this._speechConfidence = null;
+        this._vadFireTime = null;
+        this._latencySource = null;
 
         if (this._vadReady) {
             // VAD mode: TurnManager stays IDLE until VAD fires onSpeechStart.
@@ -252,7 +264,11 @@ class SpeechManager {
         // Fallback: continuous recognition (original behaviour)
         if (!this.turnManager.startUserTurn()) return false;
         this.recognition.lang = this.lang;
+        this._recognitionActive = true;
+        this._vadFireTime = performance.now();
+        this._latencySource = 'fallback';
         this.recognition.start();
+        this.recordEvent('recognition_started', { mode: 'fallback' });
         this._emit('listening', {});
         return true;
     }
@@ -305,8 +321,12 @@ class SpeechManager {
     }
 
     /** Record a browser-side event in the current turn's timeline. */
-    recordEvent(type) {
-        this._turnEvents.push({ type, ts: performance.now() });
+    recordEvent(eventType, metadata = {}) {
+        this._turnEvents.push({
+            event_type: eventType,
+            client_ts_ms: Math.round(performance.now()),
+            metadata
+        });
     }
 
     /** Return and clear the current turn's event list. Call before sendMessage(). */
@@ -323,6 +343,11 @@ class SpeechManager {
     getResponseLatency() {
         if (this._speakEndTime === null || this._vadFireTime === null) return null;
         return Math.round(this._vadFireTime - this._speakEndTime);
+    }
+
+    getResponseLatencySource() {
+        if (this._speakEndTime === null || this._vadFireTime === null) return null;
+        return this._latencySource || 'unknown';
     }
 
     /** Speech confidence averaged over final recognition results (0–1), or null. */

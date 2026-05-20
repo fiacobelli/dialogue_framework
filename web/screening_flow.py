@@ -60,6 +60,25 @@ DEFAULT_POLICY = {
         'sometimes', 'often', 'rarely', 'last year', 'last month', 'recently',
         'per week', 'a week', 'a month', 'most days',
     ],
+    'repair_patterns': {
+        'repeat': [
+            'repeat', 'say that again', 'say it again', 'what did you say',
+            'could you repeat', 'can you repeat',
+        ],
+        'louder': [
+            'speak louder', 'a bit louder', 'little louder', 'can you speak up',
+            'could you speak up', 'can you hear', "can't hear", 'cannot hear',
+        ],
+        'retry': [
+            'try again', 'start again', 'do it again', 'go again',
+        ],
+        'mic_issue': [
+            'microphone', 'mic', 'not picking up', "didn't hear", 'did not hear',
+            'not hearing',
+        ],
+        'pause': ['pause the mic', 'pause this', 'hold on', 'wait a second', 'wait a minute'],
+        'resume': ['resume the mic', 'continue listening'],
+    },
     'min_detail_words': 10,
 }
 
@@ -92,6 +111,11 @@ def load_policy(filepath: str | Path = POLICY_FILE) -> dict[str, Any]:
         'time_markers',
     ):
         policy[key] = _coerce_list(raw.get(key), policy[key])
+    if isinstance(raw.get('repair_patterns'), dict):
+        repair_patterns = {}
+        for key, fallback in policy['repair_patterns'].items():
+            repair_patterns[key] = _coerce_list(raw['repair_patterns'].get(key), fallback)
+        policy['repair_patterns'] = repair_patterns
     try:
         policy['min_detail_words'] = int(raw.get('min_detail_words', policy['min_detail_words']))
     except (TypeError, ValueError):
@@ -225,6 +249,30 @@ def followup_decision(text: str) -> dict[str, Any]:
     }
 
 
+def repair_decision(text: str) -> dict[str, Any]:
+    """Detect operational/facilitator speech that should not advance screening."""
+    normalized = normalize_answer(text)
+    if not normalized:
+        return {'is_repair': False, 'intent': None, 'matched': None}
+    for intent, patterns in POLICY['repair_patterns'].items():
+        for pattern in patterns:
+            if normalize_answer(pattern) in normalized:
+                return {'is_repair': True, 'intent': intent, 'matched': pattern}
+    return {'is_repair': False, 'intent': None, 'matched': None}
+
+
+def looks_like_name(text: str) -> bool:
+    """Conservative guard for the intro name turn."""
+    normalized = normalize_answer(text)
+    if not normalized:
+        return False
+    if normalized in POLICY['short_answer_phrases']:
+        return False
+    if normalized in {'one', 'two', 'three', 'ready'}:
+        return False
+    return any(ch.isalpha() for ch in normalized)
+
+
 def is_short_or_vague_answer(text: str) -> bool:
     return followup_decision(text)['needs_followup']
 
@@ -272,6 +320,8 @@ def decide_next_task(state: dict[str, Any], user_input: str) -> dict[str, Any]:
 
     if phase == 'INTRO':
         if awaiting == 'name':
+            if not looks_like_name(user_input):
+                return {'type': 'ask_name_retry', 'probe_depth': None, 'topic': None}
             state['awaiting'] = 'readiness'
             return {'type': 'ask_readiness', 'probe_depth': None, 'topic': None}
         state['phase'] = 'SCREENING'
