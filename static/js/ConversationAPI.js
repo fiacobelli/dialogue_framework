@@ -84,7 +84,16 @@ class ConversationAPI {
             })
         });
 
-        if (!res.ok) throw new Error('Failed to generate microsite');
+        if (!res.ok) {
+            let detail = {};
+            try {
+                detail = await res.json();
+            } catch (_) {}
+            const err = new Error(detail.message || 'Failed to generate microsite');
+            err.status = res.status;
+            err.detail = detail;
+            throw err;
+        }
         return await res.json();
     }
 
@@ -101,7 +110,16 @@ class ConversationAPI {
             })
         });
 
-        if (!res.ok) throw new Error('Failed to publish microsite');
+        if (!res.ok) {
+            let detail = {};
+            try {
+                detail = await res.json();
+            } catch (_) {}
+            const err = new Error(detail.message || 'Failed to publish microsite');
+            err.status = res.status;
+            err.detail = detail;
+            throw err;
+        }
         return await res.json();
     }
 

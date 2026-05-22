@@ -5,7 +5,45 @@ import json
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 
-CONTENT_FIELDS = ('headline', 'my_story', 'my_struggle', 'my_hope')
+CONTENT_FIELDS = (
+    'headline',
+    'short_intro',
+    'personal_identity',
+    'kidney_journey',
+    'daily_impact',
+    'transplant_hope',
+    'donor_message',
+)
+REQUIRED_CONTENT_FIELDS = CONTENT_FIELDS
+LEGACY_FIELD_MAP = {
+    'my_story': 'personal_identity',
+    'my_struggle': 'daily_impact',
+    'my_hope': 'transplant_hope',
+}
+REQUIRED_EVIDENCE_GROUPS = {
+    'identity': ('personal_background',),
+    'kidney_experience': ('medical_history', 'daily_life'),
+    'hope': ('transplant_hope',),
+    'donor_message': ('donor_message',),
+}
+
+
+class MicrositeGenerationError(ValueError):
+    """Structured error for draft-generation failures."""
+
+    def __init__(self, error: str, message: str, *, missing: list[str] | None = None, status_code: int = 422):
+        super().__init__(message)
+        self.error = error
+        self.message = message
+        self.missing = missing or []
+        self.status_code = status_code
+
+    def to_response(self) -> dict:
+        return {
+            'error': self.error,
+            'message': self.message,
+            'missing': self.missing,
+        }
 
 
 def load_prompt(filepath: str) -> str:
@@ -66,6 +104,33 @@ def format_story_evidence(state: dict) -> str:
     return "\n\n".join(lines)
 
 
+def story_evidence_ready(state: dict) -> dict:
+    """Return whether accepted story evidence can support a donor-page draft."""
+    evidence = (state or {}).get('story_evidence') or {}
+    if not isinstance(evidence, dict):
+        evidence = {}
+
+    missing = []
+    for label, step_ids in REQUIRED_EVIDENCE_GROUPS.items():
+        has_accepted = False
+        for step_id in step_ids:
+            entries = evidence.get(step_id) or []
+            if isinstance(entries, dict):
+                entries = [entries]
+            if any(
+                isinstance(entry, dict)
+                and entry.get('accepted')
+                and _clean_text(entry.get('answer'))
+                for entry in entries
+            ):
+                has_accepted = True
+                break
+        if not has_accepted:
+            missing.append(label)
+
+    return {'ready': not missing, 'missing': missing}
+
+
 def extract_name_from_conversation(history: list, provider) -> str:
     """Extract patient name from conversation using LLM."""
     if not history:
@@ -96,27 +161,40 @@ def _clean_text(value) -> str:
 
 
 def _normalize_content(content: dict, name: str) -> dict:
-    """Return complete draft fields with safe fallbacks for missing LLM keys."""
+    """Return complete draft fields without fabricating patient-specific story."""
     content = content or {}
-    normalized = {field: _clean_text(content.get(field)) for field in CONTENT_FIELDS}
-    if not normalized['headline']:
-        normalized['headline'] = f"{name} needs a kidney donor"
-    if not normalized['my_story']:
-        normalized['my_story'] = (
-            "I am sharing my story because finding a living kidney donor could make a meaningful difference in my life. "
-            "The details I shared are personal, and I hope this page helps others understand why this matters."
+    normalized = {}
+    for legacy, target in LEGACY_FIELD_MAP.items():
+        if not _clean_text(content.get(target)) and _clean_text(content.get(legacy)):
+            content[target] = content.get(legacy)
+    if not _clean_text(content.get('short_intro')) and _clean_text(content.get('my_story')):
+        content['short_intro'] = content.get('my_story')
+    if not _clean_text(content.get('kidney_journey')) and _clean_text(content.get('my_struggle')):
+        content['kidney_journey'] = content.get('my_struggle')
+    if not _clean_text(content.get('donor_message')) and _clean_text(content.get('my_hope')):
+        content['donor_message'] = content.get('my_hope')
+    for field in CONTENT_FIELDS:
+        normalized[field] = _clean_text(content.get(field))
+
+    missing = [field for field in REQUIRED_CONTENT_FIELDS if not normalized.get(field)]
+    if missing:
+        raise MicrositeGenerationError(
+            'draft_content_incomplete',
+            'The donor-page draft is missing required story sections. Please regenerate or edit the draft before publishing.',
+            missing=missing,
         )
-    if not normalized['my_struggle']:
-        normalized['my_struggle'] = (
-            "Living with kidney disease has brought challenges that affect daily life and future plans. "
-            "I am doing my best to keep moving forward while looking for a path toward better health."
-        )
-    if not normalized['my_hope']:
-        normalized['my_hope'] = (
-            "A kidney transplant could offer more stability, more possibility, and more time to focus on the people and parts of life that matter most. "
-            "If you are able to learn more, consider sharing this page or exploring living donation."
-        )
+
+    normalized.update(_legacy_fields(normalized))
     return normalized
+
+
+def _legacy_fields(content: dict) -> dict:
+    """Keep old field names available while the UI and DB migrate."""
+    return {
+        'my_story': content.get('personal_identity', ''),
+        'my_struggle': content.get('daily_impact', ''),
+        'my_hope': content.get('transplant_hope', ''),
+    }
 
 
 def _photo_urls(photos: list) -> list:
@@ -129,10 +207,7 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_urls: list
 
     html = render_template('microsite.html',
         name=name,
-        headline=content.get('headline', ''),
-        my_story=content.get('my_story', ''),
-        my_struggle=content.get('my_struggle', ''),
-        my_hope=content.get('my_hope', ''),
+        content=content,
         photos=photo_urls,
         url=microsite_url
     )
@@ -182,12 +257,10 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
     try:
         content_json = parse_llm_json(raw_content)
     except (json.JSONDecodeError, AttributeError, TypeError):
-        content_json = {
-            'headline': f"{name} needs a kidney donor",
-            'my_story': raw_content[:500] if raw_content else "My story is still being written.",
-            'my_struggle': "Living with kidney disease has been challenging.",
-            'my_hope': "A kidney transplant would change my life."
-        }
+        raise MicrositeGenerationError(
+            'invalid_draft_json',
+            'The page draft could not be generated in the required format. Please try again.',
+        )
 
     content = _normalize_content(content_json, name)
     result = _build_result(content, name, raw_content, _photo_urls(photos), published=False)

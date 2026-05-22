@@ -274,9 +274,12 @@ class UIController {
         const fields = {
             reviewName: data.name || '',
             reviewHeadline: data.headline || '',
-            reviewStory: data.my_story || '',
-            reviewStruggle: data.my_struggle || '',
-            reviewHope: data.my_hope || '',
+            reviewShortIntro: data.short_intro || '',
+            reviewPersonalIdentity: data.personal_identity || data.my_story || '',
+            reviewKidneyJourney: data.kidney_journey || '',
+            reviewDailyImpact: data.daily_impact || data.my_struggle || '',
+            reviewTransplantHope: data.transplant_hope || data.my_hope || '',
+            reviewDonorMessage: data.donor_message || '',
         };
         Object.entries(fields).forEach(([id, value]) => {
             const el = document.getElementById(id);
@@ -302,9 +305,12 @@ class UIController {
         return {
             name: document.getElementById('reviewName')?.value.trim() || '',
             headline: document.getElementById('reviewHeadline')?.value.trim() || '',
-            my_story: document.getElementById('reviewStory')?.value.trim() || '',
-            my_struggle: document.getElementById('reviewStruggle')?.value.trim() || '',
-            my_hope: document.getElementById('reviewHope')?.value.trim() || '',
+            short_intro: document.getElementById('reviewShortIntro')?.value.trim() || '',
+            personal_identity: document.getElementById('reviewPersonalIdentity')?.value.trim() || '',
+            kidney_journey: document.getElementById('reviewKidneyJourney')?.value.trim() || '',
+            daily_impact: document.getElementById('reviewDailyImpact')?.value.trim() || '',
+            transplant_hope: document.getElementById('reviewTransplantHope')?.value.trim() || '',
+            donor_message: document.getElementById('reviewDonorMessage')?.value.trim() || '',
         };
     }
 
@@ -332,12 +338,16 @@ class UIController {
 
         const contentEl = document.getElementById('siteContent');
         contentEl.textContent = '';
-        if (data.my_story) {
-            [
-                ['My Story', data.my_story],
-                ['Living with Kidney Disease', data.my_struggle],
-                ['Why I Need Your Help', data.my_hope],
-            ].forEach(([label, value]) => {
+        const sections = [
+            ['Short Introduction', data.short_intro],
+            ['Meet Me', data.personal_identity || data.my_story],
+            ['My Kidney Journey', data.kidney_journey],
+            ['What Daily Life Is Like', data.daily_impact || data.my_struggle],
+            ['What a Transplant Could Make Possible', data.transplant_hope || data.my_hope],
+            ['Message to Potential Donors', data.donor_message],
+        ].filter(([, value]) => value);
+        if (sections.length) {
+            sections.forEach(([label, value]) => {
                 const strong = document.createElement('strong');
                 strong.textContent = `${label}:`;
                 contentEl.appendChild(strong);

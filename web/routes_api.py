@@ -61,12 +61,16 @@ def validate_generation_ready(info_state) -> tuple[bool, dict]:
         missing.append('confirmed_name')
     if len(photos) < MAX_PHOTOS:
         missing.append('photos')
+    story_ready = microsite.story_evidence_ready(state)
+    if not story_ready['ready']:
+        missing.append('story_evidence')
 
     if missing:
         return False, {
             'error': 'generation_not_ready',
             'message': 'The donor page is not ready to generate yet.',
             'missing': missing,
+            'missing_story_sections': story_ready['missing'],
             'photo_count': len(photos),
             'max_photos': MAX_PHOTOS,
             'phase': phase,
@@ -133,7 +137,7 @@ def new_session():
         task_type='opening',
         input_modality='system',
         outgoing_turn_id=(info_state.user.query('interview_state') or {}).get('current_outgoing_turn', {}).get('outgoing_turn_id'),
-        asked_question_text='What name would you like me to use for your donor page?',
+        asked_question_text='What name would you like shown publicly on your donor page?',
         expected_answer_kind='name',
         delivery_validated=True,
     )
@@ -280,6 +284,8 @@ def generate_microsite():
         db.save_draft(visit_id, result, status='draft', generation_latency_ms=latency)
         db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
+    except microsite.MicrositeGenerationError as e:
+        return jsonify(e.to_response()), e.status_code
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -307,6 +313,8 @@ def publish_microsite():
         db.save_draft(visit_id, result, status='published')
         db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
+    except microsite.MicrositeGenerationError as e:
+        return jsonify(e.to_response()), 409
     except ValueError as e:
         return jsonify({'error': 'draft_not_ready', 'message': str(e)}), 409
     except Exception as e:

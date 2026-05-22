@@ -466,14 +466,14 @@ class App {
         ui.showGenerating();
 
         try {
-            const data = await conversationAPI.generateMicrosite('Patient');
+            const data = await conversationAPI.generateMicrosite('');
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');
             this._lastSpokenText = `I drafted your donor page, ${data.name}. Please review it before publishing.`;
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
-            ui.setStatus('Generation failed. Please try again.');
+            ui.setStatus(this._generationErrorMessage(err));
         } finally {
             this.generationInProgress = false;
         }
@@ -488,7 +488,7 @@ class App {
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');
         } catch (err) {
-            ui.setStatus('Generation failed. Please try again.');
+            ui.setStatus(this._generationErrorMessage(err));
             console.error(err);
         }
     }
@@ -513,6 +513,20 @@ class App {
                 btn.textContent = 'Publish My Donor Page';
             }
         }
+    }
+
+    _generationErrorMessage(err) {
+        const detail = err?.detail || {};
+        if (detail.error === 'generation_not_ready' && Array.isArray(detail.missing_story_sections)) {
+            const sections = detail.missing_story_sections.join(', ');
+            return sections
+                ? `The story needs more detail before drafting: ${sections}.`
+                : detail.message || 'The donor page is not ready to generate yet.';
+        }
+        if (detail.error === 'invalid_draft_json' || detail.error === 'draft_content_incomplete') {
+            return detail.message || 'The draft was incomplete. Please try generating again.';
+        }
+        return err?.message || 'Generation failed. Please try again.';
     }
 
     copyLink() {

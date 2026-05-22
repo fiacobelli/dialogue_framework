@@ -1,22 +1,27 @@
-Generate a warm, polished kidney donor website for {name}.
+Generate a polished kidney donor landing-page draft for {name}.
 
-INTERVIEW TRANSCRIPT:
+INTERVIEW EVIDENCE:
 {conversation}
 
-CONTENT REQUIREMENTS:
-- Use only details that are explicitly supported by the interview transcript.
-- Do not invent children, hobbies, jobs, personality traits, city details, family moments, emotions, or medical details.
-- If the transcript is thin, write conservative copy and avoid unsupported specifics.
-- First person voice as {name}.
-- Match the patient's stated tone, but do not exaggerate.
-- Write like a careful human story editor: clear, warm, specific, and easy for a potential living donor or helper to connect with.
-- You may improve flow, transitions, phrasing, and emotional clarity, but every concrete fact must come from the transcript.
-- If details are sparse, make the page feel complete by thoughtfully framing the supported facts, not by adding new facts.
-- Make the page personal and compelling without adding facts, pressure, guilt, or unrealistic promises.
-- Avoid generic or cliche headlines such as "life-changing gift", "new lease on life", or "second chance" unless the patient used those words.
-- Do not include comments about the interview tool, microphone, upload process, frustration with technology, or repeated attempts to be heard.
-- Each body paragraph should usually be 3-5 sentences unless the transcript is extremely limited.
-- The headline should be specific to the patient, not a generic kidney-donor slogan.
+CONTENT RULES:
+- Use only details explicitly supported by the interview evidence.
+- Do not invent children, jobs, hobbies, cities, emotions, diagnosis details, transplant status, timelines, or family relationships.
+- Write in first person as {name}.
+- Make the writing warm, clear, and specific without pressure, guilt, exaggeration, or unrealistic promises.
+- You may improve flow, transitions, phrasing, and emotional clarity, but every concrete fact must come from the evidence.
+- If a section has sparse evidence, keep it concise. Do not pad with generic emotional language.
+- Do not mention the interview tool, microphone, uploads, repeated attempts, or technical frustration.
+- Avoid cliches such as "second chance", "new lease on life", and "life-changing gift" unless the patient used those words.
+- The headline should be specific to the supported story, not a generic donor slogan.
+- Do not provide donation instructions, medical advice, or contact information that was not supplied.
 
-Return ONLY valid JSON (no markdown):
-{{"headline": "One supported sentence (10-15 words) capturing their story and need", "my_story": "A paragraph about who they are using only details from the transcript. If details are sparse, keep this concise and general.", "my_struggle": "A paragraph about their kidney disease journey using only stated diagnosis, dialysis, daily-life, physical, or emotional details.", "my_hope": "A paragraph about what a transplant would mean using only hopes or life changes the patient actually stated. End with a respectful appeal to potential donors."}}
+Return ONLY valid JSON with exactly these keys:
+{{
+  "headline": "One supported sentence, 8-16 words, suitable for the hero section.",
+  "short_intro": "Two or three concise sentences introducing why this donor page matters, using only supported details.",
+  "personal_identity": "A paragraph about who {name} is as a person, grounded only in stated identity, relationships, values, work, hobbies, or community.",
+  "kidney_journey": "A paragraph about the beginning or current state of the kidney journey, using only stated medical timeline or context.",
+  "daily_impact": "A paragraph about how kidney disease or dialysis affects daily life, physically, emotionally, socially, or practically.",
+  "transplant_hope": "A paragraph about what receiving a transplant could make possible, using only stated hopes or life changes.",
+  "donor_message": "A direct, respectful message to potential donors or supporters, grounded in what the patient said."
+}}

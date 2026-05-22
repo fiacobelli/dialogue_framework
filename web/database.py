@@ -443,6 +443,18 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
     if not visit_id:
         return None
     now = _now()
+    content_fields = (
+        'headline',
+        'short_intro',
+        'personal_identity',
+        'kidney_journey',
+        'daily_impact',
+        'transplant_hope',
+        'donor_message',
+        'my_story',
+        'my_struggle',
+        'my_hope',
+    )
     with _conn() as c:
         version = _next_draft_version(c, visit_id)
         c.execute(
@@ -463,7 +475,7 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
                 result.get('my_story'),
                 result.get('my_struggle'),
                 result.get('my_hope'),
-                _json({k: result.get(k) for k in ('headline', 'my_story', 'my_struggle', 'my_hope')}),
+                _json({k: result.get(k) for k in content_fields}),
                 result.get('content'),
                 llm_model,
                 prompt_version,

@@ -168,20 +168,20 @@ class InterviewGoalManager:
             opening = (
                 f"Welcome back, I'm {avatar_name}. "
                 "I'm glad you're here again. "
-                "Let's continue telling your story together. What name would you like me to use for your donor page?"
+                "Let's continue telling your story together. What name would you like shown publicly on your donor page?"
             )
         else:
             opening = (
                 f"Hi there, I'm {avatar_name}. "
                 "I'm here to help create a donor page by learning your story in your own words. "
                 "You can skip anything or correct me at any point. "
-                "What name would you like me to use for your donor page?"
+                "What name would you like shown publicly on your donor page? You can give your full name or just your first name."
             )
 
         state['current_outgoing_turn'] = {
             'outgoing_turn_id': str(uuid.uuid4()),
             'asked_step_id': None,
-            'asked_question_text': 'What name would you like me to use for your donor page?',
+            'asked_question_text': 'What name would you like shown publicly on your donor page?',
             'expected_answer_kind': 'name',
             'delivered_phase': 'WELCOME',
             'delivery_validated': True,

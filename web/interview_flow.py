@@ -221,7 +221,7 @@ def normalize_answer(text: str) -> str:
 def _name_from_tokens(raw: str) -> str | None:
     tokens = re.findall(r"[A-Za-z][A-Za-z'-]*", raw or '')
     usable = [t for t in tokens if t.lower() not in REJECT_NAME_WORDS]
-    if not usable or len(usable) > 3:
+    if not usable or len(usable) > 4:
         return None
     if any(len(t) < 2 for t in usable):
         return None
@@ -232,7 +232,7 @@ def extract_patient_name(text: str) -> dict[str, Any]:
     """Extract an explicit patient name without guessing."""
     raw = (text or '').strip()
     for marker in NAME_MARKERS:
-        match = re.search(rf'\b{marker}\b\s*([A-Za-z][A-Za-z\'-]*(?:\s+[A-Za-z][A-Za-z\'-]*){{0,2}})?', raw, re.I)
+        match = re.search(rf'\b{marker}\b\s*([A-Za-z][A-Za-z\'-]*(?:\s+[A-Za-z][A-Za-z\'-]*){{0,3}})?', raw, re.I)
         if match:
             candidate = (match.group(1) or '').strip()
             name = _name_from_tokens(candidate)
@@ -241,7 +241,7 @@ def extract_patient_name(text: str) -> dict[str, Any]:
             return {'name': None, 'status': 'missing', 'reason': 'incomplete_marker'}
 
     name = _name_from_tokens(raw)
-    if name and len(raw.split()) <= 3:
+    if name and len(raw.split()) <= 4:
         return {'name': name, 'status': 'captured', 'reason': 'bare_name'}
     return {'name': None, 'status': 'missing', 'reason': 'no_clear_name'}
 
@@ -513,7 +513,7 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
     step_id = step.get('id')
     question = step.get('question')
     if task_type == 'repair_name':
-        return "I want to make sure I get your name right for the donor page. What name would you like me to use?"
+        return "I want to make sure I show your name correctly. What name would you like shown publicly on your donor page?"
     if task_type == 'close_to_photos':
         return FINAL_PHOTOS_PROMPT
     if task_type == 'already_complete':
@@ -561,7 +561,7 @@ def expected_question_text(task: dict[str, Any]) -> str | None:
     if task_type == 'ask_followup':
         return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
     if task_type == 'repair_name':
-        return 'What name would you like me to use?'
+        return 'What name would you like shown publicly on your donor page?'
     if task_type in {'ask_readiness', 'answer_readiness_question'}:
         return 'Are you ready to begin?'
     return None

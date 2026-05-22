@@ -193,9 +193,12 @@ class FakeMicrositeLLM:
     def generate(self, messages, system_prompt=None):
         return """{
             "headline": "Sophia is looking for a kidney donor",
-            "my_story": "Sophia enjoys time with family.",
-            "my_struggle": "Dialysis has made daily life difficult.",
-            "my_hope": "A transplant would help Sophia regain energy."
+            "short_intro": "Sophia is sharing her story while looking for a living kidney donor.",
+            "personal_identity": "Sophia enjoys time with family.",
+            "kidney_journey": "Sophia shared that dialysis is part of her kidney journey.",
+            "daily_impact": "Dialysis has made daily life difficult.",
+            "transplant_hope": "A transplant would help Sophia regain energy.",
+            "donor_message": "Sophia wants potential donors to know that their help would matter."
         }"""
 
 
@@ -283,10 +286,18 @@ class GenerationGateTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         return InformationState(os.path.join(tmp.name, 'user.pkl'), 'domains/interview.json')
 
+    def _accepted_evidence(self):
+        return {
+            'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
+            'daily_life': [{'answer': 'Dialysis makes me tired and limits my schedule.', 'accepted': True}],
+            'transplant_hope': [{'answer': 'A transplant would help me have more energy.', 'accepted': True}],
+            'donor_message': [{'answer': 'I want donors to know their help would matter.', 'accepted': True}],
+        }
+
     def test_generation_blocked_when_story_incomplete(self):
         info_state = self._info_state()
         info_state.user.update('interview_phase', 'STORY')
-        info_state.user.update('interview_state', {'complete': False})
+        info_state.user.update('interview_state', {'complete': False, 'story_evidence': self._accepted_evidence()})
         info_state.user.update('patient_name', 'Sophia')
         info_state.user.update('patient_name_status', 'confirmed')
         info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
@@ -299,7 +310,7 @@ class GenerationGateTests(unittest.TestCase):
     def test_generation_blocked_without_confirmed_name(self):
         info_state = self._info_state()
         info_state.user.update('interview_phase', 'PHOTOS')
-        info_state.user.update('interview_state', {'complete': True})
+        info_state.user.update('interview_state', {'complete': True, 'story_evidence': self._accepted_evidence()})
         info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
 
         ready, detail = validate_generation_ready(info_state)
@@ -310,7 +321,7 @@ class GenerationGateTests(unittest.TestCase):
     def test_generation_allowed_when_story_name_and_photos_ready(self):
         info_state = self._info_state()
         info_state.user.update('interview_phase', 'PHOTOS')
-        info_state.user.update('interview_state', {'complete': True})
+        info_state.user.update('interview_state', {'complete': True, 'story_evidence': self._accepted_evidence()})
         info_state.user.update('patient_name', 'Sophia')
         info_state.user.update('patient_name_status', 'confirmed')
         info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
@@ -319,6 +330,20 @@ class GenerationGateTests(unittest.TestCase):
 
         self.assertTrue(ready)
         self.assertEqual(detail['name'], 'Sophia')
+
+    def test_generation_blocked_when_story_evidence_is_too_thin(self):
+        info_state = self._info_state()
+        info_state.user.update('interview_phase', 'PHOTOS')
+        info_state.user.update('interview_state', {'complete': True, 'story_evidence': {}})
+        info_state.user.update('patient_name', 'Sophia')
+        info_state.user.update('patient_name_status', 'confirmed')
+        info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
+
+        ready, detail = validate_generation_ready(info_state)
+
+        self.assertFalse(ready)
+        self.assertIn('story_evidence', detail['missing'])
+        self.assertIn('identity', detail['missing_story_sections'])
 
 
 class MicrositeEvidenceTests(unittest.TestCase):
@@ -367,10 +392,11 @@ class MicrositeReviewTests(unittest.TestCase):
                     published = microsite.publish(
                         info_state,
                         'unit-review',
-                        {'my_story': 'Edited story approved by Sophia.'}
+                        {'personal_identity': 'Edited story approved by Sophia.'}
                     )
 
                     self.assertTrue(published['published'])
+                    self.assertEqual(published['personal_identity'], 'Edited story approved by Sophia.')
                     self.assertEqual(published['my_story'], 'Edited story approved by Sophia.')
                     self.assertTrue(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
 
@@ -398,7 +424,7 @@ class DatabasePersistenceTests(unittest.TestCase):
             phase='INTRO',
             task_type='ask_readiness',
             answered_outgoing_turn_id='turn-0',
-            answered_question_text='What name would you like me to use for your donor page?',
+            answered_question_text='What name would you like shown publicly on your donor page?',
             input_modality='typed',
             response_latency_ms=1200,
             answer_duration_ms=3000,
@@ -433,6 +459,12 @@ class DatabasePersistenceTests(unittest.TestCase):
             {
                 'name': 'Sophia',
                 'headline': 'Sophia needs a kidney donor',
+                'short_intro': 'Intro',
+                'personal_identity': 'Story',
+                'kidney_journey': 'Journey',
+                'daily_impact': 'Struggle',
+                'transplant_hope': 'Hope',
+                'donor_message': 'Message',
                 'my_story': 'Story',
                 'my_struggle': 'Struggle',
                 'my_hope': 'Hope',

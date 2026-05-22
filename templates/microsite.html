@@ -3,347 +3,436 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ name }}'s Story - Help Find a Kidney Donor</title>
+    <title>{{ name }}'s Kidney Donor Story</title>
 
-    <!-- Social Meta Tags -->
-    <meta property="og:title" content="{{ name }}'s Story - Help Find a Kidney Donor">
-    <meta property="og:description" content="{{ headline }}">
+    <meta property="og:title" content="{{ name }}'s Kidney Donor Story">
+    <meta property="og:description" content="{{ content.headline }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url }}">
     {% if photos %}
     <meta property="og:image" content="{{ photos[0] }}">
     {% endif %}
-
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ name }}'s Story">
-    <meta name="twitter:description" content="{{ headline }}">
+    <meta name="twitter:title" content="{{ name }}'s Kidney Donor Story">
+    <meta name="twitter:description" content="{{ content.headline }}">
 
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --ink: #1f2a24;
+            --muted: #667067;
+            --paper: #fffaf0;
+            --cream: #f5ead8;
+            --sage: #6f8f72;
+            --sage-dark: #385a42;
+            --clay: #b45f3a;
+            --gold: #e2b55f;
+            --line: rgba(31, 42, 36, 0.12);
+            --shadow: 0 24px 70px rgba(55, 40, 25, 0.18);
+        }
+
+        * { box-sizing: border-box; }
 
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            line-height: 1.6;
-            color: #1a202c;
-            background: #f7fafc;
+            margin: 0;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 10% 10%, rgba(226, 181, 95, 0.28), transparent 30%),
+                linear-gradient(135deg, #fffaf0 0%, #edf3e7 46%, #f7ead8 100%);
+            font-family: Georgia, "Times New Roman", serif;
+            line-height: 1.65;
         }
 
-        /* Hero Section */
+        a { color: inherit; }
+
+        .page-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 28px;
+        }
+
         .hero {
-            background: linear-gradient(135deg, #2c5282 0%, #3182ce 100%);
-            color: white;
-            padding: 60px 20px;
-            text-align: center;
+            min-height: 86vh;
+            display: grid;
+            grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+            gap: 42px;
+            align-items: center;
+            padding: 42px 0 64px;
         }
 
-        .hero-photo {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 5px solid white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
+        .hero-copy {
+            position: relative;
+            z-index: 1;
         }
 
-        .hero h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-
-        .hero .headline {
-            font-size: 1.3rem;
-            opacity: 0.95;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* Content Sections */
-        .content {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .section {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            margin: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        }
-
-        .section h2 {
-            color: #2c5282;
-            font-size: 1.5rem;
-            margin-bottom: 15px;
-            display: flex;
+        .badge {
+            display: inline-flex;
             align-items: center;
             gap: 10px;
+            margin-bottom: 24px;
+            padding: 9px 14px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.58);
+            color: var(--sage-dark);
+            font: 800 12px/1.2 Verdana, sans-serif;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }
 
-        .section h2::before {
-            font-size: 1.3rem;
+        .badge::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--clay);
         }
 
-        .section.my-story h2::before { content: ""; }
-        .section.my-struggle h2::before { content: ""; }
-        .section.my-hope h2::before { content: ""; }
-
-        .section p {
-            font-size: 1.1rem;
-            color: #4a5568;
+        h1 {
+            max-width: 760px;
+            margin: 0 0 22px;
+            font-size: clamp(42px, 7vw, 82px);
+            line-height: 0.95;
+            letter-spacing: -0.055em;
         }
 
-        .section-body {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 22px;
-            align-items: center;
+        .intro {
+            max-width: 650px;
+            margin: 0 0 30px;
+            color: #425048;
+            font-size: clamp(19px, 2.2vw, 25px);
         }
 
-        .section-photo {
-            width: 100%;
-            max-height: 320px;
-            object-fit: cover;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-        }
-
-        @media (min-width: 720px) {
-            .section.with-photo .section-body {
-                grid-template-columns: minmax(0, 1fr) 240px;
-            }
-
-            .section.with-photo.alt .section-body {
-                grid-template-columns: 240px minmax(0, 1fr);
-            }
-
-            .section.with-photo.alt .section-photo {
-                order: -1;
-            }
-
-            .section-photo {
-                height: 220px;
-            }
-        }
-
-        /* Call to Action */
-        .cta {
-            background: linear-gradient(135deg, #38a169 0%, #48bb78 100%);
-            color: white;
-            text-align: center;
-            padding: 40px 20px;
-            margin: 30px 0;
-            border-radius: 12px;
-        }
-
-        .cta h2 {
-            font-size: 1.8rem;
-            margin-bottom: 15px;
-        }
-
-        .cta p {
-            font-size: 1.1rem;
-            margin-bottom: 20px;
-            opacity: 0.95;
-        }
-
-        .cta-buttons {
+        .hero-actions,
+        .share-actions {
             display: flex;
-            gap: 15px;
-            justify-content: center;
             flex-wrap: wrap;
-        }
-
-        .cta-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .cta-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .cta-btn.primary {
-            background: white;
-            color: #38a169;
-        }
-
-        .cta-btn.secondary {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 2px solid white;
-        }
-
-        /* Share Buttons */
-        .share-section {
-            text-align: center;
-            padding: 30px;
-        }
-
-        .share-section h3 {
-            color: #4a5568;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-
-        .share-buttons {
-            display: flex;
             gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
         }
 
-        .share-btn {
+        .btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
+            justify-content: center;
+            min-height: 48px;
+            padding: 13px 20px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            font: 800 14px/1 Verdana, sans-serif;
             text-decoration: none;
-            color: white;
-            transition: opacity 0.2s;
-            border: none;
             cursor: pointer;
         }
 
-        .share-btn:hover { opacity: 0.9; }
+        .btn.primary {
+            background: var(--sage-dark);
+            color: white;
+            box-shadow: 0 12px 28px rgba(56, 90, 66, 0.28);
+        }
 
-        .share-btn.fb { background: #1877f2; }
-        .share-btn.wa { background: #25d366; }
-        .share-btn.email { background: #6b7280; }
-        .share-btn.copy { background: #3182ce; }
+        .btn.secondary {
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--sage-dark);
+            border-color: var(--line);
+        }
 
-        /* Footer */
-        .footer {
+        .photo-card {
+            position: relative;
+            min-height: 540px;
+            border-radius: 42px;
+            overflow: hidden;
+            background: var(--cream);
+            box-shadow: var(--shadow);
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 100%;
+            min-height: 540px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .photo-card.placeholder {
+            display: grid;
+            place-items: center;
+            padding: 34px;
             text-align: center;
-            padding: 30px;
-            color: #718096;
-            font-size: 0.9rem;
+            color: var(--sage-dark);
+            font-size: 28px;
+        }
+
+        .photo-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 45%, rgba(31, 42, 36, 0.52));
+            pointer-events: none;
+        }
+
+        .photo-caption {
+            position: absolute;
+            left: 26px;
+            right: 26px;
+            bottom: 24px;
+            z-index: 1;
+            color: white;
+            font: 700 17px/1.4 Verdana, sans-serif;
+        }
+
+        .story-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr);
+            gap: 28px;
+            margin: 12px 0 34px;
+        }
+
+        .section-label {
+            position: sticky;
+            top: 24px;
+            align-self: start;
+            padding: 22px;
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            background: rgba(255, 255, 255, 0.58);
+            color: var(--sage-dark);
+            font: 800 13px/1.4 Verdana, sans-serif;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .story-card {
+            padding: clamp(24px, 4vw, 44px);
+            border: 1px solid var(--line);
+            border-radius: 34px;
+            background: rgba(255, 255, 255, 0.74);
+            box-shadow: 0 18px 48px rgba(55, 40, 25, 0.08);
+        }
+
+        .story-card + .story-card { margin-top: 18px; }
+
+        .story-card h2 {
+            margin: 0 0 14px;
+            color: var(--sage-dark);
+            font-size: clamp(26px, 3vw, 38px);
+            line-height: 1.05;
+            letter-spacing: -0.035em;
+        }
+
+        .story-card p {
+            margin: 0;
+            color: #3f4b43;
+            font-size: 19px;
+        }
+
+        .photo-strip {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 44px 0;
+        }
+
+        .strip-photo {
+            min-height: 240px;
+            border-radius: 28px;
+            overflow: hidden;
+            background: var(--cream);
+            box-shadow: 0 14px 34px rgba(55, 40, 25, 0.11);
+        }
+
+        .strip-photo img {
+            width: 100%;
+            height: 100%;
+            min-height: 240px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .help-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+            gap: 28px;
+            margin: 54px 0 30px;
+            padding: clamp(28px, 5vw, 56px);
+            border-radius: 42px;
+            background: var(--sage-dark);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .help-panel h2 {
+            margin: 0 0 16px;
+            font-size: clamp(32px, 5vw, 58px);
+            line-height: 1;
+            letter-spacing: -0.045em;
+        }
+
+        .help-panel p {
+            margin: 0 0 22px;
+            color: rgba(255, 255, 255, 0.86);
+            font-size: 19px;
+        }
+
+        .help-list {
+            display: grid;
+            gap: 12px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            font: 700 15px/1.45 Verdana, sans-serif;
+        }
+
+        .help-list li {
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .share-card {
+            padding: 24px;
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .share-card h3 {
+            margin: 0 0 14px;
+            font: 800 18px/1.3 Verdana, sans-serif;
+        }
+
+        .share-actions .btn {
+            width: 100%;
+            background: white;
+            color: var(--sage-dark);
+        }
+
+        .footer {
+            padding: 28px 0 18px;
+            color: var(--muted);
+            font: 14px/1.6 Verdana, sans-serif;
+            text-align: center;
         }
 
         .footer a {
-            color: #3182ce;
-            text-decoration: none;
+            color: var(--sage-dark);
+            font-weight: 800;
         }
 
-        /* Mobile Responsive */
-        @media (max-width: 600px) {
-            .hero { padding: 40px 15px; }
-            .hero h1 { font-size: 1.8rem; }
-            .hero .headline { font-size: 1.1rem; }
-            .hero-photo { width: 140px; height: 140px; }
-
-            .section { padding: 20px; }
-            .section h2 { font-size: 1.3rem; }
-            .section p { font-size: 1rem; }
-
-            .cta { padding: 30px 15px; }
-            .cta h2 { font-size: 1.4rem; }
-
-            .cta-btn { padding: 12px 24px; font-size: 1rem; }
+        @media (max-width: 860px) {
+            .page-shell { padding: 18px; }
+            .hero,
+            .story-grid,
+            .help-panel {
+                grid-template-columns: 1fr;
+            }
+            .hero { min-height: auto; padding-top: 24px; }
+            .photo-card,
+            .photo-card img { min-height: 380px; }
+            .section-label { position: static; }
+            .photo-strip { grid-template-columns: 1fr; }
+            .strip-photo,
+            .strip-photo img { min-height: 220px; }
         }
     </style>
 </head>
 <body>
-    <!-- Hero Section -->
-    <div class="hero">
-        {% if photos %}
-        <img src="{{ photos[0] }}" alt="{{ name }}" class="hero-photo">
+    <main class="page-shell">
+        <section class="hero">
+            <div class="hero-copy">
+                <div class="badge">Kidney donor needed</div>
+                <h1>{{ content.headline }}</h1>
+                <p class="intro">{{ content.short_intro }}</p>
+                <div class="hero-actions">
+                    <a class="btn primary" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">Learn about living donation</a>
+                    <a class="btn secondary" href="#share">Share {{ name }}'s story</a>
+                </div>
+            </div>
+
+            {% if photos %}
+            <figure class="photo-card">
+                <img src="{{ photos[0] }}" alt="Photo of {{ name }}">
+                <figcaption class="photo-caption">{{ name }} is sharing this story in the hope of finding a living kidney donor.</figcaption>
+            </figure>
+            {% else %}
+            <div class="photo-card placeholder">
+                {{ name }}'s story
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="story-grid" aria-label="{{ name }}'s story">
+            <aside class="section-label">The story behind the ask</aside>
+            <div>
+                <article class="story-card">
+                    <h2>Meet {{ name }}</h2>
+                    <p>{{ content.personal_identity }}</p>
+                </article>
+                <article class="story-card">
+                    <h2>My kidney journey</h2>
+                    <p>{{ content.kidney_journey }}</p>
+                </article>
+                <article class="story-card">
+                    <h2>What daily life is like</h2>
+                    <p>{{ content.daily_impact }}</p>
+                </article>
+                <article class="story-card">
+                    <h2>What a transplant could make possible</h2>
+                    <p>{{ content.transplant_hope }}</p>
+                </article>
+                <article class="story-card">
+                    <h2>A message to potential donors</h2>
+                    <p>{{ content.donor_message }}</p>
+                </article>
+            </div>
+        </section>
+
+        {% if photos and photos|length > 1 %}
+        <section class="photo-strip" aria-label="Photos from {{ name }}'s story">
+            {% for photo in photos %}
+            <div class="strip-photo">
+                <img src="{{ photo }}" alt="Photo {{ loop.index }} of {{ name }}">
+            </div>
+            {% endfor %}
+        </section>
         {% endif %}
-        <h1>{{ name }}'s Story</h1>
-        <p class="headline">{{ headline }}</p>
-    </div>
 
-    <div class="content">
-        <!-- My Story Section -->
-        <div class="section my-story {% if photos and photos|length > 0 %}with-photo{% endif %}">
-            <h2>My Story</h2>
-            <div class="section-body">
-                <p>{{ my_story }}</p>
-                {% if photos and photos|length > 0 %}
-                <img src="{{ photos[0] }}" alt="Photo of {{ name }}" class="section-photo">
-                {% endif %}
+        <section class="help-panel" id="share">
+            <div>
+                <h2>How you can help</h2>
+                <p>
+                    Learning about living kidney donation is the first step. If donation is not right for you,
+                    sharing this page may help the story reach someone who can learn more.
+                </p>
+                <ul class="help-list">
+                    <li>Read trusted information about living kidney donation.</li>
+                    <li>Share this page with family, friends, faith groups, or community networks.</li>
+                    <li>Encourage anyone interested to speak with a qualified transplant team.</li>
+                </ul>
             </div>
-        </div>
-
-        <!-- Living with Kidney Disease Section -->
-        <div class="section my-struggle {% if photos and photos|length > 1 %}with-photo alt{% endif %}">
-            <h2>Living with Kidney Disease</h2>
-            <div class="section-body">
-                <p>{{ my_struggle }}</p>
-                {% if photos and photos|length > 1 %}
-                <img src="{{ photos[1] }}" alt="Photo of {{ name }}" class="section-photo">
-                {% endif %}
+            <div class="share-card">
+                <h3>Share {{ name }}'s page</h3>
+                <div class="share-actions">
+                    <a class="btn" href="https://www.facebook.com/sharer/sharer.php?u={{ url | urlencode }}" target="_blank" rel="noopener">Share on Facebook</a>
+                    <a class="btn" href="https://wa.me/?text={{ (name ~ "'s kidney donor story: " ~ url) | urlencode }}" target="_blank" rel="noopener">Share on WhatsApp</a>
+                    <a class="btn" href="mailto:?subject={{ (name ~ "'s Kidney Donor Story") | urlencode }}&body={{ ("Please read and share " ~ name ~ "'s story: " ~ url) | urlencode }}">Send by email</a>
+                    <button class="btn" type="button" id="copyBtn" onclick="copyLink()">Copy page link</button>
+                </div>
             </div>
-        </div>
+        </section>
+    </main>
 
-        <!-- Why I Need Your Help Section -->
-        <div class="section my-hope {% if photos and photos|length > 2 %}with-photo{% endif %}">
-            <h2>Why I Need Your Help</h2>
-            <div class="section-body">
-                <p>{{ my_hope }}</p>
-                {% if photos and photos|length > 2 %}
-                <img src="{{ photos[2] }}" alt="Photo of {{ name }}" class="section-photo">
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Call to Action -->
-        <div class="cta">
-            <h2>You Can Help Save My Life</h2>
-            <p>Consider becoming a living kidney donor or help spread the word.</p>
-            <div class="cta-buttons">
-                <a href="https://www.kidney.org/transplantation/livingdonors" target="_blank" class="cta-btn primary">
-                    Learn About Donation
-                </a>
-                <a href="https://unos.org/transplant/living-donation/" target="_blank" class="cta-btn secondary">
-                    Find a Transplant Center
-                </a>
-            </div>
-        </div>
-
-        <!-- Share Section -->
-        <div class="share-section">
-            <h3>Help Share My Story</h3>
-            <div class="share-buttons">
-                <a href="https://www.facebook.com/sharer/sharer.php?u={{ url | urlencode }}" target="_blank" class="share-btn fb">
-                    Facebook
-                </a>
-                <a href="https://wa.me/?text={{ (name ~ "'s Story - Please help find a kidney donor: " ~ url) | urlencode }}" target="_blank" class="share-btn wa">
-                    WhatsApp
-                </a>
-                <a href="mailto:?subject={{ (name ~ "'s Story - Help Find a Kidney Donor") | urlencode }}&body={{ ("Please read and share " ~ name ~ "'s story: " ~ url) | urlencode }}" class="share-btn email">
-                    Email
-                </a>
-                <button onclick="copyLink()" class="share-btn copy" id="copyBtn">
-                    Copy Link
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="footer">
-        <p>Created with help from the <a href="https://www.kidneyregistry.org/" target="_blank">National Kidney Registry</a></p>
-    </div>
+    <footer class="footer">
+        <p>
+            This page is a personal story. Living donation decisions should be discussed with qualified transplant professionals.
+            Learn more from the <a href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">National Kidney Foundation</a>
+            and <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">UNOS</a>.
+        </p>
+    </footer>
 
     <script>
         function copyLink() {
             navigator.clipboard.writeText('{{ url }}').then(() => {
                 const btn = document.getElementById('copyBtn');
-                btn.textContent = 'Copied!';
-                setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+                btn.textContent = 'Copied';
+                setTimeout(() => { btn.textContent = 'Copy page link'; }, 2000);
             });
         }
     </script>
