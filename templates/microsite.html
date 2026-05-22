@@ -90,16 +90,16 @@
         h1 {
             max-width: 760px;
             margin: 0 0 22px;
-            font-size: clamp(42px, 7vw, 82px);
+            font-size: 72px;
             line-height: 0.95;
-            letter-spacing: -0.055em;
+            letter-spacing: 0;
         }
 
         .intro {
             max-width: 650px;
             margin: 0 0 30px;
             color: #425048;
-            font-size: clamp(19px, 2.2vw, 25px);
+            font-size: 24px;
         }
 
         .hero-actions,
@@ -200,7 +200,7 @@
         }
 
         .story-card {
-            padding: clamp(24px, 4vw, 44px);
+            padding: 40px;
             border: 1px solid var(--line);
             border-radius: 34px;
             background: rgba(255, 255, 255, 0.74);
@@ -212,9 +212,9 @@
         .story-card h2 {
             margin: 0 0 14px;
             color: var(--sage-dark);
-            font-size: clamp(26px, 3vw, 38px);
+            font-size: 36px;
             line-height: 1.05;
-            letter-spacing: -0.035em;
+            letter-spacing: 0;
         }
 
         .story-card p {
@@ -223,27 +223,52 @@
             font-size: 19px;
         }
 
-        .photo-strip {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin: 44px 0;
+        .photo-story {
+            margin: 54px 0;
         }
 
-        .strip-photo {
-            min-height: 240px;
+        .photo-story h2 {
+            margin: 0 0 20px;
+            color: var(--sage-dark);
+            font-size: 44px;
+            line-height: 1.05;
+        }
+
+        .photo-story-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+
+        .timeline-photo {
+            margin: 0;
+            border: 1px solid var(--line);
             border-radius: 28px;
             overflow: hidden;
-            background: var(--cream);
+            background: rgba(255, 255, 255, 0.72);
             box-shadow: 0 14px 34px rgba(55, 40, 25, 0.11);
         }
 
-        .strip-photo img {
+        .timeline-photo img {
             width: 100%;
-            height: 100%;
-            min-height: 240px;
+            aspect-ratio: 4 / 5;
             object-fit: cover;
             display: block;
+        }
+
+        .timeline-photo figcaption {
+            padding: 18px;
+            color: #3f4b43;
+            font-size: 16px;
+        }
+
+        .timeline-photo strong {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--sage-dark);
+            font: 800 13px/1.2 Verdana, sans-serif;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
         }
 
         .help-panel {
@@ -251,7 +276,7 @@
             grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
             gap: 28px;
             margin: 54px 0 30px;
-            padding: clamp(28px, 5vw, 56px);
+            padding: 52px;
             border-radius: 42px;
             background: var(--sage-dark);
             color: white;
@@ -260,9 +285,9 @@
 
         .help-panel h2 {
             margin: 0 0 16px;
-            font-size: clamp(32px, 5vw, 58px);
+            font-size: 54px;
             line-height: 1;
-            letter-spacing: -0.045em;
+            letter-spacing: 0;
         }
 
         .help-panel p {
@@ -324,12 +349,17 @@
                 grid-template-columns: 1fr;
             }
             .hero { min-height: auto; padding-top: 24px; }
+            h1 { font-size: 44px; }
+            .intro { font-size: 20px; }
             .photo-card,
             .photo-card img { min-height: 380px; }
             .section-label { position: static; }
-            .photo-strip { grid-template-columns: 1fr; }
-            .strip-photo,
-            .strip-photo img { min-height: 220px; }
+            .story-card { padding: 24px; }
+            .story-card h2 { font-size: 28px; }
+            .photo-story h2 { font-size: 32px; }
+            .help-panel { padding: 28px; }
+            .help-panel h2 { font-size: 34px; }
+            .photo-story-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -385,12 +415,24 @@
         </section>
 
         {% if photos and photos|length > 1 %}
-        <section class="photo-strip" aria-label="Photos from {{ name }}'s story">
-            {% for photo in photos %}
-            <div class="strip-photo">
-                <img src="{{ photo }}" alt="Photo {{ loop.index }} of {{ name }}">
+        <section class="photo-story" aria-label="Before, during, and after story photos">
+            <h2>Before, during, and after</h2>
+            <div class="photo-story-grid">
+                {% set labels = [
+                    ('Before', 'The life, people, and identity that matter beyond kidney disease.'),
+                    ('During', 'The kidney journey and the daily impact of treatment.'),
+                    ('After', 'The hope of returning to more of what matters.')
+                ] %}
+                {% for photo in photos[:3] %}
+                <figure class="timeline-photo">
+                    <img src="{{ photo }}" alt="{{ labels[loop.index0][0] }} photo of {{ name }}">
+                    <figcaption>
+                        <strong>{{ labels[loop.index0][0] }}</strong>
+                        {{ labels[loop.index0][1] }}
+                    </figcaption>
+                </figure>
+                {% endfor %}
             </div>
-            {% endfor %}
         </section>
         {% endif %}
 

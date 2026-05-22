@@ -273,10 +273,12 @@ def _word_count(text: str) -> int:
 
 def _has_explicit_none(text: str) -> bool:
     normalized = normalize_answer(text)
-    if normalized in {'no', 'nope', 'none', 'nothing', 'not really', 'nothing else'}:
+    if normalized in {'no', 'nope', 'none', 'nothing', 'not really', 'nothing else', 'no thank you', 'no thanks'}:
         return True
     none_patterns = (
         r'\bno\b.*\bnothing\b',
+        r'\bno\b.*\bthank\b',
+        r'\bno\b.*\bthanks\b',
         r'\bnothing\b.*\belse\b',
         r'\bnothing\b.*\breally\b',
         r'\bnot\b.*\breally\b',

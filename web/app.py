@@ -3,6 +3,7 @@
 from flask import Flask, render_template, send_from_directory, request
 from decouple import config
 import os
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import (
     PHOTOS_DIR,
@@ -20,6 +21,7 @@ from .database import configure as db_configure, init_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.register_blueprint(api_bp)
 app.register_blueprint(photos_bp)

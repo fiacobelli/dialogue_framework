@@ -42,7 +42,7 @@
                 <div class="photo-slot" id="photo2">+</div>
             </div>
 
-            <input type="file" id="libraryInput" accept="image/*">
+            <input type="file" id="libraryInput" accept="image/*" multiple>
             <input type="file" id="cameraInput" accept="image/*" capture="environment">
             <button class="submit-btn" type="button" onclick="selectPhoto('library')">
                 Choose from Photo Library
@@ -66,15 +66,12 @@
         let currentSlot = 0;
         let uploadedCount = 0;
 
-        function selectPhoto(mode) {
-            currentSlot = uploadedCount;
+        function selectPhoto(mode, slotIndex = null) {
+            currentSlot = slotIndex === null ? uploadedCount : slotIndex;
             document.getElementById(mode === 'camera' ? 'cameraInput' : 'libraryInput').click();
         }
 
-        async function uploadSelectedPhoto(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
+        async function uploadOnePhoto(file) {
             const formData = new FormData();
             formData.append('session_id', sessionId);
             formData.append('photo', file);
@@ -91,8 +88,8 @@
                     return;
                 }
 
-                // Show preview
-                const slot = document.getElementById(`photo${currentSlot}`);
+                const slotIndex = Math.max(0, data.photo_count - 1);
+                const slot = document.getElementById(`photo${slotIndex}`);
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     slot.innerHTML = `<img src="${e.target.result}">`;
@@ -107,15 +104,33 @@
                     document.getElementById('submitBtn').disabled = false;
                     setStatus('All photos uploaded! You can close this page.', 'success');
                 }
+                return data;
             } catch (err) {
                 setStatus('Upload failed. Try again.', 'error');
+                throw err;
             }
+        }
 
-            e.target.value = '';
+        async function uploadSelectedPhoto(e) {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+
+            try {
+                for (const file of files) {
+                    if (uploadedCount >= 3) break;
+                    const data = await uploadOnePhoto(file);
+                    if (data.ready) break;
+                }
+            } finally {
+                e.target.value = '';
+            }
         }
 
         document.getElementById('libraryInput').addEventListener('change', uploadSelectedPhoto);
         document.getElementById('cameraInput').addEventListener('change', uploadSelectedPhoto);
+        document.querySelectorAll('.photo-slot').forEach((slot, index) => {
+            slot.addEventListener('click', () => selectPhoto('library', index));
+        });
 
         document.getElementById('submitBtn').addEventListener('click', () => {
             window.close();
@@ -132,6 +147,13 @@
             .then(r => r.json())
             .then(data => {
                 uploadedCount = data.photo_count || 0;
+                (data.photos || []).forEach((url, index) => {
+                    const slot = document.getElementById(`photo${index}`);
+                    if (slot) {
+                        slot.innerHTML = `<img src="${url}" alt="Uploaded photo">`;
+                        slot.classList.add('filled');
+                    }
+                });
                 if (uploadedCount > 0) {
                     setStatus(`${uploadedCount}/3 photos already uploaded`, 'success');
                 }

@@ -119,6 +119,9 @@ class App {
 
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
+        document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
+            slot.addEventListener('click', () => photoInput?.click());
+        });
 
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
@@ -178,7 +181,7 @@ class App {
             this.conversationActive = false;
             this._paused = false;
             this._lastSpokenText = data.prompt;
-            ui.showMessage(data.prompt);
+            ui.clearMessage();
             ui.setBeginLoading(false);
             ui.showBeginOverlay();
             ui.setStatus('');
@@ -200,6 +203,7 @@ class App {
         this._speechActivated = true;
         ui.setBeginLoading(true);
         ui.showConversation();
+        ui.clearMessage();
         ui.setStatus('Preparing microphone...');
 
         try {
@@ -421,6 +425,7 @@ class App {
             try {
                 const status = await conversationAPI.getPhotoStatus();
                 ui.updatePhotoProgress(status.photo_count, status.max_photos);
+                (status.photos || []).forEach((url, index) => ui.showPhotoSlot(index, url));
 
                 if (status.ready) {
                     this.stopPhotoPolling();
@@ -441,17 +446,22 @@ class App {
 
     async uploadPhoto() {
         const fileInput = document.getElementById('photoInput');
-        const file = fileInput.files[0];
-        if (!file) return;
+        const files = Array.from(fileInput.files || []);
+        if (!files.length) return;
 
         try {
-            const data = await conversationAPI.uploadPhoto(file, 'desktop');
-            if (data.status === 'ok') {
-                ui.showPhotoSlot(data.photo_count - 1, URL.createObjectURL(file));
-                if (data.ready) {
-                    this.stopPhotoPolling();
-                    this.autoGenerate();
+            let latest = null;
+            for (const file of files) {
+                latest = await conversationAPI.uploadPhoto(file, 'desktop');
+                if (latest.status === 'ok') {
+                    ui.showPhotoSlot(latest.photo_count - 1, URL.createObjectURL(file));
+                    ui.updatePhotoProgress(latest.photo_count, latest.max_photos || 3);
                 }
+                if (latest.ready) break;
+            }
+            if (latest?.ready) {
+                this.stopPhotoPolling();
+                this.autoGenerate();
             }
         } catch (err) {
             ui.setStatus(`Upload failed: ${err.message}`);

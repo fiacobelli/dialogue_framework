@@ -93,6 +93,8 @@ def upload_photo():
     return jsonify({
         'status': 'ok',
         'photo_count': len(photos),
+        'max_photos': MAX_PHOTOS,
+        'photos': [url_for('serve_photo', filename=p) for p in photos],
         'ready': len(photos) >= MAX_PHOTOS
     })
 
@@ -109,7 +111,8 @@ def get_photo_status(session_id):
     return jsonify({
         'photo_count': len(photos),
         'ready': len(photos) >= MAX_PHOTOS,
-        'max_photos': MAX_PHOTOS
+        'max_photos': MAX_PHOTOS,
+        'photos': [url_for('serve_photo', filename=p) for p in photos],
     })
 
 

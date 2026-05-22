@@ -99,6 +99,21 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
 
+    def test_final_details_no_thank_you_closes(self):
+        state = build_interview_state()
+        state.update({
+            'step_index': 6,
+            'phase': 'FINAL_DETAILS',
+            'awaiting': 'main_answer',
+            'patient_name': 'Sophia',
+            'patient_name_status': 'confirmed',
+        })
+
+        task = decide_next_task(state, 'No, thank you.')
+
+        self.assertEqual(task['type'], 'close_to_photos')
+        self.assertTrue(state['complete'])
+
     def test_operational_complaint_repairs_without_advancing(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
