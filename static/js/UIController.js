@@ -85,7 +85,7 @@ class UIController {
         this.elements.messageBubble.textContent = current ? `${current} ${text}` : text;
     }
 
-    showMessageAnimated(text, wordsPerMinute = 150) {
+    showMessageAnimated(text, wordsPerMinute = 185) {
         this.stopMessageAnimation();
         this.elements.messageBubble.classList.remove('pulsing');
 

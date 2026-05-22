@@ -162,7 +162,9 @@ class App {
             gender: avatarProfile.gender || 'female'
         });
 
-        ui.showConversation();
+        ui.hideConversation();
+        ui.showBeginOverlay();
+        ui.setBeginLoading(true);
         ui.setStatus('Loading...');
 
         try {
@@ -177,6 +179,7 @@ class App {
             this._paused = false;
             this._lastSpokenText = data.prompt;
             ui.showMessage(data.prompt);
+            ui.setBeginLoading(false);
             ui.showBeginOverlay();
             ui.setStatus('');
 
@@ -186,6 +189,7 @@ class App {
                 setTimeout(() => { preview.style.display = 'none'; }, 400);
             }
         } catch (err) {
+            ui.setBeginLoading(false);
             ui.setStatus('Connection failed. Please refresh.');
             console.error(err);
         }

@@ -48,7 +48,7 @@
                 sayText(text, voice, language, engine);
             } else {
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 0.9;
+                utterance.rate = 1.05;
                 utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
                 speechSynthesis.speak(utterance);
             }
@@ -93,17 +93,17 @@
         <div class="interaction-panel">
             <a class="hub-back-btn" id="hubBackBtn" href="{{ url_for('index') }}">Back to avatar hub</a>
 
-            <div class="begin-overlay" id="beginOverlay" style="display:none;">
+            <div class="begin-overlay" id="beginOverlay" style="display:flex;">
                 <p class="eyebrow">Donor page interview</p>
                 <h2>Tell your story with Ludi</h2>
                 <p class="begin-copy">
                     Ludi will ask a few questions, listen to your answers, then help you add photos for your donor page.
                     You can speak or type, skip anything, and correct details at any time.
                 </p>
-                <button type="button" class="begin-btn" id="beginBtn">Begin interview</button>
+                <button type="button" class="begin-btn" id="beginBtn" disabled>Loading Ludi...</button>
             </div>
 
-            <div id="conversationUI">
+            <div id="conversationUI" style="display:none;">
                 <div class="convo-top">
                     <div id="progress-bar-wrap" class="hidden">
                         <div id="progress-bar-fill"></div>

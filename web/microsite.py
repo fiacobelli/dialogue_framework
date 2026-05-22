@@ -102,11 +102,20 @@ def _normalize_content(content: dict, name: str) -> dict:
     if not normalized['headline']:
         normalized['headline'] = f"{name} needs a kidney donor"
     if not normalized['my_story']:
-        normalized['my_story'] = "My story is still being written."
+        normalized['my_story'] = (
+            "I am sharing my story because finding a living kidney donor could make a meaningful difference in my life. "
+            "The details I shared are personal, and I hope this page helps others understand why this matters."
+        )
     if not normalized['my_struggle']:
-        normalized['my_struggle'] = "Living with kidney disease has been challenging."
+        normalized['my_struggle'] = (
+            "Living with kidney disease has brought challenges that affect daily life and future plans. "
+            "I am doing my best to keep moving forward while looking for a path toward better health."
+        )
     if not normalized['my_hope']:
-        normalized['my_hope'] = "A kidney transplant would change my life."
+        normalized['my_hope'] = (
+            "A kidney transplant could offer more stability, more possibility, and more time to focus on the people and parts of life that matter most. "
+            "If you are able to learn more, consider sharing this page or exploring living donation."
+        )
     return normalized
 
 
