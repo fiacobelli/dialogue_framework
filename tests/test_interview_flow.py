@@ -14,6 +14,7 @@ from web.interview_flow import (
     decide_next_task,
     deterministic_response,
     extract_patient_name,
+    input_guard_decision,
     sufficiency_decision,
 )
 from web import microsite
@@ -83,6 +84,56 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertFalse(decision['sufficient'])
         self.assertEqual(decision['reason'], 'broad_treatment_only')
 
+    def test_final_details_no_nothing_really_closes(self):
+        state = build_interview_state()
+        state.update({
+            'step_index': 6,
+            'phase': 'FINAL_DETAILS',
+            'awaiting': 'main_answer',
+            'patient_name': 'Sophia',
+            'patient_name_status': 'confirmed',
+        })
+
+        task = decide_next_task(state, 'No, nothing really.')
+
+        self.assertEqual(task['type'], 'close_to_photos')
+        self.assertTrue(state['complete'])
+
+    def test_operational_complaint_repairs_without_advancing(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        decide_next_task(state, 'My family matters most and I am a teacher in my community')
+
+        task = decide_next_task(state, "It has trouble picking stuff up. It needs more time to pick stuff up.")
+
+        self.assertEqual(task['type'], 'repair_answer')
+        self.assertEqual(task['decision']['reason'], 'operational_issue')
+        self.assertEqual(state['last_step_id'], 'medical_history')
+        self.assertNotIn('medical_history', state.get('story_evidence', {}))
+
+    def test_long_operational_answer_is_not_sufficient_daily_life(self):
+        guard = input_guard_decision(
+            {'id': 'daily_life'},
+            "It's hard. It has trouble picking stuff up. It needs more time to pick stuff up.",
+        )
+
+        self.assertTrue(guard['repair'])
+        self.assertEqual(guard['reason'], 'operational_issue')
+
+    def test_no_response_repairs_same_question(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        task = decide_next_task(state, '[no speech detected]', {'no_response': True})
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'repair_answer')
+        self.assertEqual(task['decision']['reason'], 'empty_or_no_response')
+        self.assertIn(task['step']['question'], response)
+        self.assertEqual(state['step_index'], 0)
+
     def test_old_story_answer_state_normalizes(self):
         state = {
             'step_index': 1,
@@ -117,6 +168,16 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(contract['asked_question_text'], task['step']['question'])
         self.assertEqual(contract['expected_answer_kind'], 'main_answer')
         self.assertTrue(contract['delivery_validated'])
+
+    def test_story_evidence_tracks_only_accepted_answers(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        decide_next_task(state, 'My family matters most and I am a teacher in my community')
+
+        evidence = state['story_evidence']['personal_background']
+        self.assertIsInstance(evidence, list)
+        self.assertTrue(evidence[-1]['accepted'])
 
 
 class FakeLLM:
@@ -258,6 +319,31 @@ class GenerationGateTests(unittest.TestCase):
 
         self.assertTrue(ready)
         self.assertEqual(detail['name'], 'Sophia')
+
+
+class MicrositeEvidenceTests(unittest.TestCase):
+    def test_format_story_evidence_excludes_rejected_operational_turns(self):
+        state = {
+            'story_evidence': {
+                'daily_life': [
+                    {
+                        'answer': "It has trouble picking stuff up and it is frustrating.",
+                        'accepted': False,
+                        'sufficiency': {'sufficient': False, 'reason': 'operational_issue'},
+                    },
+                    {
+                        'answer': 'Dialysis leaves me tired after treatment and limits my work schedule.',
+                        'accepted': True,
+                        'sufficiency': {'sufficient': True, 'reason': 'required_evidence'},
+                    },
+                ]
+            }
+        }
+
+        transcript = microsite.format_story_evidence(state)
+
+        self.assertIn('Dialysis leaves me tired', transcript)
+        self.assertNotIn('picking stuff up', transcript)
 
 
 class MicrositeReviewTests(unittest.TestCase):

@@ -27,6 +27,9 @@ def _turn_meta(data: dict) -> dict:
     }
 
 
+NO_RESPONSE_INPUT = '[no speech detected]'
+
+
 def _message_turn_number(info_state) -> int:
     history = info_state.user.query('conversation_history') or []
     return max(1, sum(1 for msg in history if msg.get('role') == 'user'))
@@ -157,6 +160,9 @@ def chat():
     data = request.json or {}
     session_id = data.get('session_id')
     user_input = data.get('input', '').strip()
+    turn_meta = _turn_meta(data or {})
+    no_response = bool(turn_meta.get('no_response'))
+    nlu_input = NO_RESPONSE_INPUT if no_response and not user_input else user_input
 
     if not session_id or not has_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
@@ -168,8 +174,8 @@ def chat():
     nlg = s['nlg']
     msg = s['msg']
 
-    msg[MSG.POSSIBLE_RESPONSES] = [(1.0, user_input)]
-    msg['turn_meta'] = _turn_meta(data or {})
+    msg[MSG.POSSIBLE_RESPONSES] = [(1.0, nlu_input)]
+    msg['turn_meta'] = turn_meta
 
     if nlu.check(msg):
         dialogue_mgr.manage(msg)
@@ -178,7 +184,7 @@ def chat():
     done = phase in ['PHOTOS', 'COMPLETE']
     prompt = nlg.get_prompt(msg)
     visit_id = info_state.user.query('visit_id')
-    turn_number = _message_turn_number(info_state)
+    turn_number = db.next_turn_number(visit_id)
     task = msg.get('interview_task') or {}
     context = msg.get('interview_context') or {}
     state = info_state.user.query('interview_state') or {}
@@ -190,7 +196,7 @@ def chat():
     user_message_id = db.save_message(
         visit_id,
         'user',
-        user_input,
+        nlu_input,
         turn_number=turn_number,
         phase=context.get('answered_phase') or phase,
         awaiting=context.get('answered_awaiting'),

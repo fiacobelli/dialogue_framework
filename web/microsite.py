@@ -41,6 +41,31 @@ def format_conversation(history: list) -> str:
     return "\n\n".join(lines)
 
 
+def format_story_evidence(state: dict) -> str:
+    """Format accepted story evidence as a generation transcript."""
+    evidence = (state or {}).get('story_evidence') or {}
+    if not isinstance(evidence, dict):
+        return ''
+
+    lines = []
+    for step_id, entries in evidence.items():
+        if isinstance(entries, dict):
+            entries = [entries]
+        if not isinstance(entries, list):
+            continue
+        accepted_answers = [
+            (entry or {}).get('answer', '').strip()
+            for entry in entries
+            if isinstance(entry, dict) and entry.get('accepted') and (entry.get('answer') or '').strip()
+        ]
+        if not accepted_answers:
+            continue
+        label = step_id.replace('_', ' ').title()
+        for answer in accepted_answers:
+            lines.append(f"{label}: {answer}")
+    return "\n\n".join(lines)
+
+
 def extract_name_from_conversation(history: list, provider) -> str:
     """Extract patient name from conversation using LLM."""
     if not history:
@@ -137,7 +162,8 @@ def _build_result(
 def generate(info_state, provider, name: str, session_id: str) -> dict:
     """Generate donor-page draft content without publishing the public page."""
     history = info_state.user.query('conversation_history') or []
-    conversation = format_conversation(history)
+    state = info_state.user.query('interview_state') or {}
+    conversation = format_story_evidence(state) or format_conversation(history)
     photos = info_state.user.query('photos') or []
 
     prompt_template = load_prompt(MICROSITE_PROMPT_FILE)

@@ -44,13 +44,20 @@ class InterviewGoal(Goal):
         previous_state = dict(state)
         answered_turn = previous_state.get('current_outgoing_turn') or {}
 
-        # Add user message to history
-        if user_input:
-            history.append({"role": "user", "content": user_input})
-            info_state.user.update('conversation_history', history)
-            log_interview(session_id, f"USER: {user_input}")
+        log_interview(session_id, f"USER: {user_input}")
 
         task = decide_next_task(state, user_input, msg.get('turn_meta'))
+        decision = task.get('decision') or {}
+        should_store_user = bool(user_input) and not msg.get('turn_meta', {}).get('no_response')
+        if task.get('type') == 'repair_answer' and decision.get('reason') in {
+            'empty_or_no_response',
+            'operational_issue',
+            'clarification_request',
+        }:
+            should_store_user = False
+        if should_store_user:
+            history.append({"role": "user", "content": user_input})
+            info_state.user.update('conversation_history', history)
         answered_awaiting = answered_turn.get('expected_answer_kind') or previous_state.get('awaiting')
         answered_step_id = answered_turn.get('asked_step_id') or previous_state.get('last_step_id') or state.get('last_step_id')
         log_interview(

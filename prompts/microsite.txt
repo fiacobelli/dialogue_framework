@@ -10,6 +10,8 @@ CONTENT REQUIREMENTS:
 - First person voice as {name}.
 - Match the patient's stated tone, but do not exaggerate.
 - Make the page personal and compelling without adding facts.
+- Avoid generic or cliche headlines such as "life-changing gift", "new lease on life", or "second chance" unless the patient used those words.
+- Do not include comments about the interview tool, microphone, upload process, frustration with technology, or repeated attempts to be heard.
 
 Return ONLY valid JSON (no markdown):
 {{"headline": "One supported sentence (10-15 words) capturing their story and need", "my_story": "A paragraph about who they are using only details from the transcript. If details are sparse, keep this concise and general.", "my_struggle": "A paragraph about their kidney disease journey using only stated diagnosis, dialysis, daily-life, physical, or emotional details.", "my_hope": "A paragraph about what a transplant would mean using only hopes or life changes the patient actually stated. End with a respectful appeal to potential donors."}}

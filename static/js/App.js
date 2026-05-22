@@ -54,15 +54,14 @@ class App {
             await this._processUserInput(transcript, 'voice');
         });
 
-        speechManager.on('empty', () => {
+        speechManager.on('empty', async () => {
             this._emptyCount++;
             this._retryCount++;
             if (this.conversationActive && !this._paused && this._emptyCount < 2) {
                 speechManager.startListening();
             } else {
                 this._emptyCount = 0;
-                ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
-                ui.showIdle();
+                await this._processNoResponse();
             }
         });
 
@@ -374,6 +373,30 @@ class App {
         }
     }
 
+    async _processNoResponse() {
+        if (!conversationAPI.getSessionId()) {
+            ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
+            ui.showIdle();
+            return;
+        }
+
+        try {
+            ui.hideRepeatButton();
+            ui.showProcessing();
+            const metadata = this._buildTurnMetadata('voice');
+            const data = await conversationAPI.sendNoResponse(metadata);
+            this._lastSpokenText = data.prompt;
+            ui.showMessage(data.prompt);
+            ui.setStatus('');
+            await speechManager.speak(data.prompt);
+        } catch (err) {
+            console.error('Failed to send no-response turn:', err);
+            ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
+            ui.showIdle();
+            turnManager.reset();
+        }
+    }
+
     async startPhotoFlow() {
         ui.updatePhase('PHOTOS');
         speechManager.destroy();
@@ -418,7 +441,7 @@ class App {
         if (!file) return;
 
         try {
-            const data = await conversationAPI.uploadPhoto(file);
+            const data = await conversationAPI.uploadPhoto(file, 'desktop');
             if (data.status === 'ok') {
                 ui.showPhotoSlot(data.photo_count - 1, URL.createObjectURL(file));
                 if (data.ready) {

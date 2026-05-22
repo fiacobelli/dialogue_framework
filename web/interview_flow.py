@@ -74,6 +74,8 @@ SHORT_ANSWERS = {
     'sure', 'fine', 'good', 'not really', 'none',
 }
 
+NO_RESPONSE_SENTINEL = '[no speech detected]'
+
 ACKNOWLEDGEMENT_ONLY = {
     'yes', 'yeah', 'yep', 'yup', 'yea',
     'ok', 'okay', 'alright', 'all right', 'sure',
@@ -83,6 +85,14 @@ ACKNOWLEDGEMENT_ONLY = {
 CLARIFICATION_REQUESTS = {
     'what', 'huh', 'sorry', 'repeat', 'repeat that', 'say that again',
     'can you repeat', 'could you repeat', 'what do you mean',
+}
+
+OPERATIONAL_ISSUE_TERMS = {
+    'clunky', 'frustrating', 'super frustrating', 'microphone', 'mic',
+    'not picking', 'picking stuff up', 'pick stuff up', 'not hearing',
+    "didn't hear", 'did not hear', 'speak louder', 'repeat what you said',
+    'try again', 'cutting me off', 'cuts me off', 'not responsive',
+    'taking a while', 'too slow', 'slower', 'hear me',
 }
 
 READY_TERMS = {'yes', 'yeah', 'yep', 'yup', 'ready', 'sure', 'ok', 'okay', 'start', 'begin', 'go ahead'}
@@ -263,7 +273,40 @@ def _word_count(text: str) -> int:
 
 def _has_explicit_none(text: str) -> bool:
     normalized = normalize_answer(text)
-    return normalized in {'no', 'nope', 'none', 'nothing', 'not really', 'nothing else'}
+    if normalized in {'no', 'nope', 'none', 'nothing', 'not really', 'nothing else'}:
+        return True
+    none_patterns = (
+        r'\bno\b.*\bnothing\b',
+        r'\bnothing\b.*\belse\b',
+        r'\bnothing\b.*\breally\b',
+        r'\bnot\b.*\breally\b',
+        r'\bno\b.*\belse\b',
+    )
+    return any(re.search(pattern, normalized) for pattern in none_patterns)
+
+
+def _is_operational_issue(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
+    normalized = normalize_answer(text)
+    if not normalized:
+        return False
+    if any(term in normalized for term in OPERATIONAL_ISSUE_TERMS):
+        return True
+
+    turn_meta = turn_meta or {}
+    try:
+        retry_count = int(turn_meta.get('retry_count') or 0)
+    except (TypeError, ValueError):
+        retry_count = 0
+    if retry_count < 2:
+        return False
+
+    events = turn_meta.get('events') or []
+    empty_events = sum(1 for event in events if (event.get('type') or event.get('event_type')) == 'empty_input')
+    if empty_events < 1:
+        return False
+
+    operational_words = {'hear', 'heard', 'listen', 'repeat', 'again', 'louder', 'slow', 'frustrating', 'work', 'working'}
+    return bool(operational_words.intersection(normalized.split()))
 
 
 def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, Any]:
@@ -298,7 +341,7 @@ def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, An
 
     if matched and len(words) >= 6:
         return {'sufficient': True, 'reason': 'required_evidence', 'matched': matched}
-    if len(words) >= 12:
+    if len(words) >= 12 and step_id not in {'daily_life', 'support_network', 'final_details'}:
         return {'sufficient': True, 'reason': 'word_count', 'matched': len(words)}
     return {'sufficient': False, 'reason': 'missing_required_evidence', 'matched': matched}
 
@@ -310,8 +353,11 @@ def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict
     turn_meta = turn_meta or {}
     step_id = step.get('id') if step else None
 
-    if turn_meta.get('no_response') or not normalized:
+    if turn_meta.get('no_response') or normalized == normalize_answer(NO_RESPONSE_SENTINEL) or not normalized:
         return {'repair': True, 'reason': 'empty_or_no_response', 'matched': normalized}
+
+    if _is_operational_issue(normalized, turn_meta):
+        return {'repair': True, 'reason': 'operational_issue', 'matched': normalized}
 
     if normalized in CLARIFICATION_REQUESTS or any(term == normalized for term in CLARIFICATION_REQUESTS):
         return {'repair': True, 'reason': 'clarification_request', 'matched': normalized}
@@ -342,6 +388,28 @@ def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     state['followup_count'] = 0
     state['repair_count'] = 0
     return current_step(state)
+
+
+def _record_story_evidence(
+    state: dict[str, Any],
+    step: dict[str, str] | None,
+    user_input: str,
+    decision: dict[str, Any],
+) -> None:
+    if not step:
+        return
+    entry = {
+        'answer': user_input,
+        'sufficiency': decision,
+        'followup_count': state.get('followup_count', 0),
+        'accepted': bool(decision.get('sufficient')),
+    }
+    evidence = state.setdefault('story_evidence', {})
+    step_entries = evidence.setdefault(step['id'], [])
+    if isinstance(step_entries, list):
+        step_entries.append(entry)
+    else:
+        evidence[step['id']] = [step_entries, entry]
 
 
 def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]:
@@ -405,13 +473,7 @@ def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dic
 
         decision = sufficiency_decision(step, user_input)
         state['last_decision'] = {'sufficiency': decision}
-        if step:
-            evidence = state.setdefault('story_evidence', {})
-            evidence[step['id']] = {
-                'answer': user_input,
-                'sufficiency': decision,
-                'followup_count': state.get('followup_count', 0),
-            }
+        _record_story_evidence(state, step, user_input, decision)
 
         if (
             awaiting == 'main_answer'
@@ -482,6 +544,10 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
         decision = task.get('decision') or {}
         if decision.get('reason') == 'clarification_request':
             return f"Sure. I was asking about this part of your donor story: {question}"
+        if decision.get('reason') == 'empty_or_no_response':
+            return f"I did not catch that clearly. Please try again: {question}"
+        if decision.get('reason') == 'operational_issue':
+            return f"I am sorry, it sounds like the microphone had trouble. Let's try the same question again: {question}"
         return f"I only caught a little of that. {question}"
     return None
 

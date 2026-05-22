@@ -95,26 +95,37 @@
             color: #4a5568;
         }
 
-        /* Photo Gallery */
-        .photo-gallery {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin: 30px 0;
+        .section-body {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 22px;
+            align-items: center;
         }
 
-        .photo-gallery img {
-            width: 200px;
-            height: 200px;
+        .section-photo {
+            width: 100%;
+            max-height: 320px;
             object-fit: cover;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            transition: transform 0.3s;
         }
 
-        .photo-gallery img:hover {
-            transform: scale(1.05);
+        @media (min-width: 720px) {
+            .section.with-photo .section-body {
+                grid-template-columns: minmax(0, 1fr) 240px;
+            }
+
+            .section.with-photo.alt .section-body {
+                grid-template-columns: 240px minmax(0, 1fr);
+            }
+
+            .section.with-photo.alt .section-photo {
+                order: -1;
+            }
+
+            .section-photo {
+                height: 220px;
+            }
         }
 
         /* Call to Action */
@@ -238,8 +249,6 @@
             .section h2 { font-size: 1.3rem; }
             .section p { font-size: 1rem; }
 
-            .photo-gallery img { width: 150px; height: 150px; }
-
             .cta { padding: 30px 15px; }
             .cta h2 { font-size: 1.4rem; }
 
@@ -259,30 +268,36 @@
 
     <div class="content">
         <!-- My Story Section -->
-        <div class="section my-story">
+        <div class="section my-story {% if photos and photos|length > 0 %}with-photo{% endif %}">
             <h2>My Story</h2>
-            <p>{{ my_story }}</p>
+            <div class="section-body">
+                <p>{{ my_story }}</p>
+                {% if photos and photos|length > 0 %}
+                <img src="{{ photos[0] }}" alt="Photo of {{ name }}" class="section-photo">
+                {% endif %}
+            </div>
         </div>
-
-        <!-- Photo Gallery -->
-        {% if photos and photos|length > 1 %}
-        <div class="photo-gallery">
-            {% for photo in photos %}
-            <img src="{{ photo }}" alt="Photo of {{ name }}">
-            {% endfor %}
-        </div>
-        {% endif %}
 
         <!-- Living with Kidney Disease Section -->
-        <div class="section my-struggle">
+        <div class="section my-struggle {% if photos and photos|length > 1 %}with-photo alt{% endif %}">
             <h2>Living with Kidney Disease</h2>
-            <p>{{ my_struggle }}</p>
+            <div class="section-body">
+                <p>{{ my_struggle }}</p>
+                {% if photos and photos|length > 1 %}
+                <img src="{{ photos[1] }}" alt="Photo of {{ name }}" class="section-photo">
+                {% endif %}
+            </div>
         </div>
 
         <!-- Why I Need Your Help Section -->
-        <div class="section my-hope">
+        <div class="section my-hope {% if photos and photos|length > 2 %}with-photo{% endif %}">
             <h2>Why I Need Your Help</h2>
-            <p>{{ my_hope }}</p>
+            <div class="section-body">
+                <p>{{ my_hope }}</p>
+                {% if photos and photos|length > 2 %}
+                <img src="{{ photos[2] }}" alt="Photo of {{ name }}" class="section-photo">
+                {% endif %}
+            </div>
         </div>
 
         <!-- Call to Action -->

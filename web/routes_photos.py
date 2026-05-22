@@ -7,12 +7,34 @@ import base64
 import hashlib
 
 import qrcode
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .config import PHOTOS_DIR, MAX_PHOTOS
 from .session_store import get_session, has_session
 from . import database as db
 
 photos_bp = Blueprint('photos', __name__, url_prefix='/api')
+
+MAX_IMAGE_EDGE = 1600
+JPEG_QUALITY = 88
+
+
+def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
+    """Validate, orient, resize, and save an uploaded image as JPEG."""
+    try:
+        image = Image.open(upload.stream)
+        image = ImageOps.exif_transpose(image)
+    except (UnidentifiedImageError, OSError):
+        raise ValueError('Please upload a valid image file.')
+
+    if image.mode not in {'RGB', 'L'}:
+        image = image.convert('RGB')
+    elif image.mode == 'L':
+        image = image.convert('RGB')
+
+    image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE), Image.Resampling.LANCZOS)
+    image.save(photo_path, format='JPEG', quality=JPEG_QUALITY, optimize=True)
+    return image.size
 
 
 @photos_bp.route('/upload', methods=['POST'])
@@ -40,7 +62,10 @@ def upload_photo():
 
     photo_id = f"{session_id}_{len(photos)}.jpg"
     photo_path = os.path.join(PHOTOS_DIR, photo_id)
-    photo.save(photo_path)
+    try:
+        width, height = _save_processed_photo(photo, photo_path)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
     byte_size = os.path.getsize(photo_path)
     with open(photo_path, 'rb') as f:
         sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -53,9 +78,11 @@ def upload_photo():
         photo_id,
         len(photos) - 1,
         source=request.form.get('source') or 'desktop',
-        mime_type=photo.mimetype,
+        mime_type='image/jpeg',
         byte_size=byte_size,
         sha256=sha256,
+        width=width,
+        height=height,
     )
 
     if len(photos) >= MAX_PHOTOS:

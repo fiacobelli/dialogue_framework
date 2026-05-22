@@ -1,8 +1,10 @@
 /**
  * SpeechManager - Handles speech recognition and synthesis.
  *
- * Uses Silero VAD when available to start browser speech recognition only when
- * the patient is actually speaking. Falls back to continuous recognition.
+ * Starts browser speech recognition as soon as the patient turn begins.
+ * Silero VAD is used as telemetry and to extend silence windows, not as the
+ * gate that starts recognition. This avoids losing the first words while
+ * Web Speech is still warming up.
  */
 
 class SpeechManager {
@@ -106,48 +108,23 @@ class SpeechManager {
 
     _onVADSpeechStart() {
         this._speechDetectedCount++;
-        this._vadFireTime = performance.now();
-        this.recordEvent('vad_fired');
+        if (this._vadFireTime === null) {
+            this._vadFireTime = performance.now();
+        }
+        this.recordEvent('vad_fired', { count: this._speechDetectedCount });
 
         if (this._recognitionActive) {
             this._resetSilenceTimer(EXTENDED_SILENCE_DELAY_MS);
             return;
         }
-        if (this.turnManager.getState() !== TurnState.IDLE) return;
-        if (!this.turnManager.startUserTurn()) return;
-
-        this.transcript = '';
-        this._lastInterimTranscript = '';
-        this._recognitionActive = true;
-        this.recognition.lang = this.lang;
-        try {
-            this.recognition.start();
-            this._recognitionStartTime = performance.now();
-            this.recordEvent('recognition_started');
-            this._resetSilenceTimer(SILENCE_DELAY_MS);
-        } catch (e) {
-            console.warn('[SpeechManager] recognition.start() failed in VAD callback:', e);
-            this._recognitionActive = false;
-            this.turnManager.reset();
-        }
     }
 
     _onVADSpeechEnd() {
-        if (!this._recognitionActive) return;
         this.recordEvent('vad_speech_end');
-        this._resetSilenceTimer(VAD_END_GRACE_MS);
     }
 
     _onVADMisfire() {
-        if (!this._recognitionActive) return;
-        this._clearSilenceTimer();
-        this._recognitionActive = false;
-        if (this.recognition) {
-            try { this.recognition.stop(); } catch (_) {}
-        }
-        this.transcript = '';
-        this._speechDetectedCount = 0;
-        this.turnManager.reset();
+        this.recordEvent('vad_misfire');
     }
 
     _handleResult(e) {
@@ -277,11 +254,10 @@ class SpeechManager {
         this._lastInterimTranscript = '';
         this._speechDetectedCount = 0;
         this._speechConfidence = null;
+        this._vadFireTime = null;
 
         if (this._vadReady) {
             this._vad.start();
-            this._emit('listening', {});
-            return true;
         }
 
         if (!this.turnManager.startUserTurn()) return false;
@@ -290,8 +266,8 @@ class SpeechManager {
             this.recognition.start();
             this._recognitionActive = true;
             this._recognitionStartTime = performance.now();
-            this._vadFireTime = this._recognitionStartTime;
-            this.recordEvent('recognition_started', { source: 'fallback' });
+            if (!this._vadReady) this._vadFireTime = this._recognitionStartTime;
+            this.recordEvent('recognition_started', { source: this._vadReady ? 'hot_with_vad' : 'fallback' });
             this._resetSilenceTimer(SILENCE_DELAY_MS);
         } catch (err) {
             console.error('Speech recognition failed to start', err);

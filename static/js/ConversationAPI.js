@@ -47,13 +47,19 @@ class ConversationAPI {
         return await res.json();
     }
 
+    /** Tell the backend the browser could not capture speech for this turn. */
+    async sendNoResponse(metadata = {}) {
+        return this.sendMessage('', { ...metadata, no_response: true });
+    }
+
     /** Upload photo file to server. */
-    async uploadPhoto(file) {
+    async uploadPhoto(file, source = 'desktop') {
         if (!this.sessionId) throw new Error('No active session');
 
         const formData = new FormData();
         formData.append('session_id', this.sessionId);
         formData.append('photo', file);
+        formData.append('source', source);
 
         const res = await fetch(this._url('/api/upload'), {
             method: 'POST',

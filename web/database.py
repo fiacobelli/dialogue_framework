@@ -27,10 +27,11 @@ ALLOWED_EVENT_TYPES = {
     'mic_error',
     'vad_init',
     'vad_speech_end',
+    'vad_misfire',
     'silence_timeout',
 }
 
-ALLOWED_EVENT_METADATA = {'source', 'reason', 'state', 'duration_ms', 'end_reason', 'transcript_words'}
+ALLOWED_EVENT_METADATA = {'source', 'reason', 'state', 'duration_ms', 'end_reason', 'transcript_words', 'count'}
 
 
 def configure(path: str) -> None:
@@ -292,6 +293,13 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
 def _next_turn_number(conn, visit_id: str) -> int:
     row = conn.execute('SELECT COALESCE(MAX(turn_number), 0) AS n FROM messages WHERE visit_id = ?', (visit_id,)).fetchone()
     return int(row['n']) + 1
+
+
+def next_turn_number(visit_id: str | None) -> int:
+    if not visit_id:
+        return 1
+    with _conn() as c:
+        return _next_turn_number(c, visit_id)
 
 
 def save_message(visit_id: str | None, role: str, content: str, *, turn_number: int | None = None, **meta) -> str | None:

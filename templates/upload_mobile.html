@@ -37,12 +37,19 @@
             </p>
 
             <div class="photo-grid">
-                <div class="photo-slot" id="photo0" onclick="selectPhoto(0)">+</div>
-                <div class="photo-slot" id="photo1" onclick="selectPhoto(1)">+</div>
-                <div class="photo-slot" id="photo2" onclick="selectPhoto(2)">+</div>
+                <div class="photo-slot" id="photo0">+</div>
+                <div class="photo-slot" id="photo1">+</div>
+                <div class="photo-slot" id="photo2">+</div>
             </div>
 
-            <input type="file" id="photoInput" accept="image/*" capture="environment">
+            <input type="file" id="libraryInput" accept="image/*">
+            <input type="file" id="cameraInput" accept="image/*" capture="environment">
+            <button class="submit-btn" type="button" onclick="selectPhoto('library')">
+                Choose from Photo Library
+            </button>
+            <button class="submit-btn" type="button" onclick="selectPhoto('camera')">
+                Take a New Photo
+            </button>
 
             <div class="status" id="status"></div>
 
@@ -59,18 +66,19 @@
         let currentSlot = 0;
         let uploadedCount = 0;
 
-        function selectPhoto(slot) {
-            currentSlot = slot;
-            document.getElementById('photoInput').click();
+        function selectPhoto(mode) {
+            currentSlot = uploadedCount;
+            document.getElementById(mode === 'camera' ? 'cameraInput' : 'libraryInput').click();
         }
 
-        document.getElementById('photoInput').addEventListener('change', async (e) => {
+        async function uploadSelectedPhoto(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             const formData = new FormData();
             formData.append('session_id', sessionId);
             formData.append('photo', file);
+            formData.append('source', 'mobile');
 
             setStatus('Uploading...', '');
 
@@ -104,7 +112,10 @@
             }
 
             e.target.value = '';
-        });
+        }
+
+        document.getElementById('libraryInput').addEventListener('change', uploadSelectedPhoto);
+        document.getElementById('cameraInput').addEventListener('change', uploadSelectedPhoto);
 
         document.getElementById('submitBtn').addEventListener('click', () => {
             window.close();
