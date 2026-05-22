@@ -87,6 +87,7 @@ def upload_photo():
 
     if len(photos) >= MAX_PHOTOS:
         info_state.user.update('interview_phase', 'COMPLETE')
+        info_state.user.update('photo_requirement_status', 'complete')
         info_state.save_user_model()
     db.update_visit_from_info_state(info_state.user.query('visit_id'), info_state)
 

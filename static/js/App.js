@@ -126,6 +126,11 @@ class App {
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
 
+        const continueWithPhotosBtn = document.getElementById('continueWithPhotosBtn');
+        if (continueWithPhotosBtn) {
+            continueWithPhotosBtn.addEventListener('click', () => this.continueWithPartialPhotos());
+        }
+
         const publishBtn = document.getElementById('publishBtn');
         if (publishBtn) publishBtn.addEventListener('click', () => this.publish());
 
@@ -181,6 +186,7 @@ class App {
             this.conversationActive = false;
             this._paused = false;
             this._lastSpokenText = data.prompt;
+            ui.updateProgress(data.progress);
             ui.clearMessage();
             ui.setBeginLoading(false);
             ui.showBeginOverlay();
@@ -362,6 +368,7 @@ class App {
 
             const data = await conversationAPI.sendMessage(text, this._buildTurnMetadata(inputModality));
             this._lastSpokenText = data.prompt;
+            ui.updateProgress(data.progress);
             ui.showMessage(data.prompt);
             ui.setStatus('');
 
@@ -394,6 +401,7 @@ class App {
             const metadata = this._buildTurnMetadata('voice');
             const data = await conversationAPI.sendNoResponse(metadata);
             this._lastSpokenText = data.prompt;
+            ui.updateProgress(data.progress);
             ui.showMessage(data.prompt);
             ui.setStatus('');
             await speechManager.speak(data.prompt);
@@ -489,12 +497,35 @@ class App {
         }
     }
 
-    async generate() {
+    async continueWithPartialPhotos() {
+        const status = await conversationAPI.getPhotoStatus();
+        const count = status.photo_count || 0;
+        if (count <= 0) {
+            ui.setStatus('Please upload at least one photo before continuing.');
+            return;
+        }
+        if (count >= (status.max_photos || 3)) {
+            await this.generate(false);
+            return;
+        }
+
+        const ok = window.confirm(
+            `You uploaded ${count} photo${count === 1 ? '' : 's'}. Three photos are recommended, but you can continue with fewer. Continue now?`
+        );
+        if (!ok) return;
+
+        this.stopPhotoPolling();
+        await this.generate(true);
+    }
+
+    async generate(allowPartialPhotos = false) {
         const name = document.getElementById('patientName').value || 'Patient';
-        ui.setStatus('Generating your donor page...');
+        ui.setStatus(allowPartialPhotos
+            ? 'Generating your donor page with the photos uploaded so far...'
+            : 'Generating your donor page...');
 
         try {
-            const data = await conversationAPI.generateMicrosite(name);
+            const data = await conversationAPI.generateMicrosite(name, { allowPartialPhotos });
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');
         } catch (err) {

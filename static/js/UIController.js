@@ -33,6 +33,7 @@ class UIController {
             waveform: document.getElementById('waveform'),
             progressWrap: document.getElementById('progress-bar-wrap'),
             progressFill: document.getElementById('progress-bar-fill'),
+            progressText: document.getElementById('progressText'),
         };
     }
 
@@ -196,8 +197,24 @@ class UIController {
         this.elements.progressWrap.classList.remove('hidden');
     }
 
+    updateProgress(progress) {
+        if (!progress || !this.elements.progressWrap || !this.elements.progressFill) return;
+        const pct = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+        this.elements.progressFill.style.width = `${pct}%`;
+        this.elements.progressWrap.classList.remove('hidden');
+
+        if (this.elements.progressText) {
+            const current = Number(progress.current_step || 0);
+            const total = Number(progress.total_steps || 0);
+            const stepText = current > 0 && total > 0 ? `Step ${current} of ${total}` : progress.label;
+            this.elements.progressText.textContent = `${progress.label || 'Interview'} · ${stepText}`;
+            this.elements.progressText.classList.remove('hidden');
+        }
+    }
+
     hideProgress() {
         this.elements.progressWrap?.classList.add('hidden');
+        this.elements.progressText?.classList.add('hidden');
     }
 
     updatePhase(phase) {
@@ -238,6 +255,7 @@ class UIController {
     updatePhotoProgress(count, max) {
         const el = document.getElementById('photoProgress');
         if (el) el.textContent = `${count}/${max} photos uploaded`;
+        this.updateContinueWithPhotos(count, max);
     }
 
     showPhotoSlot(index, url) {
@@ -253,6 +271,16 @@ class UIController {
             btn.disabled = false;
             btn.textContent = 'Generate My Donor Page';
         }
+    }
+
+    updateContinueWithPhotos(count, max) {
+        const btn = document.getElementById('continueWithPhotosBtn');
+        if (!btn) return;
+        const hasPartialPhotos = count > 0 && count < max;
+        btn.disabled = !hasPartialPhotos;
+        btn.textContent = hasPartialPhotos
+            ? `Continue with ${count} uploaded photo${count === 1 ? '' : 's'}`
+            : 'Continue with uploaded photos';
     }
 
     showGenerating() {

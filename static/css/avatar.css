@@ -168,6 +168,15 @@
     width: 0%;
 }
 
+.progress-text {
+    color: #78716C;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-top: 8px;
+    text-align: center;
+}
+
 /* ── Message bubble ───────────────────────────────────────────────────────── */
 .message-bubble {
     font-size: clamp(18px, 2.2vw, 22px);
@@ -710,6 +719,7 @@
 }
 
 .upload-btn,
+#continueWithPhotosBtn,
 #generateBtn,
 #publishBtn {
     display: block;
@@ -725,9 +735,27 @@
 }
 
 .upload-btn:hover,
+#continueWithPhotosBtn:hover,
 #generateBtn:hover,
 #publishBtn:hover {
     background: #3C946A;
+}
+
+#continueWithPhotosBtn {
+    background: #FFFDF9;
+    border: 2px solid #4CAF7D;
+    color: #2F7D59;
+    margin-top: 12px;
+}
+
+#continueWithPhotosBtn:hover {
+    background: #EEF8F2;
+}
+
+#continueWithPhotosBtn:disabled {
+    border-color: #D6CEC8;
+    color: #A8A29E;
+    cursor: not-allowed;
 }
 
 #publishBtn:disabled {

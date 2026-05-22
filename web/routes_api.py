@@ -1,12 +1,15 @@
 """Core API routes blueprint for the dialogue framework."""
 
 from flask import Blueprint, request, jsonify
+from datetime import datetime
+import subprocess
 import uuid
 
 from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
 from .session_store import get_session, set_session, has_session
+from .interview_flow import progress_snapshot
 from . import microsite
 from . import database as db
 
@@ -46,20 +49,46 @@ def _sufficiency_meta(task: dict) -> tuple[str | None, dict | None]:
     return None, None
 
 
-def validate_generation_ready(info_state) -> tuple[bool, dict]:
+def _git_commit() -> str | None:
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return None
+
+
+def _progress(info_state, phase: str | None = None) -> dict:
+    state = info_state.user.query('interview_state') or {}
+    photos = info_state.user.query('photos') or []
+    return progress_snapshot(state, phase or info_state.user.query('interview_phase'), len(photos))
+
+
+def validate_generation_ready(info_state, allow_partial_photos: bool = False) -> tuple[bool, dict]:
     """Return whether the current session is allowed to generate a donor page."""
     state = info_state.user.query('interview_state') or {}
     phase = info_state.user.query('interview_phase') or state.get('phase')
     photos = info_state.user.query('photos') or []
     patient_name = info_state.user.query('patient_name') or state.get('patient_name')
     name_status = info_state.user.query('patient_name_status') or state.get('patient_name_status')
+    photo_count = len(photos)
+    photo_requirement_status = info_state.user.query('photo_requirement_status')
+    partial_photos_confirmed = (
+        photo_requirement_status == 'partial_confirmed'
+        or (allow_partial_photos and 0 < photo_count < MAX_PHOTOS)
+    )
 
     missing = []
     if phase not in {'PHOTOS', 'COMPLETE'} or not state.get('complete'):
         missing.append('story_complete')
     if not patient_name or name_status not in {'confirmed', 'corrected'}:
         missing.append('confirmed_name')
-    if len(photos) < MAX_PHOTOS:
+    if photo_count < MAX_PHOTOS and not partial_photos_confirmed:
         missing.append('photos')
     story_ready = microsite.story_evidence_ready(state)
     if not story_ready['ready']:
@@ -71,11 +100,28 @@ def validate_generation_ready(info_state) -> tuple[bool, dict]:
             'message': 'The donor page is not ready to generate yet.',
             'missing': missing,
             'missing_story_sections': story_ready['missing'],
-            'photo_count': len(photos),
+            'photo_count': photo_count,
             'max_photos': MAX_PHOTOS,
+            'partial_photos_allowed': photo_count > 0,
             'phase': phase,
         }
-    return True, {'name': patient_name}
+    return True, {
+        'name': patient_name,
+        'photo_requirement_status': 'partial_confirmed' if partial_photos_confirmed else 'complete',
+    }
+
+
+@api_bp.route('/health')
+def health():
+    """Deployment health check for the microsite service."""
+    db_status = db.health_check()
+    return jsonify({
+        'ok': True,
+        'app': 'transplant-microsite',
+        'commit': _git_commit(),
+        'db': db_status,
+        'time': datetime.utcnow().isoformat(),
+    })
 
 
 @api_bp.route('/session', methods=['GET', 'POST'])
@@ -148,7 +194,8 @@ def new_session():
         'prompt': opening,
         'phase': phase,
         'returning': is_returning,
-        'avatar': avatar_profile
+        'avatar': avatar_profile,
+        'progress': _progress(info_state, phase),
     })
 
 
@@ -247,14 +294,15 @@ def chat():
     return jsonify({
         'prompt': prompt,
         'phase': phase,
-        'done': done
+        'done': done,
+        'progress': _progress(info_state, phase),
     })
 
 
 @api_bp.route('/generate', methods=['POST'])
 def generate_microsite():
     """Generate microsite from conversation and photos."""
-    data = request.json
+    data = request.json or {}
     session_id = data.get('session_id')
 
     if not session_id or not has_session(session_id):
@@ -264,9 +312,12 @@ def generate_microsite():
     info_state = s['info_state']
     provider = s['goal_mgr'].goal.llm
     visit_id = info_state.user.query('visit_id')
-    ready, detail = validate_generation_ready(info_state)
+    allow_partial_photos = bool(data.get('allow_partial_photos'))
+    ready, detail = validate_generation_ready(info_state, allow_partial_photos=allow_partial_photos)
     if not ready:
         return jsonify(detail), 409
+
+    info_state.user.update('photo_requirement_status', detail.get('photo_requirement_status', 'complete'))
 
     name = detail['name']
     requested_name = data.get('name', '').strip()

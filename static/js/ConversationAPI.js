@@ -25,7 +25,8 @@ class ConversationAPI {
         return {
             sessionId: data.session_id,
             phase: data.phase,
-            prompt: data.prompt
+            prompt: data.prompt,
+            progress: data.progress
         };
     }
 
@@ -72,7 +73,7 @@ class ConversationAPI {
     }
 
     /** Generate microsite from conversation. */
-    async generateMicrosite(name) {
+    async generateMicrosite(name, options = {}) {
         if (!this.sessionId) throw new Error('No active session');
 
         const res = await fetch(this._url('/api/generate'), {
@@ -80,7 +81,8 @@ class ConversationAPI {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 session_id: this.sessionId,
-                name: name
+                name: name,
+                allow_partial_photos: Boolean(options.allowPartialPhotos)
             })
         });
 

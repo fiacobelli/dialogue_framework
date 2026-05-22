@@ -96,6 +96,7 @@ def init_db() -> None:
                 last_decision_json TEXT DEFAULT '{}',
                 story_complete INTEGER DEFAULT 0,
                 photo_count INTEGER DEFAULT 0,
+                photo_requirement_status TEXT DEFAULT 'pending',
                 draft_status TEXT DEFAULT 'none',
                 total_user_turns INTEGER DEFAULT 0,
                 total_assistant_turns INTEGER DEFAULT 0,
@@ -212,6 +213,9 @@ def init_db() -> None:
             'answered_outgoing_turn_id': 'TEXT',
             'answered_question_text': 'TEXT',
         })
+        _ensure_columns(c, 'visits', {
+            'photo_requirement_status': "TEXT DEFAULT 'pending'",
+        })
 
 
 def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
@@ -219,6 +223,14 @@ def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str
     for name, definition in columns.items():
         if name not in existing:
             conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {definition}')
+
+
+def health_check() -> dict[str, Any]:
+    """Return a minimal DB health summary for deployment checks."""
+    with _conn() as c:
+        c.execute('SELECT 1').fetchone()
+        row = c.execute('SELECT COUNT(*) AS n FROM visits').fetchone()
+    return {'ok': True, 'visits': int(row['n'])}
 
 
 def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:
@@ -264,6 +276,7 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 last_decision_json = ?,
                 story_complete = ?,
                 photo_count = ?,
+                photo_requirement_status = ?,
                 draft_status = ?,
                 updated_at = ?,
                 completed_at = COALESCE(?, completed_at),
@@ -281,6 +294,7 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 _json(state.get('last_decision')),
                 1 if state.get('complete') else 0,
                 len(photos),
+                info_state.user.query('photo_requirement_status') or ('complete' if len(photos) >= 3 else 'pending'),
                 draft_status,
                 _now(),
                 completed,

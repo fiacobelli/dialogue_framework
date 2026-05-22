@@ -15,6 +15,7 @@ from web.interview_flow import (
     deterministic_response,
     extract_patient_name,
     input_guard_decision,
+    progress_snapshot,
     sufficiency_decision,
 )
 from web import microsite
@@ -194,6 +195,18 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertIsInstance(evidence, list)
         self.assertTrue(evidence[-1]['accepted'])
 
+    def test_progress_snapshot_reports_story_step(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        progress = progress_snapshot(state, 'STORY')
+
+        self.assertEqual(progress['label'], 'Story interview')
+        self.assertEqual(progress['current_step'], 1)
+        self.assertEqual(progress['total_steps'], 7)
+        self.assertEqual(progress['current_step_id'], 'personal_background')
+
 
 class FakeLLM:
     def __init__(self):
@@ -345,6 +358,33 @@ class GenerationGateTests(unittest.TestCase):
 
         self.assertTrue(ready)
         self.assertEqual(detail['name'], 'Sophia')
+
+    def test_generation_blocked_with_partial_photos_without_confirmation(self):
+        info_state = self._info_state()
+        info_state.user.update('interview_phase', 'PHOTOS')
+        info_state.user.update('interview_state', {'complete': True, 'story_evidence': self._accepted_evidence()})
+        info_state.user.update('patient_name', 'Sophia')
+        info_state.user.update('patient_name_status', 'confirmed')
+        info_state.user.update('photos', ['a.jpg'])
+
+        ready, detail = validate_generation_ready(info_state)
+
+        self.assertFalse(ready)
+        self.assertIn('photos', detail['missing'])
+        self.assertTrue(detail['partial_photos_allowed'])
+
+    def test_generation_allowed_with_partial_photo_confirmation(self):
+        info_state = self._info_state()
+        info_state.user.update('interview_phase', 'PHOTOS')
+        info_state.user.update('interview_state', {'complete': True, 'story_evidence': self._accepted_evidence()})
+        info_state.user.update('patient_name', 'Sophia')
+        info_state.user.update('patient_name_status', 'confirmed')
+        info_state.user.update('photos', ['a.jpg'])
+
+        ready, detail = validate_generation_ready(info_state, allow_partial_photos=True)
+
+        self.assertTrue(ready)
+        self.assertEqual(detail['photo_requirement_status'], 'partial_confirmed')
 
     def test_generation_blocked_when_story_evidence_is_too_thin(self):
         info_state = self._info_state()

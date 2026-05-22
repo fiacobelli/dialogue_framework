@@ -62,6 +62,15 @@ INTERVIEW_STEPS: list[dict[str, str]] = [
     },
 ]
 
+PROGRESS_LABELS = {
+    'INTRO': 'Getting started',
+    'WELCOME': 'Getting started',
+    'STORY': 'Story interview',
+    'FINAL_DETAILS': 'Final story details',
+    'PHOTOS': 'Adding photos',
+    'COMPLETE': 'Review and publish',
+}
+
 FINAL_PHOTOS_PROMPT = (
     "Thank you for sharing your story with me. "
     "The story part is complete, and the next step is to add up to three photos that you may want on your donor page."
@@ -264,6 +273,42 @@ def current_step(state: dict[str, Any]) -> dict[str, str] | None:
     if 0 <= index < len(INTERVIEW_STEPS):
         return INTERVIEW_STEPS[index]
     return None
+
+
+def progress_snapshot(state: dict[str, Any] | None, phase: str | None = None, photo_count: int = 0) -> dict[str, Any]:
+    """Return patient-facing progress metadata for the current interview state."""
+    state = normalize_state(state)
+    phase = phase or state.get('phase') or 'INTRO'
+    total = len(INTERVIEW_STEPS)
+    step = current_step(state)
+    step_index = int(state.get('step_index') or 0)
+    story_step = min(max(step_index + 1, 1), total)
+
+    if phase in {'WELCOME', 'INTRO'}:
+        percent = 8 if state.get('awaiting') == 'name' else 14
+        current = 0
+    elif phase in {'STORY', 'FINAL_DETAILS'}:
+        current = story_step
+        percent = 15 + round((min(step_index, total - 1) / max(total - 1, 1)) * 65)
+    elif phase == 'PHOTOS':
+        current = total
+        percent = min(92, 82 + max(0, min(photo_count, 3)) * 3)
+    elif phase == 'COMPLETE':
+        current = total
+        percent = 100
+    else:
+        current = story_step if step else 0
+        percent = 20
+
+    return {
+        'phase': phase,
+        'label': PROGRESS_LABELS.get(phase, 'Interview'),
+        'current_step': current,
+        'total_steps': total,
+        'current_step_id': step.get('id') if step else None,
+        'current_step_question': step.get('question') if step else None,
+        'percent': max(0, min(100, percent)),
+    }
 
 
 def _word_count(text: str) -> int:

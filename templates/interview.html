@@ -108,6 +108,7 @@
                     <div id="progress-bar-wrap" class="hidden">
                         <div id="progress-bar-fill"></div>
                     </div>
+                    <div id="progressText" class="progress-text hidden"></div>
                     <div class="message-bubble" id="messageBubble">Loading...</div>
                     <button type="button" id="repeatBtn" style="display:none;">&#8635; Repeat</button>
                 </div>
@@ -153,7 +154,7 @@
             <div class="photo-section" id="photoSection">
                 <p class="eyebrow">Story complete</p>
                 <h2>Add Photos for Your Donor Page</h2>
-                <p>The story part is complete. Add 3 photos you would like shown on the page.</p>
+                <p>The story part is complete. Three photos are recommended, but you can continue with fewer if that is what you have today.</p>
 
                 <div id="qrSection" class="qr-section" style="display:none;">
                     <p>Scan with your phone to upload photos:</p>
@@ -170,6 +171,9 @@
                 </div>
                 <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
                 <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
+                <button class="secondary-action-btn" type="button" id="continueWithPhotosBtn" disabled>
+                    Continue with uploaded photos
+                </button>
             </div>
 
             <div id="generateSection" class="generate-section" style="display:none;">
@@ -183,7 +187,10 @@
             <div class="review-section" id="reviewSection" style="display:none;">
                 <p class="eyebrow">Review before publishing</p>
                 <h2>Check Your Donor Page Draft</h2>
-                <p class="review-copy">Make sure the name and story are accurate. You can edit anything below before the page is published.</p>
+                <p class="review-copy">
+                    This is still a private draft. Make sure the name and story are accurate.
+                    The page is not public until you choose to publish it.
+                </p>
 
                 <div class="review-field">
                     <label for="reviewName">Public name shown on the page</label>
