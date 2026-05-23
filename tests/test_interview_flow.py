@@ -88,6 +88,49 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['step_index'], 0)
         self.assertEqual(state['awaiting'], 'followup_answer')
 
+    def test_structured_evaluator_can_accept_meaningful_answer_without_keywords(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        def evaluator(step, answer, heuristic):
+            return {
+                'evidence_present': True,
+                'missing_detail': '',
+                'safe_to_advance': True,
+                'suggested_followup': '',
+            }
+
+        task = decide_next_task(
+            state,
+            'I restore old cars with my nephews every weekend',
+            answer_evaluator=evaluator,
+        )
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        decision = state['story_evidence']['personal_background'][-1]['sufficiency']
+        self.assertEqual(decision['reason'], 'structured_evaluator')
+
+    def test_structured_evaluator_can_supply_grounded_followup(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        def evaluator(step, answer, heuristic):
+            return {
+                'evidence_present': False,
+                'missing_detail': 'needs concrete meaning',
+                'safe_to_advance': False,
+                'suggested_followup': 'When you say peace, what would feel different in your day?',
+            }
+
+        task = decide_next_task(state, 'I want peace', answer_evaluator=evaluator)
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'ask_followup')
+        self.assertIn('When you say peace', response)
+
     def test_sufficient_answer_can_trigger_bounded_story_deepening(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')

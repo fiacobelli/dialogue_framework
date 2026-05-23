@@ -55,6 +55,7 @@ class InterviewGoal(Goal):
             user_input,
             msg.get('turn_meta'),
             deepening_decider=self._deepening_decider(avatar_name, language),
+            answer_evaluator=self._answer_evaluator(avatar_name, language),
         )
         decision = task.get('decision') or {}
         should_store_user = bool(user_input) and not msg.get('turn_meta', {}).get('no_response')
@@ -165,6 +166,40 @@ class InterviewGoal(Goal):
             except Exception:
                 return {'should_deepen': False, 'reason': 'planner_json_invalid', 'raw': raw[:240] if isinstance(raw, str) else ''}
         return decide
+
+    def _answer_evaluator(self, avatar_name: str, language: str):
+        def evaluate(step, user_input, heuristic):
+            if not step:
+                return {'evidence_present': True, 'safe_to_advance': True}
+
+            prompt = (
+                "You are a bounded donor-story answer evaluator. "
+                "Decide whether the patient's latest answer gives usable evidence for this one donor-page section.\n\n"
+                "Return JSON only with these keys:\n"
+                "- evidence_present: boolean\n"
+                "- missing_detail: short string\n"
+                "- safe_to_advance: boolean\n"
+                "- suggested_followup: one patient-facing question, or empty string\n\n"
+                "Rules:\n"
+                "- Evaluate only the current section, not the whole interview.\n"
+                "- If the answer gives a meaningful personal, relational, emotional, practical, or story detail, it can be enough even if brief.\n"
+                "- If more detail is needed, suggest one grounded follow-up using the patient's own words.\n"
+                "- Do not provide medical advice or ask for unnecessary third-party private details.\n"
+                "- Do not invent facts.\n\n"
+                f"Assistant name: {avatar_name}\n"
+                f"Language: {language}\n"
+                f"Current section id: {step.get('id')}\n"
+                f"Current section focus: {step.get('focus')}\n"
+                f"Required evidence: {step.get('required')}\n"
+                f"Existing heuristic decision: {json.dumps(heuristic)}\n"
+                f"Patient answer: {user_input}\n"
+            )
+            raw = self.llm.generate([], prompt)
+            try:
+                return json.loads(self._extract_json(raw))
+            except Exception:
+                return {'evidence_present': False, 'safe_to_advance': False, 'missing_detail': 'evaluator_json_invalid'}
+        return evaluate
 
     def _extract_json(self, text: str) -> str:
         text = (text or '').strip()

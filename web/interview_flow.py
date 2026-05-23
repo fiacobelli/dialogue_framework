@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
+from .story_evaluator import structured_answer_decision
+
 
 INTERVIEW_STEPS: list[dict[str, str]] = [
     {
@@ -612,6 +614,7 @@ def decide_next_task(
     user_input: str = '',
     turn_meta: dict[str, Any] | None = None,
     deepening_decider: Callable[[dict[str, str] | None, str, dict[str, Any]], dict[str, Any]] | None = None,
+    answer_evaluator: Callable[[dict[str, str] | None, str, dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Update state and return the next code-owned task."""
     normalized = normalize_state(state)
@@ -677,7 +680,7 @@ def decide_next_task(
             state['awaiting'] = awaiting
             return _task('repair_answer', state, phase=state['phase'], step=step, decision=guard)
 
-        decision = sufficiency_decision(step, user_input)
+        decision = structured_answer_decision(step, user_input, sufficiency_decision(step, user_input), answer_evaluator)
         state['last_decision'] = {'sufficiency': decision}
         answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
         _record_story_evidence(state, step, user_input, decision, awaiting)
@@ -776,7 +779,8 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
         prefix = 'That gives this part of your story more depth.' if task.get('answered_followup_kind') == 'deepening' else 'Thank you, that helps tell your story.'
         return f"{prefix} {SECTION_TRANSITIONS.get(step_id, 'Before we move on,')} {question}"
     if task_type == 'ask_followup' and step_id:
-        return f"I want to make sure I capture this part clearly. {FOLLOWUP_QUESTIONS.get(step_id, question)}"
+        followup = (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
+        return f"I want to make sure I capture this part clearly. {followup}"
     if task_type == 'ask_deepening':
         deepening_question = (task.get('decision') or {}).get('question')
         if deepening_question:
