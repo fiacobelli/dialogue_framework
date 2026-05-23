@@ -823,6 +823,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
     def test_failed_upload_releases_reserved_slot(self):
         session_id = 'failed-photo-session'
         session, visit_id = self._create_photo_session(session_id)
+        upload_token = db.create_upload_token(visit_id)['token']
 
         with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
             with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
@@ -833,6 +834,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                             data={
                                 'session_id': session_id,
                                 'source': 'mobile',
+                                'upload_token': upload_token,
                                 'photo': (io.BytesIO(b'not an image'), 'bad.txt'),
                             },
                             content_type='multipart/form-data',
@@ -864,6 +866,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
     def test_successful_upload_persists_photo_metadata(self):
         session_id = 'upload-photo-session'
         session, visit_id = self._create_photo_session(session_id)
+        upload_token = db.create_upload_token(visit_id)['token']
 
         with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
             with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
@@ -874,6 +877,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                             data={
                                 'session_id': session_id,
                                 'source': 'mobile',
+                                'upload_token': upload_token,
                                 'photo': self._jpeg_upload(),
                             },
                             content_type='multipart/form-data',
@@ -886,6 +890,44 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         self.assertEqual(db.list_visit_photo_filenames(visit_id), ['upload-photo-session_0.jpg'])
         self.assertEqual(session['info_state'].user.query('photos'), ['upload-photo-session_0.jpg'])
         self.assertTrue(os.path.exists(os.path.join(self.photos_dir, 'upload-photo-session_0.jpg')))
+
+    def test_mobile_upload_rejects_missing_token(self):
+        session_id = 'token-required-session'
+        self._create_photo_session(session_id)
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with app.test_client() as client:
+                response = client.post(
+                    '/api/upload',
+                    data={
+                        'session_id': session_id,
+                        'source': 'mobile',
+                        'photo': self._jpeg_upload(),
+                    },
+                    content_type='multipart/form-data',
+                )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_qr_link_contains_valid_upload_token(self):
+        session_id = 'qr-token-session'
+        self._create_photo_session(session_id)
+
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                with app.test_client() as client:
+                    qr_response = client.get(f'/api/qr/{session_id}')
+
+                    self.assertEqual(qr_response.status_code, 200)
+                    qr_data = qr_response.get_json()
+                    self.assertIn('/upload/qr-token-session?token=', qr_data['upload_url'])
+                    self.assertTrue(qr_data['upload_token'])
+
+                    missing_token = client.get(f'/upload/{session_id}')
+                    valid_link = client.get(f'/upload/{session_id}?token={qr_data["upload_token"]}')
+
+        self.assertEqual(missing_token.status_code, 404)
+        self.assertEqual(valid_link.status_code, 200)
 
 
 class MicrositeEvidenceTests(unittest.TestCase):

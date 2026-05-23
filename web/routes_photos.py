@@ -57,6 +57,13 @@ def _current_photos(info_state) -> list[str]:
     return info_state.user.query('photos') or []
 
 
+def _mobile_upload_authorized(visit_id: str | None) -> bool:
+    source = request.form.get('source') or 'desktop'
+    if source != 'mobile':
+        return True
+    return db.validate_upload_token(visit_id, request.form.get('upload_token'))
+
+
 @photos_bp.route('/upload', methods=['POST'])
 def upload_photo():
     """Handle photo upload from web or mobile."""
@@ -78,6 +85,8 @@ def upload_photo():
     visit_id = info_state.user.query('visit_id')
     if not visit_id:
         return jsonify({'error': 'Visit not initialized for this session'}), 400
+    if not _mobile_upload_authorized(visit_id):
+        return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
 
     existing_photos = _current_photos(info_state)
     if len(existing_photos) >= MAX_PHOTOS:
@@ -119,6 +128,7 @@ def upload_photo():
         info_state.user.update('interview_phase', 'COMPLETE')
         info_state.user.update('photo_requirement_status', 'complete')
         info_state.save_user_model()
+        db.revoke_upload_tokens(visit_id, reason='photo_requirement_complete')
     db.update_visit_from_info_state(visit_id, info_state)
 
     return jsonify({
@@ -137,6 +147,10 @@ def get_photo_status(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
     info_state = get_session(session_id)['info_state']
+    token = request.args.get('token')
+    visit_id = info_state.user.query('visit_id')
+    if token and not db.validate_upload_token(visit_id, token, mark_used=False):
+        return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
     photos = _current_photos(info_state)
 
     return jsonify({
@@ -165,7 +179,17 @@ def get_qr_code(session_id):
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
-    upload_url = url_for('mobile_upload', session_id=session_id, _external=True)
+    info_state = get_session(session_id)['info_state']
+    token = db.create_upload_token(info_state.user.query('visit_id'))
+    if not token:
+        return jsonify({'error': 'Visit not initialized for this session'}), 400
+
+    upload_url = url_for(
+        'mobile_upload',
+        session_id=session_id,
+        token=token['token'],
+        _external=True,
+    )
 
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(upload_url)
@@ -179,5 +203,7 @@ def get_qr_code(session_id):
 
     return jsonify({
         'qr_image': f"data:image/png;base64,{qr_base64}",
-        'upload_url': upload_url
+        'upload_url': upload_url,
+        'upload_token': token['token'],
+        'expires_at': token['expires_at'],
     })

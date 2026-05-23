@@ -63,6 +63,7 @@
         const appBasePath = {{ request.script_root | tojson }};
         const appUrl = (path) => `${appBasePath}${path.startsWith('/') ? path : '/' + path}`;
         const sessionId = '{{ session_id }}';
+        const uploadToken = '{{ upload_token }}';
         let currentSlot = 0;
         let uploadedCount = 0;
 
@@ -74,6 +75,7 @@
         async function uploadOnePhoto(file) {
             const formData = new FormData();
             formData.append('session_id', sessionId);
+            formData.append('upload_token', uploadToken);
             formData.append('photo', file);
             formData.append('source', 'mobile');
 
@@ -143,7 +145,7 @@
         }
 
         // Check existing photos on load
-        fetch(appUrl(`/api/photos/${sessionId}`))
+        fetch(appUrl(`/api/photos/${sessionId}?token=${encodeURIComponent(uploadToken)}`))
             .then(r => r.json())
             .then(data => {
                 uploadedCount = data.photo_count || 0;

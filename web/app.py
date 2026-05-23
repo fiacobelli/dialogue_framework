@@ -75,9 +75,15 @@ def serve_photo(filename):
 @app.route('/upload/<session_id>')
 def mobile_upload(session_id):
     """Render mobile photo upload page for a session."""
-    if not ensure_session(session_id):
+    session = ensure_session(session_id)
+    if not session:
         return 'Session not found or expired', 404
-    return render_template('upload_mobile.html', session_id=session_id)
+    token = request.args.get('token')
+    info_state = session['info_state']
+    visit_id = info_state.user.query('visit_id')
+    if not db.validate_upload_token(visit_id, token, mark_used=False):
+        abort(404)
+    return render_template('upload_mobile.html', session_id=session_id, upload_token=token)
 
 
 @app.route('/site/<session_id>')

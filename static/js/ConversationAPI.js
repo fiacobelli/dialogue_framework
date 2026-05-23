@@ -7,6 +7,7 @@ class ConversationAPI {
     constructor(baseUrl = window.APP_BASE_PATH || '') {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.sessionId = null;
+        this.uploadToken = null;
     }
 
     _url(path) {
@@ -77,6 +78,9 @@ class ConversationAPI {
 
         const formData = new FormData();
         formData.append('session_id', this.sessionId);
+        if (this.uploadToken) {
+            formData.append('upload_token', this.uploadToken);
+        }
         formData.append('photo', file);
         formData.append('source', source);
 
@@ -165,7 +169,9 @@ class ConversationAPI {
         if (!this.sessionId) throw new Error('No active session');
         const res = await fetch(this._url(`/api/qr/${this.sessionId}`));
         if (!res.ok) throw new Error('Failed to get QR code');
-        return await res.json();
+        const data = await res.json();
+        this.uploadToken = data.upload_token || null;
+        return data;
     }
 
     async getPhotoStatus() {
@@ -181,6 +187,7 @@ class ConversationAPI {
 
     clearSession() {
         this.sessionId = null;
+        this.uploadToken = null;
     }
 }
 

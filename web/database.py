@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+import secrets
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 _db_path: str | None = None
@@ -245,6 +247,18 @@ def init_db() -> None:
                 FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE SET NULL
             );
 
+            CREATE TABLE IF NOT EXISTS upload_tokens (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                purpose TEXT NOT NULL DEFAULT 'photo_upload',
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                last_used_at TEXT,
+                revoked_at TEXT,
+                FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_visits_started_at ON visits(started_at);
             CREATE INDEX IF NOT EXISTS idx_visits_phase ON visits(phase);
             CREATE INDEX IF NOT EXISTS idx_visits_draft_status ON visits(draft_status);
@@ -258,6 +272,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_drafts_visit_version ON donor_page_drafts(visit_id, version);
             CREATE INDEX IF NOT EXISTS idx_consents_visit_type ON consents(visit_id, consent_type);
             CREATE INDEX IF NOT EXISTS idx_audit_visit_created ON audit_events(visit_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_upload_tokens_visit ON upload_tokens(visit_id, purpose, revoked_at);
             """
         )
         _ensure_columns(c, 'messages', {
@@ -290,6 +305,93 @@ def health_check() -> dict[str, Any]:
         c.execute('SELECT 1').fetchone()
         row = c.execute('SELECT COUNT(*) AS n FROM visits').fetchone()
     return {'ok': True, 'visits': int(row['n'])}
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def create_upload_token(visit_id: str | None, *, ttl_minutes: int = 480) -> dict[str, str] | None:
+    """Create a time-limited token for mobile photo upload."""
+    if not visit_id:
+        return None
+    now_dt = datetime.utcnow()
+    token = secrets.token_urlsafe(32)
+    row = {
+        'token': token,
+        'expires_at': (now_dt + timedelta(minutes=ttl_minutes)).isoformat(),
+    }
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT INTO upload_tokens(
+                id, visit_id, token_hash, purpose, created_at, expires_at
+            ) VALUES (?,?,?,?,?,?)
+            """,
+            (_uuid(), visit_id, _hash_token(token), 'photo_upload', now_dt.isoformat(), row['expires_at']),
+        )
+    return row
+
+
+def validate_upload_token(visit_id: str | None, token: str | None, *, mark_used: bool = True) -> bool:
+    """Return whether a mobile photo upload token is active for the visit."""
+    if not visit_id or not token:
+        return False
+    now = _now()
+    with _conn() as c:
+        row = c.execute(
+            """
+            SELECT id
+            FROM upload_tokens
+            WHERE visit_id = ?
+              AND token_hash = ?
+              AND purpose = 'photo_upload'
+              AND revoked_at IS NULL
+              AND expires_at > ?
+            """,
+            (visit_id, _hash_token(token), now),
+        ).fetchone()
+        if not row:
+            return False
+        if mark_used:
+            c.execute('UPDATE upload_tokens SET last_used_at = ? WHERE id = ?', (now, row['id']))
+    return True
+
+
+def revoke_upload_tokens(visit_id: str | None, *, reason: str = 'completed') -> None:
+    """Revoke active upload tokens for a visit and audit the reason."""
+    if not visit_id:
+        return
+    now = _now()
+    with _conn() as c:
+        c.execute(
+            """
+            UPDATE upload_tokens
+            SET revoked_at = ?
+            WHERE visit_id = ?
+              AND purpose = 'photo_upload'
+              AND revoked_at IS NULL
+            """,
+            (now, visit_id),
+        )
+        visit = c.execute('SELECT session_id FROM visits WHERE id = ?', (visit_id,)).fetchone()
+        c.execute(
+            """
+            INSERT INTO audit_events(
+                id, visit_id, session_id, actor, action, reason, metadata_json, created_at
+            ) VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (
+                _uuid(),
+                visit_id,
+                visit['session_id'] if visit else None,
+                'system',
+                'revoke_upload_tokens',
+                reason,
+                _json({}),
+                now,
+            ),
+        )
 
 
 def save_consent(
