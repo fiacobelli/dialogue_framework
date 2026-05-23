@@ -11,7 +11,7 @@ import qrcode
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .config import PHOTOS_DIR, MAX_PHOTOS
-from .session_store import get_session, has_session
+from .session_store import ensure_session, get_session
 from . import database as db
 
 photos_bp = Blueprint('photos', __name__, url_prefix='/api')
@@ -44,7 +44,7 @@ def upload_photo():
     session_id = request.form.get('session_id')
     if not session_id:
         return jsonify({'error': 'No session_id provided'}), 400
-    if not has_session(session_id):
+    if not ensure_session(session_id):
         return jsonify({'error': f'Session not found: {session_id[:8]}...'}), 400
 
     if 'photo' not in request.files:
@@ -104,7 +104,7 @@ def upload_photo():
 @photos_bp.route('/photos/<session_id>')
 def get_photo_status(session_id):
     """Get photo upload status for a session (for polling)."""
-    if not has_session(session_id):
+    if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
     info_state = get_session(session_id)['info_state']
@@ -121,7 +121,7 @@ def get_photo_status(session_id):
 @photos_bp.route('/photo-preview/<session_id>/<filename>')
 def photo_preview(session_id, filename):
     """Serve uploaded photos for the active private review session."""
-    if not has_session(session_id):
+    if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
     info_state = get_session(session_id)['info_state']
     photos = info_state.user.query('photos') or []
@@ -133,7 +133,7 @@ def photo_preview(session_id, filename):
 @photos_bp.route('/qr/<session_id>')
 def get_qr_code(session_id):
     """Generate QR code for mobile photo upload."""
-    if not has_session(session_id):
+    if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
     upload_url = url_for('mobile_upload', session_id=session_id, _external=True)

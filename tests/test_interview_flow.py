@@ -21,6 +21,8 @@ from web.interview_flow import (
 from web import microsite
 from web import database as db
 from web import routes_admin
+from web import session as session_module
+from web import session_store
 from web.routes_api import (
     PUBLICATION_CONSENT_VERSION,
     validate_generation_ready,
@@ -715,6 +717,55 @@ class ClientDiagnosticsTests(unittest.TestCase):
         detail = db.get_admin_visit(session_id)
         self.assertEqual(detail['turn_events'][0]['event_type'], 'mic_preflight_result')
         self.assertIn('Bluetooth Headset', detail['turn_events'][0]['metadata_json'])
+
+
+class SessionRehydrationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.user_models_dir = os.path.join(self.tmp.name, 'user_models')
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+        session_store.clear_sessions()
+        self.addCleanup(session_store.clear_sessions)
+
+    def test_ensure_session_rehydrates_from_persisted_user_model(self):
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session('rehydrate-session')
+                session['info_state'].user.update('photos', ['rehydrate-session_0.jpg'])
+                session['info_state'].save_user_model()
+                session_store.set_session('rehydrate-session', session)
+
+                session_store.clear_sessions()
+                self.assertFalse(session_store.has_session('rehydrate-session'))
+
+                restored = session_store.ensure_session('rehydrate-session')
+
+                self.assertIsNotNone(restored)
+                self.assertTrue(session_store.has_session('rehydrate-session'))
+                self.assertEqual(restored['info_state'].user.query('photos'), ['rehydrate-session_0.jpg'])
+
+    def test_photo_status_route_survives_in_memory_session_loss(self):
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session('photo-rehydrate-session')
+                visit_id = db.create_visit('photo-rehydrate-session', 'en', 'black_female', {'name': 'Ludi'})
+                session['info_state'].user.update('visit_id', visit_id)
+                session['info_state'].user.update('photos', ['photo-rehydrate-session_0.jpg'])
+                session['info_state'].save_user_model()
+                session_store.set_session('photo-rehydrate-session', session)
+
+                session_store.clear_sessions()
+
+                with app.test_client() as client:
+                    response = client.get('/api/photos/photo-rehydrate-session')
+
+                self.assertEqual(response.status_code, 200)
+                data = response.get_json()
+                self.assertEqual(data['photo_count'], 1)
+                self.assertIn('photo-rehydrate-session_0.jpg', data['photos'][0])
 
 
 class MicrositeEvidenceTests(unittest.TestCase):

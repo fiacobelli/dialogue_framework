@@ -8,7 +8,7 @@ import uuid
 from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
-from .session_store import get_session, set_session, has_session
+from .session_store import ensure_session, get_session, set_session
 from .interview_flow import progress_snapshot
 from . import microsite
 from . import database as db
@@ -264,7 +264,7 @@ def chat():
     no_response = bool(turn_meta.get('no_response'))
     nlu_input = NO_RESPONSE_INPUT if no_response and not user_input else user_input
 
-    if not session_id or not has_session(session_id):
+    if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
 
     s = get_session(session_id)
@@ -355,7 +355,7 @@ def client_events():
     session_id = data.get('session_id')
     events = data.get('events') or []
 
-    if not session_id or not has_session(session_id):
+    if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
     if not isinstance(events, list):
         return jsonify({'error': 'invalid_events'}), 400
@@ -375,7 +375,7 @@ def generate_microsite():
     data = request.json or {}
     session_id = data.get('session_id')
 
-    if not session_id or not has_session(session_id):
+    if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
 
     s = get_session(session_id)
@@ -419,7 +419,7 @@ def publish_microsite():
     data = request.json or {}
     session_id = data.get('session_id')
 
-    if not session_id or not has_session(session_id):
+    if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
 
     s = get_session(session_id)
@@ -459,7 +459,7 @@ def unpublish_microsite():
     data = request.json or {}
     session_id = data.get('session_id')
 
-    if not session_id or not has_session(session_id):
+    if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
 
     s = get_session(session_id)

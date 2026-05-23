@@ -17,7 +17,7 @@ from .config import (
 from .routes_api import api_bp
 from .routes_admin import admin_bp
 from .routes_photos import photos_bp
-from .session_store import has_session, get_session
+from .session_store import ensure_session
 from . import database as db
 from .database import configure as db_configure, init_db
 
@@ -75,7 +75,7 @@ def serve_photo(filename):
 @app.route('/upload/<session_id>')
 def mobile_upload(session_id):
     """Render mobile photo upload page for a session."""
-    if not has_session(session_id):
+    if not ensure_session(session_id):
         return 'Session not found or expired', 404
     return render_template('upload_mobile.html', session_id=session_id)
 
