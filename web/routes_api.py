@@ -420,7 +420,6 @@ def generate_microsite():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-
 @api_bp.route('/publish', methods=['POST'])
 def publish_microsite():
     """Publish a reviewed donor-page draft."""
@@ -465,27 +464,3 @@ def publish_microsite():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-
-@api_bp.route('/unpublish', methods=['POST'])
-def unpublish_microsite():
-    """Unpublish a donor page for the active session."""
-    data = request.json or {}
-    session_id = data.get('session_id')
-
-    if not session_id or not ensure_session(session_id):
-        return jsonify({'error': 'Invalid session'}), 400
-
-    s = get_session(session_id)
-    info_state = s['info_state']
-    ok = db.unpublish_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
-    if not ok:
-        return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
-
-    info_state.user.update('publication_status', 'unpublished')
-    info_state.user.update('microsite_draft_status', 'unpublished')
-    info_state.save_user_model()
-    return jsonify({
-        'status': 'unpublished',
-        'message': 'The donor page is no longer public.',
-    })

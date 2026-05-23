@@ -17,6 +17,7 @@ from .config import (
 from .routes_api import api_bp
 from .routes_admin import admin_bp
 from .routes_photos import photos_bp
+from .routes_publication import publication_bp
 from .session_store import ensure_session
 from . import database as db
 from .database import configure as db_configure, init_db
@@ -28,6 +29,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.register_blueprint(api_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(photos_bp)
+app.register_blueprint(publication_bp)
 
 os.makedirs(PHOTOS_DIR, exist_ok=True)
 os.makedirs(MICROSITES_DIR, exist_ok=True)

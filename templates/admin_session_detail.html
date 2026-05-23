@@ -78,6 +78,7 @@
                 <div><dt>Completed</dt><dd>{{ visit.completed_at or 'Not completed' }}</dd></div>
                 <div><dt>Published</dt><dd>{{ visit.published_at or 'Not published' }}</dd></div>
                 <div><dt>Unpublished</dt><dd>{{ visit.unpublished_at or 'Not unpublished' }}</dd></div>
+                <div><dt>Deleted</dt><dd>{{ visit.deleted_at or 'Not deleted' }}</dd></div>
                 <div><dt>Avatar</dt><dd>{{ visit.avatar_id or 'Unknown' }}</dd></div>
                 <div><dt>Client</dt><dd>{{ visit.user_agent or 'Unknown' }}</dd></div>
             </dl>
@@ -86,6 +87,13 @@
                     <label for="reason"><strong>Unpublish reason</strong></label>
                     <input id="reason" name="reason" value="admin_review" required>
                     <button class="danger" type="submit">Unpublish Page</button>
+                </form>
+            {% endif %}
+            {% if visit.publication_status != 'deleted' %}
+                <form class="inline-form" method="post" action="{{ url_for('admin.admin_delete', session_id=visit.session_id) }}">
+                    <label for="delete-reason"><strong>Delete reason</strong></label>
+                    <input id="delete-reason" name="reason" value="admin_delete" required>
+                    <button class="danger" type="submit">Delete Page And Photos</button>
                 </form>
             {% endif %}
         </section>

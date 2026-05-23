@@ -24,6 +24,7 @@ from web import microsite
 from web import database as db
 from web import routes_photos
 from web import routes_admin
+from web import takedown
 from web import session as session_module
 from web import session_store
 from web.routes_api import (
@@ -754,6 +755,44 @@ class PublicationControlTests(unittest.TestCase):
         self.assertFalse(db.is_microsite_published('published-session'))
         self.assertFalse(db.is_photo_public('published-session_0.jpg'))
 
+    def test_soft_delete_blocks_page_photos_and_revokes_upload_token(self):
+        visit_id = db.create_visit('delete-session', 'en', 'black_female', {'name': 'Ludi'})
+        token = db.create_upload_token(visit_id)['token']
+        db.save_photo(visit_id, 'delete-session_0.jpg', 0)
+        db.save_draft(visit_id, {**self._result(), 'microsite_url': '/site/delete-session'}, status='published')
+
+        self.assertTrue(db.is_microsite_published('delete-session'))
+        self.assertTrue(db.validate_upload_token(visit_id, token))
+
+        result = db.soft_delete_session('delete-session', reason='patient_request', actor='admin')
+
+        self.assertEqual(result['deleted_photos'], 1)
+        self.assertEqual(result['revoked_upload_tokens'], 1)
+        self.assertFalse(db.is_microsite_published('delete-session'))
+        self.assertFalse(db.is_photo_public('delete-session_0.jpg'))
+        self.assertFalse(db.validate_upload_token(visit_id, token))
+        detail = db.get_admin_visit('delete-session')
+        self.assertEqual(detail['visit']['publication_status'], 'deleted')
+        self.assertEqual(detail['visit']['draft_status'], 'deleted')
+        self.assertIsNotNone(detail['visit']['deleted_at'])
+        self.assertEqual(detail['photos'][0]['deleted_at'], detail['visit']['deleted_at'])
+        self.assertEqual(detail['drafts'][0]['status'], 'deleted')
+        self.assertEqual(detail['audit_events'][0]['action'], 'delete')
+
+    def test_takedown_removes_generated_html_file(self):
+        visit_id = db.create_visit('delete-file-session', 'en', 'black_female', {'name': 'Ludi'})
+        db.save_draft(visit_id, {**self._result(), 'microsite_url': '/site/delete-file-session'}, status='published')
+        with tempfile.TemporaryDirectory() as site_dir:
+            html_path = os.path.join(site_dir, 'delete-file-session.html')
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write('<html>public donor page</html>')
+
+            with patch.object(takedown, 'MICROSITES_DIR', site_dir):
+                result = takedown.delete_session('delete-file-session', reason='admin_delete', actor='admin')
+
+            self.assertTrue(result['removed_html'])
+            self.assertFalse(os.path.exists(html_path))
+
     def test_admin_visit_detail_includes_session_artifacts_and_audit_events(self):
         visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
         db.save_message(visit_id, 'user', 'My family is important to me.', turn_number=1, phase='STORY')
@@ -774,7 +813,7 @@ class PublicationControlTests(unittest.TestCase):
         self.assertEqual(detail['audit_events'][0]['actor'], 'admin')
         self.assertEqual(detail['audit_events'][0]['reason'], 'admin_review')
 
-    def test_admin_routes_require_login_and_can_unpublish(self):
+    def test_admin_routes_require_login_and_can_unpublish_and_delete(self):
         visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
         db.save_draft(visit_id, self._result(), status='published')
 
@@ -799,6 +838,7 @@ class PublicationControlTests(unittest.TestCase):
                     detail = client.get('/admin/session/published-session')
                     self.assertEqual(detail.status_code, 200)
                     self.assertIn(b'Unpublish Page', detail.data)
+                    self.assertIn(b'Delete Page And Photos', detail.data)
 
                     unpublish = client.post(
                         '/admin/session/published-session/unpublish',
@@ -811,6 +851,22 @@ class PublicationControlTests(unittest.TestCase):
         self.assertEqual(detail['visit']['publication_status'], 'unpublished')
         self.assertEqual(detail['audit_events'][0]['actor'], 'admin')
         self.assertEqual(detail['audit_events'][0]['reason'], 'supervisor_review')
+
+        with patch.object(routes_admin, 'ADMIN_USERNAME', 'admin'):
+            with patch.object(routes_admin, 'ADMIN_PASSWORD', 'secret'):
+                with app.test_client() as client:
+                    client.post('/admin/login', data={'username': 'admin', 'password': 'secret'})
+                    delete = client.post(
+                        '/admin/session/published-session/delete',
+                        data={'reason': 'patient_delete_request'},
+                        follow_redirects=False,
+                    )
+                    self.assertEqual(delete.status_code, 302)
+
+        detail = db.get_admin_visit('published-session')
+        self.assertEqual(detail['visit']['publication_status'], 'deleted')
+        self.assertEqual(detail['audit_events'][0]['action'], 'delete')
+        self.assertEqual(detail['audit_events'][0]['reason'], 'patient_delete_request')
 
 
 class ClientDiagnosticsTests(unittest.TestCase):

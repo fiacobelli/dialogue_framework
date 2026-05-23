@@ -138,7 +138,8 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL,
                 completed_at TEXT,
                 published_at TEXT,
-                unpublished_at TEXT
+                unpublished_at TEXT,
+                deleted_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS messages (
@@ -295,6 +296,7 @@ def init_db() -> None:
             'publication_consent_version': 'TEXT',
             'publication_consented_at': 'TEXT',
             'unpublished_at': 'TEXT',
+            'deleted_at': 'TEXT',
         })
         _ensure_columns(c, 'photos', {
             'photo_role': 'TEXT',
@@ -507,13 +509,18 @@ def is_microsite_published(session_id: str) -> bool:
     with _conn() as c:
         row = c.execute(
             """
-            SELECT publication_status, draft_status
+            SELECT publication_status, draft_status, deleted_at
             FROM visits
             WHERE session_id = ?
             """,
             (session_id,),
         ).fetchone()
-    return bool(row and row['publication_status'] == 'published' and row['draft_status'] == 'published')
+    return bool(
+        row
+        and row['deleted_at'] is None
+        and row['publication_status'] == 'published'
+        and row['draft_status'] == 'published'
+    )
 
 
 def is_photo_public(stored_filename: str) -> bool:
@@ -526,6 +533,7 @@ def is_photo_public(stored_filename: str) -> bool:
             JOIN visits v ON v.id = p.visit_id
             WHERE p.stored_filename = ?
               AND p.deleted_at IS NULL
+              AND v.deleted_at IS NULL
               AND v.publication_status = 'published'
               AND v.draft_status = 'published'
             LIMIT 1
@@ -573,6 +581,65 @@ def unpublish_session(session_id: str, reason: str = 'user_request', actor: str 
     return True
 
 
+def soft_delete_session(session_id: str, reason: str = 'user_request', actor: str = 'patient') -> dict[str, Any] | None:
+    """Soft-delete a donor page, photos, drafts, and active upload tokens."""
+    now = _now()
+    with _conn() as c:
+        row = c.execute(
+            'SELECT id, publication_status, draft_status FROM visits WHERE session_id = ?',
+            (session_id,),
+        ).fetchone()
+        if not row:
+            return None
+        visit_id = row['id']
+        photos = c.execute(
+            'SELECT stored_filename FROM photos WHERE visit_id = ? AND deleted_at IS NULL',
+            (visit_id,),
+        ).fetchall()
+        photo_count = len(photos)
+        c.execute('UPDATE photos SET deleted_at = ? WHERE visit_id = ? AND deleted_at IS NULL', (now, visit_id))
+        c.execute("UPDATE donor_page_drafts SET status = 'deleted' WHERE visit_id = ?", (visit_id,))
+        token_result = c.execute(
+            """
+            UPDATE upload_tokens
+            SET revoked_at = ?
+            WHERE visit_id = ?
+              AND revoked_at IS NULL
+            """,
+            (now, visit_id),
+        )
+        c.execute(
+            """
+            UPDATE visits
+            SET publication_status = 'deleted',
+                draft_status = 'deleted',
+                photo_count = 0,
+                unpublished_at = COALESCE(unpublished_at, ?),
+                deleted_at = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (now, now, now, visit_id),
+        )
+        metadata = {
+            'previous_publication_status': row['publication_status'],
+            'previous_draft_status': row['draft_status'],
+            'deleted_photos': photo_count,
+            'revoked_upload_tokens': token_result.rowcount,
+        }
+        c.execute(
+            """
+            INSERT INTO audit_events(
+                id, visit_id, session_id, actor, action, reason, metadata_json, created_at
+            ) VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (_uuid(), visit_id, session_id, actor, 'delete', reason, _json(metadata), now),
+        )
+    metadata['visit_id'] = visit_id
+    metadata['photo_filenames'] = [row['stored_filename'] for row in photos]
+    return metadata
+
+
 def list_admin_visits(limit: int = 50) -> list[dict[str, Any]]:
     """Return recent sessions for the staff admin overview."""
     with _conn() as c:
@@ -582,7 +649,7 @@ def list_admin_visits(limit: int = 50) -> list[dict[str, Any]]:
                 id, session_id, phase, patient_display_name, draft_status,
                 publication_status, photo_count, total_user_turns,
                 total_assistant_turns, publication_consented_at,
-                started_at, updated_at, completed_at, published_at, unpublished_at
+                started_at, updated_at, completed_at, published_at, unpublished_at, deleted_at
             FROM visits
             ORDER BY updated_at DESC
             LIMIT ?

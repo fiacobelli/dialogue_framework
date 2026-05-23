@@ -8,6 +8,7 @@ from flask import Blueprint, abort, redirect, render_template, request, session,
 
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME
 from . import database as db
+from . import takedown
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -88,5 +89,18 @@ def admin_unpublish(session_id):
     reason = request.form.get('reason') or 'admin_request'
     actor = session.get('admin_username') or 'admin'
     if not db.unpublish_session(session_id, reason=reason, actor=actor):
+        abort(404)
+    return redirect(url_for('admin.session_detail', session_id=session_id))
+
+
+@admin_bp.route('/session/<session_id>/delete', methods=['POST'])
+def admin_delete(session_id):
+    """Soft-delete a donor page and its public assets from the admin interface."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    reason = request.form.get('reason') or 'admin_delete'
+    actor = session.get('admin_username') or 'admin'
+    if not takedown.delete_session(session_id, reason=reason, actor=actor):
         abort(404)
     return redirect(url_for('admin.session_detail', session_id=session_id))

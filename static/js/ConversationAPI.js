@@ -165,6 +165,23 @@ class ConversationAPI {
         return data;
     }
 
+    async deleteMicrosite(reason = 'user_request') {
+        if (!this.sessionId) throw new Error('No active session');
+
+        const res = await fetch(this._url('/api/delete'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: this.sessionId,
+                reason
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || 'Failed to delete microsite');
+        return data;
+    }
+
     async getQRCode() {
         if (!this.sessionId) throw new Error('No active session');
         const res = await fetch(this._url(`/api/qr/${this.sessionId}`));
