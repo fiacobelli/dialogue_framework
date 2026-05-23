@@ -57,7 +57,107 @@ class SpeechManager {
         this.synthesis.onvoiceschanged = () => { this.voices = this.synthesis.getVoices(); };
     }
 
-    async initVAD() {
+    _stopMicStream() {
+        if (this._micStream) {
+            this._micStream.getTracks().forEach(t => {
+                try { t.stop(); } catch (_) {}
+            });
+            this._micStream = null;
+        }
+    }
+
+    async preflightMicrophone() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        const metadata = {
+            status: 'checking',
+            secure_context: Boolean(isSecure),
+            speech_recognition_supported: Boolean(SR),
+            media_devices_supported: Boolean(navigator.mediaDevices?.getUserMedia),
+            vad_available: Boolean(window.vad?.MicVAD),
+            permission_state: 'unsupported',
+            audioinput_count: 0,
+            device_labels_available: false,
+            active_track_label: '',
+            active_track_state: '',
+            device_labels: '',
+            bluetooth_input_detected: false,
+        };
+
+        if (!isSecure) {
+            return { ok: false, metadata: { ...metadata, status: 'insecure_context' } };
+        }
+        if (!SR) {
+            return { ok: false, metadata: { ...metadata, status: 'speech_recognition_unsupported' } };
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+            return { ok: false, metadata: { ...metadata, status: 'get_user_media_unsupported' } };
+        }
+
+        try {
+            if (navigator.permissions?.query) {
+                try {
+                    const permission = await navigator.permissions.query({ name: 'microphone' });
+                    metadata.permission_state = permission.state || 'unknown';
+                } catch (_) {
+                    metadata.permission_state = 'unsupported';
+                }
+            }
+
+            this._stopMicStream();
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    autoGainControl: true,
+                    noiseSuppression: true,
+                }
+            });
+            this._micStream = stream;
+
+            const tracks = stream.getAudioTracks();
+            const activeTrack = tracks[0];
+            metadata.active_track_label = activeTrack?.label || '';
+            metadata.active_track_state = activeTrack?.readyState || '';
+
+            let audioInputs = [];
+            if (navigator.mediaDevices?.enumerateDevices) {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                audioInputs = devices.filter(device => device.kind === 'audioinput');
+            }
+            const labels = audioInputs.map(device => device.label).filter(Boolean);
+            const labelText = labels.join(' | ');
+            metadata.audioinput_count = audioInputs.length;
+            metadata.device_labels_available = labels.length > 0;
+            metadata.device_labels = labelText.slice(0, 500);
+            metadata.bluetooth_input_detected = /bluetooth|headset|hands-free|handsfree|airpods|galaxy buds|jabra|poly|plantronics|sony|bose/i.test(labelText);
+
+            const ok = tracks.some(track => track.readyState === 'live');
+            return {
+                ok,
+                stream,
+                metadata: {
+                    ...metadata,
+                    status: ok ? 'ready' : 'no_live_audio_track',
+                    permission_state: metadata.permission_state === 'prompt' ? 'granted_after_prompt' : metadata.permission_state,
+                }
+            };
+        } catch (err) {
+            this._stopMicStream();
+            return {
+                ok: false,
+                metadata: {
+                    ...metadata,
+                    status: 'failed',
+                    error_name: err?.name || 'unknown',
+                    error_message: err?.message || 'Microphone request failed',
+                }
+            };
+        }
+    }
+
+    async initVAD(preflightStream = null) {
+        if (this._vadReady && this._vad) return;
         if (!window.vad || !window.vad.MicVAD) {
             console.warn('[SpeechManager] VAD library not loaded - using continuous recognition fallback');
             return;
@@ -74,27 +174,39 @@ class SpeechManager {
         }
 
         try {
-            const self = this;
-            const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            navigator.mediaDevices.getUserMedia = async (constraints) => {
-                try {
-                    const stream = await origGUM(constraints);
-                    self._micStream = stream;
-                    return stream;
-                } finally {
-                    navigator.mediaDevices.getUserMedia = origGUM;
-                }
-            };
-
             const vadAssetPath = typeof appUrl === 'function' ? appUrl('/static/js/vad/') : '/static/js/vad/';
-            this._vad = await window.vad.MicVAD.new({
+            let restoreGetUserMedia = null;
+            const options = {
                 baseAssetPath: vadAssetPath,
                 onnxWASMBasePath: vadAssetPath,
                 model: 'legacy',
                 onSpeechStart: () => this._onVADSpeechStart(),
                 onSpeechEnd: () => this._onVADSpeechEnd(),
                 onVADMisfire: () => this._onVADMisfire(),
-            });
+            };
+            if (preflightStream) {
+                options.stream = preflightStream;
+                this._micStream = preflightStream;
+            } else {
+                const self = this;
+                const origGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+                restoreGetUserMedia = () => { navigator.mediaDevices.getUserMedia = origGUM; };
+                navigator.mediaDevices.getUserMedia = async (constraints) => {
+                    try {
+                        const stream = await origGUM(constraints);
+                        self._micStream = stream;
+                        return stream;
+                    } finally {
+                        restoreGetUserMedia();
+                    }
+                };
+            }
+
+            try {
+                this._vad = await window.vad.MicVAD.new(options);
+            } finally {
+                if (restoreGetUserMedia) restoreGetUserMedia();
+            }
             this._vadReady = true;
             this.recordEvent('vad_init', { state: 'ready' });
             console.log('[SpeechManager] VAD ready');
@@ -378,12 +490,7 @@ class SpeechManager {
         if (this.recognition) {
             try { this.recognition.stop(); } catch (_) {}
         }
-        if (this._micStream) {
-            this._micStream.getTracks().forEach(t => {
-                try { t.stop(); } catch (_) {}
-            });
-            this._micStream = null;
-        }
+        this._stopMicStream();
     }
 
     on(event, callback) {

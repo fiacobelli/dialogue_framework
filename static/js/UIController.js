@@ -18,6 +18,7 @@ class UIController {
             hubBackBtn: document.getElementById('hubBackBtn'),
             beginOverlay: document.getElementById('beginOverlay'),
             beginBtn: document.getElementById('beginBtn'),
+            micPreflightStatus: document.getElementById('micPreflightStatus'),
             conversationUI: document.getElementById('conversationUI'),
             messageBubble: document.getElementById('messageBubble'),
             micBtn: document.getElementById('micBtn'),
@@ -55,6 +56,30 @@ class UIController {
         if (!btn) return;
         btn.disabled = Boolean(isLoading);
         btn.textContent = isLoading ? 'Getting Ludi ready...' : 'Begin interview';
+    }
+
+    showMicPreflight(status, message, detail = '') {
+        const el = this.elements.micPreflightStatus;
+        if (!el) return;
+        el.className = `mic-preflight ${status || 'info'}`;
+        el.innerHTML = '';
+
+        const messageEl = document.createElement('strong');
+        messageEl.textContent = message;
+        el.appendChild(messageEl);
+
+        if (detail) {
+            const detailEl = document.createElement('span');
+            detailEl.textContent = detail;
+            el.appendChild(detailEl);
+        }
+    }
+
+    clearMicPreflight() {
+        const el = this.elements.micPreflightStatus;
+        if (!el) return;
+        el.className = 'mic-preflight';
+        el.textContent = '';
     }
 
     showConversation() {

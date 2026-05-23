@@ -543,6 +543,56 @@ class PublicationControlTests(unittest.TestCase):
         self.assertEqual(detail['audit_events'][0]['reason'], 'supervisor_review')
 
 
+class ClientDiagnosticsTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+
+    def test_client_events_endpoint_saves_microphone_preflight_diagnostics(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+
+            event_response = client.post('/api/client-events', json={
+                'session_id': session_id,
+                'events': [{
+                    'type': 'mic_preflight_result',
+                    'ts': 1234,
+                    'metadata': {
+                        'status': 'ready',
+                        'permission_state': 'granted',
+                        'audioinput_count': 2,
+                        'device_labels_available': True,
+                        'active_track_label': 'Bluetooth Headset',
+                        'bluetooth_input_detected': True,
+                        'unapproved_field': 'ignored',
+                    }
+                }]
+            })
+
+            self.assertEqual(event_response.status_code, 200)
+
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        self.addCleanup(conn.close)
+        row = conn.execute("SELECT * FROM turn_events WHERE event_type = 'mic_preflight_result'").fetchone()
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row['client_ts_ms'], 1234)
+        self.assertIn('"status": "ready"', row['metadata_json'])
+        self.assertIn('"active_track_label": "Bluetooth Headset"', row['metadata_json'])
+        self.assertNotIn('unapproved_field', row['metadata_json'])
+
+        detail = db.get_admin_visit(session_id)
+        self.assertEqual(detail['turn_events'][0]['event_type'], 'mic_preflight_result')
+        self.assertIn('Bluetooth Headset', detail['turn_events'][0]['metadata_json'])
+
+
 class MicrositeEvidenceTests(unittest.TestCase):
     def test_format_story_evidence_excludes_rejected_operational_turns(self):
         state = {

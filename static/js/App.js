@@ -191,6 +191,7 @@ class App {
             this._lastSpokenText = data.prompt;
             ui.updateProgress(data.progress);
             ui.clearMessage();
+            ui.clearMicPreflight();
             ui.setBeginLoading(false);
             ui.showBeginOverlay();
             ui.setStatus('');
@@ -211,14 +212,28 @@ class App {
         if (this._speechActivated) return;
         this._speechActivated = true;
         ui.setBeginLoading(true);
-        ui.showConversation();
         ui.clearMessage();
-        ui.setStatus('Preparing microphone...');
+        ui.setStatus('');
+        ui.showMicPreflight('checking', 'Checking microphone...', 'Please allow microphone access if your browser asks.');
 
         try {
-            await speechManager.initVAD();
+            await this._recordClientEvents([{ type: 'mic_preflight_started', ts: Math.round(performance.now()) }]);
+            const preflight = await speechManager.preflightMicrophone();
+            await this._recordClientEvents([{
+                type: 'mic_preflight_result',
+                ts: Math.round(performance.now()),
+                metadata: preflight.metadata
+            }]);
+
+            if (!preflight.ok) {
+                throw this._microphonePreflightError(preflight.metadata);
+            }
+
+            ui.showMicPreflight('ready', 'Microphone ready.', this._microphoneReadyDetail(preflight.metadata));
+            await speechManager.initVAD(preflight.stream);
             this.conversationActive = true;
             this._paused = false;
+            ui.showConversation();
             ui.setStatus('');
             await speechManager.speak(this._lastSpokenText);
         } catch (err) {
@@ -227,8 +242,62 @@ class App {
             this.conversationActive = false;
             ui.showBeginOverlay();
             ui.setBeginLoading(false);
-            ui.setStatus('Could not start audio. You can try again or type your answer.');
+            ui.showMicPreflight(
+                'error',
+                err.userMessage || 'Microphone is not ready.',
+                err.userDetail || 'You can fix microphone access and try again, or type your answers after starting.'
+            );
+            ui.setStatus('');
         }
+    }
+
+    async _recordClientEvents(events) {
+        try {
+            await conversationAPI.sendClientEvents(events);
+        } catch (err) {
+            console.warn('Failed to save client diagnostics:', err);
+        }
+    }
+
+    _microphoneReadyDetail(metadata = {}) {
+        const parts = [];
+        if (metadata.active_track_label) parts.push(`Using: ${metadata.active_track_label}`);
+        if (metadata.audioinput_count !== undefined) parts.push(`${metadata.audioinput_count} audio input(s) found`);
+        if (metadata.bluetooth_input_detected) parts.push('Bluetooth input detected');
+        return parts.join(' · ');
+    }
+
+    _microphonePreflightError(metadata = {}) {
+        const err = new Error(metadata.status || 'microphone_preflight_failed');
+        const name = metadata.error_name || metadata.status || 'microphone_preflight_failed';
+        const messages = {
+            insecure_context: [
+                'Microphone requires the secure site.',
+                'Open the HTTPS version of the page, then try again.'
+            ],
+            speech_recognition_unsupported: [
+                'Speech recognition is not supported in this browser.',
+                'Use Chrome on the tablet, or type answers instead.'
+            ],
+            get_user_media_unsupported: [
+                'This browser cannot request microphone access.',
+                'Use Chrome on the tablet, or type answers instead.'
+            ],
+            no_live_audio_track: [
+                'No active microphone was detected.',
+                'Check that the tablet or Bluetooth microphone is connected, then try again.'
+            ],
+            failed: [
+                name === 'NotAllowedError' ? 'Microphone permission is blocked.' : 'Microphone check failed.',
+                name === 'NotAllowedError'
+                    ? 'Allow microphone access for this site in the browser settings, then try again.'
+                    : (metadata.error_message || 'Check the microphone connection and try again.')
+            ]
+        };
+        const [userMessage, userDetail] = messages[metadata.status] || messages.failed;
+        err.userMessage = userMessage;
+        err.userDetail = userDetail;
+        return err;
     }
 
     toggleMic() {

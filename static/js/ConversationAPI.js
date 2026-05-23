@@ -53,6 +53,24 @@ class ConversationAPI {
         return this.sendMessage('', { ...metadata, no_response: true });
     }
 
+    /** Persist client-side diagnostics that are not part of a user answer turn. */
+    async sendClientEvents(events = []) {
+        if (!this.sessionId) throw new Error('No active session');
+        if (!events.length) return { status: 'skipped' };
+
+        const res = await fetch(this._url('/api/client-events'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: this.sessionId,
+                events
+            })
+        });
+
+        if (!res.ok) throw new Error('Failed to save client diagnostics');
+        return await res.json();
+    }
+
     /** Upload photo file to server. */
     async uploadPhoto(file, source = 'desktop') {
         if (!this.sessionId) throw new Error('No active session');

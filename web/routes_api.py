@@ -348,6 +348,27 @@ def chat():
     })
 
 
+@api_bp.route('/client-events', methods=['POST'])
+def client_events():
+    """Persist client-side operational events that are not tied to a user answer."""
+    data = request.json or {}
+    session_id = data.get('session_id')
+    events = data.get('events') or []
+
+    if not session_id or not has_session(session_id):
+        return jsonify({'error': 'Invalid session'}), 400
+    if not isinstance(events, list):
+        return jsonify({'error': 'invalid_events'}), 400
+
+    s = get_session(session_id)
+    info_state = s['info_state']
+    visit_id = info_state.user.query('visit_id')
+    db.save_turn_events(visit_id, None, data.get('turn_number'), events)
+    db.update_visit_from_info_state(visit_id, info_state)
+
+    return jsonify({'status': 'ok'})
+
+
 @api_bp.route('/generate', methods=['POST'])
 def generate_microsite():
     """Generate microsite from conversation and photos."""

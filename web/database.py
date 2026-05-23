@@ -29,9 +29,33 @@ ALLOWED_EVENT_TYPES = {
     'vad_speech_end',
     'vad_misfire',
     'silence_timeout',
+    'mic_preflight_started',
+    'mic_preflight_result',
 }
 
-ALLOWED_EVENT_METADATA = {'source', 'reason', 'state', 'duration_ms', 'end_reason', 'transcript_words', 'count'}
+ALLOWED_EVENT_METADATA = {
+    'source',
+    'reason',
+    'state',
+    'duration_ms',
+    'end_reason',
+    'transcript_words',
+    'count',
+    'status',
+    'secure_context',
+    'speech_recognition_supported',
+    'media_devices_supported',
+    'vad_available',
+    'permission_state',
+    'audioinput_count',
+    'device_labels_available',
+    'active_track_label',
+    'active_track_state',
+    'device_labels',
+    'bluetooth_input_detected',
+    'error_name',
+    'error_message',
+}
 
 
 def configure(path: str) -> None:
@@ -474,6 +498,16 @@ def get_admin_visit(session_id: str) -> dict[str, Any] | None:
             """,
             (visit_id,),
         ).fetchall()
+        turn_events = c.execute(
+            """
+            SELECT turn_number, event_type, client_ts_ms, metadata_json, created_at
+            FROM turn_events
+            WHERE visit_id = ?
+            ORDER BY created_at DESC, client_ts_ms DESC
+            LIMIT 100
+            """,
+            (visit_id,),
+        ).fetchall()
         photos = c.execute(
             """
             SELECT stored_filename, display_order, source, mime_type,
@@ -515,6 +549,7 @@ def get_admin_visit(session_id: str) -> dict[str, Any] | None:
     return {
         'visit': dict(visit),
         'messages': [dict(row) for row in messages],
+        'turn_events': [dict(row) for row in turn_events],
         'photos': [dict(row) for row in photos],
         'drafts': [dict(row) for row in drafts],
         'consents': [dict(row) for row in consents],

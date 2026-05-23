@@ -159,6 +159,34 @@
         </section>
 
         <section>
+            <h2>Client Events</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Turn</th>
+                        <th>Event</th>
+                        <th>Client Time</th>
+                        <th>Metadata</th>
+                        <th>Saved</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in detail.turn_events %}
+                    <tr>
+                        <td>{{ event.turn_number if event.turn_number is not none else '' }}</td>
+                        <td>{{ event.event_type }}</td>
+                        <td>{{ event.client_ts_ms }}</td>
+                        <td class="content">{{ event.metadata_json or '{}' }}</td>
+                        <td>{{ event.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No client events saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
             <h2>Drafts</h2>
             <table>
                 <thead>
