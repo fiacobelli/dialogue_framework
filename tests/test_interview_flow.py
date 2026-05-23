@@ -1075,6 +1075,14 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         buf.seek(0)
         return buf, name
 
+    def _gif_upload(self, name='photo.gif'):
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new('RGB', (20, 20), color=(80, 120, 160)).save(buf, format='GIF')
+        buf.seek(0)
+        return buf, name
+
     def _create_photo_session(self, session_id='photo-session'):
         with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
             with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
@@ -1148,6 +1156,53 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                         )
 
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(db.list_visit_photo_filenames(visit_id), [])
+        self.assertEqual(session['info_state'].user.query('photos') or [], [])
+
+    def test_upload_rejects_oversized_photo_before_saving(self):
+        session_id = 'oversized-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+        upload_token = db.create_upload_token(visit_id)['token']
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with patch.object(routes_photos, 'MAX_PHOTO_UPLOAD_BYTES', 10):
+                with app.test_client() as client:
+                    response = client.post(
+                        '/api/upload',
+                        data={
+                            'session_id': session_id,
+                            'source': 'mobile',
+                            'upload_token': upload_token,
+                            'photo': self._jpeg_upload(),
+                        },
+                        content_type='multipart/form-data',
+                    )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('too large', response.get_json()['error'])
+        self.assertEqual(db.list_visit_photo_filenames(visit_id), [])
+        self.assertEqual(session['info_state'].user.query('photos') or [], [])
+
+    def test_upload_rejects_unsupported_image_format(self):
+        session_id = 'unsupported-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+        upload_token = db.create_upload_token(visit_id)['token']
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with app.test_client() as client:
+                response = client.post(
+                    '/api/upload',
+                    data={
+                        'session_id': session_id,
+                        'source': 'mobile',
+                        'upload_token': upload_token,
+                        'photo': self._gif_upload(),
+                    },
+                    content_type='multipart/form-data',
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('JPEG, PNG, or WEBP', response.get_json()['error'])
         self.assertEqual(db.list_visit_photo_filenames(visit_id), [])
         self.assertEqual(session['info_state'].user.query('photos') or [], [])
 

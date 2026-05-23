@@ -57,6 +57,7 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 
 # Interview Settings
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)
+MAX_PHOTO_UPLOAD_BYTES = config('MAX_PHOTO_UPLOAD_BYTES', default=10 * 1024 * 1024, cast=int)
 
 # Localized Strings
 WELCOME_BACK = {

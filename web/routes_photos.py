@@ -10,7 +10,7 @@ import hashlib
 import qrcode
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from .config import PHOTOS_DIR, MAX_PHOTOS
+from .config import PHOTOS_DIR, MAX_PHOTOS, MAX_PHOTO_UPLOAD_BYTES
 from .session_store import ensure_session, get_session, persist_session_state
 from . import database as db
 
@@ -18,6 +18,7 @@ photos_bp = Blueprint('photos', __name__, url_prefix='/api')
 
 MAX_IMAGE_EDGE = 1600
 JPEG_QUALITY = 88
+ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP'}
 PHOTO_ROLE_LABELS = {
     'before': 'Before',
     'during': 'During treatment',
@@ -26,10 +27,22 @@ PHOTO_ROLE_LABELS = {
 }
 
 
+def _upload_buffer(upload) -> io.BytesIO:
+    """Read the uploaded file once while enforcing a raw upload size limit."""
+    data = upload.stream.read(MAX_PHOTO_UPLOAD_BYTES + 1)
+    if len(data) > MAX_PHOTO_UPLOAD_BYTES:
+        max_mb = max(1, MAX_PHOTO_UPLOAD_BYTES // (1024 * 1024))
+        raise ValueError(f'Photo is too large. Please upload an image under {max_mb} MB.')
+    return io.BytesIO(data)
+
+
 def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
     """Validate, orient, resize, and save an uploaded image as JPEG."""
     try:
-        image = Image.open(upload.stream)
+        image = Image.open(_upload_buffer(upload))
+        if image.format not in ALLOWED_IMAGE_FORMATS:
+            allowed = ', '.join(sorted(ALLOWED_IMAGE_FORMATS))
+            raise ValueError(f'Please upload a JPEG, PNG, or WEBP image. Detected: {image.format or "unknown"}.')
         image = ImageOps.exif_transpose(image)
     except (UnidentifiedImageError, OSError):
         raise ValueError('Please upload a valid image file.')
