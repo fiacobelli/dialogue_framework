@@ -220,6 +220,25 @@ PHOTO_ROLE_LABELS = {
 }
 
 
+def _truncate_text(value: str, limit: int = 180) -> str:
+    text = re.sub(r'\s+', ' ', _clean_text(value))
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(' ', 1)[0].rstrip(' .,;:') + '...'
+
+
+def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) -> dict:
+    title = f"{name}'s Kidney Donor Story"
+    description = _truncate_text(content.get('short_intro') or content.get('headline') or title)
+    image = photo_items[0]['url'] if photo_items else None
+    return {
+        'meta_title': title,
+        'meta_description': description,
+        'meta_image': image,
+        'share_text': f"Please read and share {name}'s kidney donor story: {url}",
+    }
+
+
 def _photo_url(filename: str, session_id: str | None = None, *, preview: bool = False) -> str:
     if preview and session_id:
         return url_for('photos.photo_preview', session_id=session_id, filename=filename)
@@ -264,7 +283,8 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
         content=content,
         photos=photo_urls,
         photo_items=photo_items,
-        url=microsite_url
+        url=microsite_url,
+        **_share_context(name, content, microsite_url, photo_items),
     )
 
     filepath = os.path.join(MICROSITES_DIR, f'{session_id}.html')

@@ -3,18 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ name }}'s Kidney Donor Story</title>
+    <title>{{ meta_title }}</title>
+    <meta name="description" content="{{ meta_description }}">
+    <link rel="canonical" href="{{ url }}">
 
-    <meta property="og:title" content="{{ name }}'s Kidney Donor Story">
-    <meta property="og:description" content="{{ content.headline }}">
+    <meta property="og:site_name" content="Ludi Donor Stories">
+    <meta property="og:title" content="{{ meta_title }}">
+    <meta property="og:description" content="{{ meta_description }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url }}">
-    {% if photos %}
-    <meta property="og:image" content="{{ photos[0] }}">
+    {% if meta_image %}
+    <meta property="og:image" content="{{ meta_image }}">
+    <meta property="og:image:alt" content="{{ meta_title }}">
     {% endif %}
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ name }}'s Kidney Donor Story">
-    <meta name="twitter:description" content="{{ content.headline }}">
+    <meta name="twitter:title" content="{{ meta_title }}">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    {% if meta_image %}
+    <meta name="twitter:image" content="{{ meta_image }}">
+    {% endif %}
 
     <style>
         :root {
@@ -372,7 +379,7 @@
                 <p class="intro">{{ content.short_intro }}</p>
                 <div class="hero-actions">
                     <a class="btn primary" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">Learn about living donation</a>
-                    <a class="btn secondary" href="#share">Share {{ name }}'s story</a>
+                    <a class="btn secondary" href="#share" aria-label="Share {{ name }}'s donor story">Share {{ name }}'s story</a>
                 </div>
             </div>
 
@@ -415,7 +422,7 @@
         </section>
 
         {% if photo_items and photo_items|length > 1 %}
-        <section class="photo-story" aria-label="Before, during, and after story photos">
+        <section class="photo-story" aria-label="Story photos chosen by {{ name }}">
             <h2>Photos {{ name }} chose for this story</h2>
             <div class="photo-story-grid">
                 {% for photo in photo_items[:3] %}
@@ -448,8 +455,8 @@
                 <h3>Share {{ name }}'s page</h3>
                 <div class="share-actions">
                     <a class="btn" href="https://www.facebook.com/sharer/sharer.php?u={{ url | urlencode }}" target="_blank" rel="noopener">Share on Facebook</a>
-                    <a class="btn" href="https://wa.me/?text={{ (name ~ "'s kidney donor story: " ~ url) | urlencode }}" target="_blank" rel="noopener">Share on WhatsApp</a>
-                    <a class="btn" href="mailto:?subject={{ (name ~ "'s Kidney Donor Story") | urlencode }}&body={{ ("Please read and share " ~ name ~ "'s story: " ~ url) | urlencode }}">Send by email</a>
+                    <a class="btn" href="https://wa.me/?text={{ share_text | urlencode }}" target="_blank" rel="noopener">Share on WhatsApp</a>
+                    <a class="btn" href="mailto:?subject={{ meta_title | urlencode }}&body={{ share_text | urlencode }}">Send by email</a>
                     <button class="btn" type="button" id="copyBtn" onclick="copyLink()">Copy page link</button>
                 </div>
             </div>
@@ -466,7 +473,10 @@
 
     <script>
         function copyLink() {
-            navigator.clipboard.writeText('{{ url }}').then(() => {
+            const write = navigator.clipboard
+                ? navigator.clipboard.writeText('{{ url }}')
+                : Promise.resolve(window.prompt('Copy this link:', '{{ url }}'));
+            write.then(() => {
                 const btn = document.getElementById('copyBtn');
                 btn.textContent = 'Copied';
                 setTimeout(() => { btn.textContent = 'Copy page link'; }, 2000);

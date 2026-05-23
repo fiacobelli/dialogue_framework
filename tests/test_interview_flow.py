@@ -1112,7 +1112,14 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertTrue(published['published'])
                     self.assertEqual(published['personal_identity'], 'Edited story approved by Sophia.')
                     self.assertEqual(published['my_story'], 'Edited story approved by Sophia.')
-                    self.assertTrue(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
+                    html_path = os.path.join(site_dir, 'unit-review.html')
+                    self.assertTrue(os.path.exists(html_path))
+                    with open(html_path, encoding='utf-8') as f:
+                        html = f.read()
+                    self.assertIn('<meta name="description"', html)
+                    self.assertIn('<link rel="canonical"', html)
+                    self.assertIn('name="twitter:description"', html)
+                    self.assertIn('Ludi Donor Stories', html)
 
 
 class DatabasePersistenceTests(unittest.TestCase):
