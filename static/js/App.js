@@ -6,6 +6,8 @@ class App {
     constructor() {
         this.micrositeUrl = '';
         this.photoPollingInterval = null;
+        this.photoPollingErrors = 0;
+        this.lastPhotoCount = 0;
         this.generationInProgress = false;
         this.conversationActive = false;
         this._lastSpokenText = '';
@@ -125,6 +127,12 @@ class App {
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
             slot.addEventListener('click', (e) => {
                 if (e.target.closest('.photo-role-controls')) return;
+                photoInput?.click();
+            });
+            slot.addEventListener('keydown', (e) => {
+                if (!['Enter', ' '].includes(e.key)) return;
+                if (e.target.closest('.photo-role-controls')) return;
+                e.preventDefault();
                 photoInput?.click();
             });
         });
@@ -522,18 +530,23 @@ class App {
         try {
             const qrData = await conversationAPI.getQRCode();
             ui.setQRCode(qrData.qr_image, qrData.upload_url);
+            ui.updatePhotoProgress(0, 3);
+            ui.setPhotoStatus('Scan the QR code with your phone, or upload photos from this device. This page will update automatically.', 'info');
             this.startPhotoPolling();
         } catch (err) {
             console.error('Failed to get QR code:', err);
+            ui.setPhotoStatus('Could not create the phone upload link. You can still upload photos from this device.', 'error');
         }
     }
 
     startPhotoPolling() {
         if (this.photoPollingInterval) return;
+        this.photoPollingErrors = 0;
 
         this.photoPollingInterval = setInterval(async () => {
             try {
                 const status = await conversationAPI.getPhotoStatus();
+                this.photoPollingErrors = 0;
                 ui.updatePhotoProgress(status.photo_count, status.max_photos);
                 const photoItems = status.photo_items || (status.photos || []).map((url) => ({ url }));
                 photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
@@ -541,10 +554,24 @@ class App {
                 if (status.ready) {
                     this.stopPhotoPolling();
                     ui.showGenerateSection();
+                    ui.setPhotoStatus('All photos are received. Review the meaning and order before generating the donor page.', 'success');
                     ui.setStatus('Review the photo order and meaning, then generate your donor page.');
+                } else if ((status.photo_count || 0) > this.lastPhotoCount) {
+                    ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. You can add more or continue with fewer.`, 'success');
+                } else if ((status.photo_count || 0) === 0) {
+                    ui.setPhotoStatus('Waiting for photos. If you uploaded from your phone, keep this desktop page open.', 'info');
+                } else {
+                    ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'info');
                 }
+                this.lastPhotoCount = status.photo_count || 0;
             } catch (err) {
                 console.error('Photo polling error:', err);
+                this.photoPollingErrors += 1;
+                if (this.photoPollingErrors >= 3) {
+                    ui.setPhotoStatus('I cannot check for new phone uploads right now. You can still upload from this device, or refresh the page if needed.', 'error');
+                } else {
+                    ui.setPhotoStatus('Still checking for phone uploads...', 'info');
+                }
             }
         }, 3000);
     }
@@ -563,7 +590,8 @@ class App {
 
         try {
             let latest = null;
-            for (const file of files) {
+            for (const [index, file] of files.entries()) {
+                ui.setPhotoStatus(`Uploading photo ${index + 1} of ${files.length}...`, 'info');
                 latest = await conversationAPI.uploadPhoto(file, 'desktop');
                 if (latest.status === 'ok') {
                     const photoItems = latest.photo_items || [];
@@ -579,9 +607,13 @@ class App {
             if (latest?.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
+                ui.setPhotoStatus('All photos are received. Review the meaning and order before generating the donor page.', 'success');
                 ui.setStatus('Review the photo order and meaning, then generate your donor page.');
+            } else if (latest?.photo_count) {
+                ui.setPhotoStatus(`${latest.photo_count} photo${latest.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'success');
             }
         } catch (err) {
+            ui.setPhotoStatus(`Upload failed: ${err.message}`, 'error');
             ui.setStatus(`Upload failed: ${err.message}`);
             console.error(err);
         }

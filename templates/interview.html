@@ -169,12 +169,13 @@
 
                 <p class="direct-upload-copy">Or upload directly from this device:</p>
                 <div class="photo-grid">
-                    <div class="photo-slot" id="photo0">+</div>
-                    <div class="photo-slot" id="photo1">+</div>
-                    <div class="photo-slot" id="photo2">+</div>
+                    <div class="photo-slot" id="photo0" role="button" tabindex="0" title="Choose photo">+</div>
+                    <div class="photo-slot" id="photo1" role="button" tabindex="0" title="Choose photo">+</div>
+                    <div class="photo-slot" id="photo2" role="button" tabindex="0" title="Choose photo">+</div>
                 </div>
+                <div id="photoStatus" class="photo-status" aria-live="polite"></div>
                 <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
-                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
+                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Upload Photos From This Device</button>
                 <button class="secondary-action-btn" type="button" id="continueWithPhotosBtn" disabled>
                     Continue with uploaded photos
                 </button>

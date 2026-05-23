@@ -194,8 +194,9 @@ class ConversationAPI {
     async getPhotoStatus() {
         if (!this.sessionId) throw new Error('No active session');
         const res = await fetch(this._url(`/api/photos/${this.sessionId}`));
-        if (!res.ok) throw new Error('Failed to get photo status');
-        return await res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to get photo status');
+        return data;
     }
 
     async updatePhotoMetadata(photos = []) {

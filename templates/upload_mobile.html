@@ -100,15 +100,15 @@
                 reader.readAsDataURL(file);
 
                 uploadedCount = data.photo_count;
-                setStatus(`${uploadedCount}/3 photos uploaded`, 'success');
+                setStatus(`${uploadedCount}/3 photos uploaded. The desktop page should update automatically.`, 'success');
 
                 if (data.ready) {
                     document.getElementById('submitBtn').disabled = false;
-                    setStatus('All photos uploaded! You can close this page.', 'success');
+                    setStatus('All photos uploaded. Return to the desktop page to review and generate.', 'success');
                 }
                 return data;
             } catch (err) {
-                setStatus('Upload failed. Try again.', 'error');
+                setStatus('Upload failed. Try again, or use the desktop upload button.', 'error');
                 throw err;
             }
         }
@@ -146,7 +146,11 @@
 
         // Check existing photos on load
         fetch(appUrl(`/api/photos/${sessionId}?token=${encodeURIComponent(uploadToken)}`))
-            .then(r => r.json())
+            .then(async r => {
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Could not check uploaded photos.');
+                return data;
+            })
             .then(data => {
                 uploadedCount = data.photo_count || 0;
                 (data.photos || []).forEach((url, index) => {
@@ -162,7 +166,8 @@
                 if (data.ready) {
                     document.getElementById('submitBtn').disabled = false;
                 }
-            });
+            })
+            .catch(err => setStatus(err.message, 'error'));
     </script>
 </body>
 </html>

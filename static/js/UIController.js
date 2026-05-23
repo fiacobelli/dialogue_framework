@@ -26,6 +26,7 @@ class UIController {
             input: document.getElementById('input'),
             status: document.getElementById('status'),
             photoSection: document.getElementById('photoSection'),
+            photoStatus: document.getElementById('photoStatus'),
             generateSection: document.getElementById('generateSection'),
             reviewSection: document.getElementById('reviewSection'),
             micrositePreview: document.getElementById('micrositePreview'),
@@ -283,9 +284,26 @@ class UIController {
         }
     }
 
+    setPhotoStatus(message, type = 'info') {
+        const el = this.elements.photoStatus;
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = `photo-status ${type || 'info'}`;
+    }
+
     updatePhotoProgress(count, max) {
         const el = document.getElementById('photoProgress');
-        if (el) el.textContent = `${count}/${max} photos uploaded`;
+        const safeCount = Number(count || 0);
+        const safeMax = Number(max || 3);
+        if (el) {
+            if (safeCount >= safeMax) {
+                el.textContent = `${safeMax}/${safeMax} photos received`;
+            } else if (safeCount > 0) {
+                el.textContent = `${safeCount} of ${safeMax} photos received`;
+            } else {
+                el.textContent = `Waiting for photos from phone or this device`;
+            }
+        }
         this.updateContinueWithPhotos(count, max);
     }
 
@@ -309,6 +327,7 @@ class UIController {
             ['general', 'General']
         ];
         slot.classList.add('filled');
+        slot.title = 'Photo uploaded. Click controls below to adjust meaning or order.';
         slot.innerHTML = `
             <img src="${url}" alt="Uploaded photo">
             <div class="photo-role-controls">

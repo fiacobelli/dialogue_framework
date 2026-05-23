@@ -758,6 +758,35 @@
     margin-top: 12px;
 }
 
+.photo-status {
+    background: #FFF7ED;
+    border: 1px solid #FED7AA;
+    border-radius: 12px;
+    color: #7C2D12;
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 12px auto 16px;
+    max-width: 560px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.photo-status:empty {
+    display: none;
+}
+
+.photo-status.success {
+    background: #ECFDF5;
+    border-color: #A7F3D0;
+    color: #065F46;
+}
+
+.photo-status.error {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    color: #991B1B;
+}
+
 .direct-upload-copy {
     margin-top: 18px;
 }
@@ -783,6 +812,13 @@
     font-size: 28px;
     overflow: hidden;
     background: #FFFDF9;
+    cursor: pointer;
+}
+
+.photo-slot:focus-visible {
+    border-color: #E86F2C;
+    outline: 3px solid rgba(232, 111, 44, 0.22);
+    outline-offset: 3px;
 }
 
 .photo-slot img {
