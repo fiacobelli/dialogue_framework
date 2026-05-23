@@ -31,6 +31,11 @@ def _turn_meta(data: dict) -> dict:
 
 
 NO_RESPONSE_INPUT = '[no speech detected]'
+PUBLICATION_CONSENT_VERSION = 'publication-v1'
+PUBLICATION_CONSENT_TEXT = (
+    'I understand that publishing will create a public donor page that may include '
+    'the public name, story, and photos I reviewed.'
+)
 
 
 def _message_turn_number(info_state) -> int:
@@ -108,6 +113,50 @@ def validate_generation_ready(info_state, allow_partial_photos: bool = False) ->
     return True, {
         'name': patient_name,
         'photo_requirement_status': 'partial_confirmed' if partial_photos_confirmed else 'complete',
+    }
+
+
+def validate_publication_consent(info_state, request_data: dict, user_agent: str = '') -> tuple[bool, dict]:
+    """Persist and validate explicit consent before public publication."""
+    visit_id = info_state.user.query('visit_id')
+    consent = request_data.get('publication_consent') or {}
+    consented = bool(consent.get('accepted'))
+    if not consented:
+        return False, {
+            'error': 'publication_consent_required',
+            'message': 'Please confirm that you understand this donor page may become public before publishing.',
+            'consent_version': PUBLICATION_CONSENT_VERSION,
+        }
+
+    version = consent.get('version') or PUBLICATION_CONSENT_VERSION
+    if version != PUBLICATION_CONSENT_VERSION:
+        return False, {
+            'error': 'publication_consent_version_mismatch',
+            'message': 'Please review the latest publication consent before publishing.',
+            'consent_version': PUBLICATION_CONSENT_VERSION,
+        }
+
+    consent_id = db.save_consent(
+        visit_id,
+        'publication',
+        PUBLICATION_CONSENT_VERSION,
+        True,
+        consent_text=PUBLICATION_CONSENT_TEXT,
+        actor='patient',
+        user_agent=user_agent,
+    )
+    if not consent_id:
+        return False, {
+            'error': 'publication_consent_not_saved',
+            'message': 'Publication consent could not be saved. Please try again.',
+        }
+
+    now = datetime.utcnow().isoformat()
+    info_state.user.update('publication_consent_version', PUBLICATION_CONSENT_VERSION)
+    info_state.user.update('publication_consented_at', now)
+    return True, {
+        'consent_id': consent_id,
+        'consent_version': PUBLICATION_CONSENT_VERSION,
     }
 
 
@@ -358,6 +407,13 @@ def publish_microsite():
     ready, detail = validate_generation_ready(info_state)
     if not ready:
         return jsonify(detail), 409
+    consent_ready, consent_detail = validate_publication_consent(
+        info_state,
+        data,
+        request.headers.get('User-Agent', ''),
+    )
+    if not consent_ready:
+        return jsonify(consent_detail), 409
 
     try:
         result = microsite.publish(info_state, session_id, data.get('edits') or {})

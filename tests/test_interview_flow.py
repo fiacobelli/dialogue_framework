@@ -20,7 +20,11 @@ from web.interview_flow import (
 )
 from web import microsite
 from web import database as db
-from web.routes_api import validate_generation_ready
+from web.routes_api import (
+    PUBLICATION_CONSENT_VERSION,
+    validate_generation_ready,
+    validate_publication_consent,
+)
 
 
 class InterviewFlowTests(unittest.TestCase):
@@ -399,6 +403,42 @@ class GenerationGateTests(unittest.TestCase):
         self.assertFalse(ready)
         self.assertIn('story_evidence', detail['missing'])
         self.assertIn('identity', detail['missing_story_sections'])
+
+
+class PublicationConsentTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+
+    def _info_state_with_visit(self):
+        info_state = InformationState(os.path.join(self.tmp.name, 'user.pkl'), 'domains/interview.json')
+        visit_id = db.create_visit('consent-session', 'en', 'black_female', {'name': 'Ludi'})
+        info_state.user.update('visit_id', visit_id)
+        return info_state, visit_id
+
+    def test_publication_consent_required(self):
+        info_state, _ = self._info_state_with_visit()
+
+        ready, detail = validate_publication_consent(info_state, {})
+
+        self.assertFalse(ready)
+        self.assertEqual(detail['error'], 'publication_consent_required')
+
+    def test_publication_consent_saved_when_accepted(self):
+        info_state, visit_id = self._info_state_with_visit()
+
+        ready, detail = validate_publication_consent(
+            info_state,
+            {'publication_consent': {'accepted': True, 'version': PUBLICATION_CONSENT_VERSION}},
+            user_agent='unit-test',
+        )
+
+        self.assertTrue(ready)
+        self.assertEqual(detail['consent_version'], PUBLICATION_CONSENT_VERSION)
+        self.assertTrue(db.has_consent(visit_id, 'publication', PUBLICATION_CONSENT_VERSION))
 
 
 class MicrositeEvidenceTests(unittest.TestCase):

@@ -535,10 +535,15 @@ class App {
     }
 
     async publish() {
+        const consent = ui.getPublicationConsent();
+        if (!consent.accepted) {
+            ui.setStatus('Please confirm that you understand this page may become public before publishing.');
+            return;
+        }
         ui.showPublishing();
 
         try {
-            const data = await conversationAPI.publishMicrosite(ui.getDraftReviewEdits());
+            const data = await conversationAPI.publishMicrosite(ui.getDraftReviewEdits(), consent);
             const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
             this.micrositeUrl = fullUrl;
             ui.showPublished();

@@ -100,7 +100,7 @@ class ConversationAPI {
     }
 
     /** Publish a reviewed donor-page draft. */
-    async publishMicrosite(edits) {
+    async publishMicrosite(edits, publicationConsent = {}) {
         if (!this.sessionId) throw new Error('No active session');
 
         const res = await fetch(this._url('/api/publish'), {
@@ -108,7 +108,8 @@ class ConversationAPI {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 session_id: this.sessionId,
-                edits: edits || {}
+                edits: edits || {},
+                publication_consent: publicationConsent || {}
             })
         });
 

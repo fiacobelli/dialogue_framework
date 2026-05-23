@@ -659,6 +659,24 @@
     border-color: #E86F2C;
 }
 
+.publication-consent {
+    align-items: flex-start;
+    background: #FFF7ED;
+    border: 1px solid #FED7AA;
+    border-radius: 14px;
+    color: #44403C;
+    display: flex;
+    gap: 12px;
+    line-height: 1.45;
+    margin: 18px 0;
+    padding: 14px 16px;
+}
+
+.publication-consent input {
+    flex: 0 0 auto;
+    margin-top: 4px;
+}
+
 .qr-section {
     text-align: center;
     padding: 18px;

@@ -98,6 +98,8 @@ def init_db() -> None:
                 photo_count INTEGER DEFAULT 0,
                 photo_requirement_status TEXT DEFAULT 'pending',
                 draft_status TEXT DEFAULT 'none',
+                publication_consent_version TEXT,
+                publication_consented_at TEXT,
                 total_user_turns INTEGER DEFAULT 0,
                 total_assistant_turns INTEGER DEFAULT 0,
                 user_agent TEXT,
@@ -192,6 +194,19 @@ def init_db() -> None:
                 UNIQUE(visit_id, version)
             );
 
+            CREATE TABLE IF NOT EXISTS consents (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                consent_type TEXT NOT NULL,
+                consent_version TEXT NOT NULL,
+                consented INTEGER NOT NULL,
+                consent_text TEXT,
+                actor TEXT,
+                user_agent TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_visits_started_at ON visits(started_at);
             CREATE INDEX IF NOT EXISTS idx_visits_phase ON visits(phase);
             CREATE INDEX IF NOT EXISTS idx_visits_draft_status ON visits(draft_status);
@@ -203,6 +218,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_events_visit_turn ON turn_events(visit_id, turn_number);
             CREATE INDEX IF NOT EXISTS idx_photos_visit ON photos(visit_id);
             CREATE INDEX IF NOT EXISTS idx_drafts_visit_version ON donor_page_drafts(visit_id, version);
+            CREATE INDEX IF NOT EXISTS idx_consents_visit_type ON consents(visit_id, consent_type);
             """
         )
         _ensure_columns(c, 'messages', {
@@ -215,6 +231,8 @@ def init_db() -> None:
         })
         _ensure_columns(c, 'visits', {
             'photo_requirement_status': "TEXT DEFAULT 'pending'",
+            'publication_consent_version': 'TEXT',
+            'publication_consented_at': 'TEXT',
         })
 
 
@@ -231,6 +249,72 @@ def health_check() -> dict[str, Any]:
         c.execute('SELECT 1').fetchone()
         row = c.execute('SELECT COUNT(*) AS n FROM visits').fetchone()
     return {'ok': True, 'visits': int(row['n'])}
+
+
+def save_consent(
+    visit_id: str | None,
+    consent_type: str,
+    consent_version: str,
+    consented: bool,
+    *,
+    consent_text: str = '',
+    actor: str = 'patient',
+    user_agent: str = '',
+) -> str | None:
+    """Persist a consent decision and mirror publication consent on the visit."""
+    if not visit_id:
+        return None
+    now = _now()
+    consent_id = _uuid()
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT INTO consents(
+                id, visit_id, consent_type, consent_version, consented,
+                consent_text, actor, user_agent, created_at
+            ) VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                consent_id,
+                visit_id,
+                consent_type,
+                consent_version,
+                1 if consented else 0,
+                consent_text,
+                actor,
+                user_agent,
+                now,
+            ),
+        )
+        if consent_type == 'publication' and consented:
+            c.execute(
+                """
+                UPDATE visits
+                SET publication_consent_version = ?,
+                    publication_consented_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (consent_version, now, now, visit_id),
+            )
+    return consent_id
+
+
+def has_consent(visit_id: str | None, consent_type: str, consent_version: str | None = None) -> bool:
+    """Return whether a positive consent record exists for a visit."""
+    if not visit_id:
+        return False
+    query = """
+        SELECT 1 FROM consents
+        WHERE visit_id = ? AND consent_type = ? AND consented = 1
+    """
+    params: list[Any] = [visit_id, consent_type]
+    if consent_version:
+        query += ' AND consent_version = ?'
+        params.append(consent_version)
+    query += ' ORDER BY created_at DESC LIMIT 1'
+    with _conn() as c:
+        return c.execute(query, params).fetchone() is not None
 
 
 def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:
@@ -278,6 +362,8 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 photo_count = ?,
                 photo_requirement_status = ?,
                 draft_status = ?,
+                publication_consent_version = COALESCE(publication_consent_version, ?),
+                publication_consented_at = COALESCE(publication_consented_at, ?),
                 updated_at = ?,
                 completed_at = COALESCE(?, completed_at),
                 published_at = COALESCE(?, published_at)
@@ -296,6 +382,8 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 len(photos),
                 info_state.user.query('photo_requirement_status') or ('complete' if len(photos) >= 3 else 'pending'),
                 draft_status,
+                info_state.user.query('publication_consent_version'),
+                info_state.user.query('publication_consented_at'),
                 _now(),
                 completed,
                 published,

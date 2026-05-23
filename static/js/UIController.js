@@ -342,6 +342,13 @@ class UIController {
         };
     }
 
+    getPublicationConsent() {
+        return {
+            accepted: Boolean(document.getElementById('publicationConsent')?.checked),
+            version: 'publication-v1',
+        };
+    }
+
     showPublishing() {
         const btn = document.getElementById('publishBtn');
         if (btn) {
