@@ -266,6 +266,15 @@ def init_db() -> None:
                 FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS session_state (
+                session_id TEXT PRIMARY KEY,
+                visit_id TEXT,
+                user_model_blob BLOB NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE SET NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_visits_started_at ON visits(started_at);
             CREATE INDEX IF NOT EXISTS idx_visits_phase ON visits(phase);
             CREATE INDEX IF NOT EXISTS idx_visits_draft_status ON visits(draft_status);
@@ -280,6 +289,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_consents_visit_type ON consents(visit_id, consent_type);
             CREATE INDEX IF NOT EXISTS idx_audit_visit_created ON audit_events(visit_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_upload_tokens_visit ON upload_tokens(visit_id, purpose, revoked_at);
+            CREATE INDEX IF NOT EXISTS idx_session_state_visit ON session_state(visit_id);
             """
         )
         _ensure_columns(c, 'messages', {
@@ -502,6 +512,38 @@ def save_audit_event(
             ),
         )
     return audit_id
+
+
+def save_session_state(session_id: str | None, user_model_blob: bytes, visit_id: str | None = None) -> bool:
+    """Persist a serialized user model snapshot for restart-safe rehydration."""
+    if not session_id or not user_model_blob:
+        return False
+    now = _now()
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT INTO session_state(session_id, visit_id, user_model_blob, created_at, updated_at)
+            VALUES(?,?,?,?,?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                visit_id = excluded.visit_id,
+                user_model_blob = excluded.user_model_blob,
+                updated_at = excluded.updated_at
+            """,
+            (session_id, visit_id, user_model_blob, now, now),
+        )
+    return True
+
+
+def load_session_state(session_id: str | None) -> bytes | None:
+    """Return a serialized user model snapshot for a session, if available."""
+    if not session_id:
+        return None
+    with _conn() as c:
+        row = c.execute(
+            'SELECT user_model_blob FROM session_state WHERE session_id = ?',
+            (session_id,),
+        ).fetchone()
+    return bytes(row['user_model_blob']) if row else None
 
 
 def is_microsite_published(session_id: str) -> bool:

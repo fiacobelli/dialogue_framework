@@ -11,7 +11,7 @@ import qrcode
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .config import PHOTOS_DIR, MAX_PHOTOS
-from .session_store import ensure_session, get_session
+from .session_store import ensure_session, get_session, persist_session_state
 from . import database as db
 
 photos_bp = Blueprint('photos', __name__, url_prefix='/api')
@@ -63,17 +63,19 @@ def _photo_items(session_id: str, visit_id: str | None) -> list[dict]:
     return items
 
 
-def _sync_session_photos(info_state, photos: list[str]) -> None:
+def _sync_session_photos(session_id: str, session: dict, photos: list[str]) -> None:
+    info_state = session['info_state']
     info_state.user.update('photos', photos)
-    info_state.save_user_model()
+    persist_session_state(session_id, session)
 
 
-def _current_photos(info_state) -> list[str]:
+def _current_photos(session_id: str, session: dict) -> list[str]:
+    info_state = session['info_state']
     visit_id = info_state.user.query('visit_id')
     db_photos = db.list_visit_photo_filenames(visit_id)
     if db_photos:
         if db_photos != (info_state.user.query('photos') or []):
-            _sync_session_photos(info_state, db_photos)
+            _sync_session_photos(session_id, session, db_photos)
         return db_photos
     return info_state.user.query('photos') or []
 
@@ -109,7 +111,7 @@ def upload_photo():
     if not _mobile_upload_authorized(visit_id):
         return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
 
-    existing_photos = _current_photos(info_state)
+    existing_photos = _current_photos(session_id, s)
     if len(existing_photos) >= MAX_PHOTOS:
         return jsonify({'error': f'Max {MAX_PHOTOS} photos already uploaded'}), 400
 
@@ -143,12 +145,12 @@ def upload_photo():
         height=height,
     )
     photos = db.list_visit_photo_filenames(visit_id)
-    _sync_session_photos(info_state, photos)
+    _sync_session_photos(session_id, s, photos)
 
     if len(photos) >= MAX_PHOTOS:
         info_state.user.update('interview_phase', 'COMPLETE')
         info_state.user.update('photo_requirement_status', 'complete')
-        info_state.save_user_model()
+        persist_session_state(session_id, s)
         db.revoke_upload_tokens(visit_id, reason='photo_requirement_complete')
     db.update_visit_from_info_state(visit_id, info_state)
 
@@ -168,12 +170,13 @@ def get_photo_status(session_id):
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
-    info_state = get_session(session_id)['info_state']
+    s = get_session(session_id)
+    info_state = s['info_state']
     token = request.args.get('token')
     visit_id = info_state.user.query('visit_id')
     if token and not db.validate_upload_token(visit_id, token, mark_used=False):
         return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
-    photos = _current_photos(info_state)
+    photos = _current_photos(session_id, s)
 
     return jsonify({
         'photo_count': len(photos),
@@ -190,12 +193,13 @@ def update_photo_metadata(session_id):
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
-    info_state = get_session(session_id)['info_state']
+    s = get_session(session_id)
+    info_state = s['info_state']
     visit_id = info_state.user.query('visit_id')
     items = (request.json or {}).get('photos') or []
     updated = db.update_visit_photo_metadata(visit_id, items)
     filenames = [item['stored_filename'] for item in updated]
-    _sync_session_photos(info_state, filenames)
+    _sync_session_photos(session_id, s, filenames)
     db.update_visit_from_info_state(visit_id, info_state)
 
     return jsonify({
@@ -213,8 +217,9 @@ def photo_preview(session_id, filename):
     """Serve uploaded photos for the active private review session."""
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
-    info_state = get_session(session_id)['info_state']
-    photos = _current_photos(info_state)
+    s = get_session(session_id)
+    info_state = s['info_state']
+    photos = _current_photos(session_id, s)
     if filename not in photos:
         return jsonify({'error': 'Photo not found for this session'}), 404
     return send_from_directory(os.path.abspath(PHOTOS_DIR), filename)

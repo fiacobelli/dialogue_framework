@@ -984,7 +984,7 @@ class SessionRehydrationTests(unittest.TestCase):
             with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
                 session = session_module.create_session('rehydrate-session')
                 session['info_state'].user.update('photos', ['rehydrate-session_0.jpg'])
-                session['info_state'].save_user_model()
+                session_store.persist_session_state('rehydrate-session', session)
                 session_store.set_session('rehydrate-session', session)
 
                 session_store.clear_sessions()
@@ -996,6 +996,22 @@ class SessionRehydrationTests(unittest.TestCase):
                 self.assertTrue(session_store.has_session('rehydrate-session'))
                 self.assertEqual(restored['info_state'].user.query('photos'), ['rehydrate-session_0.jpg'])
 
+    def test_ensure_session_rehydrates_from_database_snapshot_without_pickle_file(self):
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session('db-rehydrate-session')
+                session['info_state'].user.update('photos', ['db-rehydrate-session_0.jpg'])
+                session_store.persist_session_state('db-rehydrate-session', session)
+                os.remove(os.path.join(self.user_models_dir, 'db-rehydrate-session.pkl'))
+                session_store.set_session('db-rehydrate-session', session)
+
+                session_store.clear_sessions()
+                restored = session_store.ensure_session('db-rehydrate-session')
+
+                self.assertIsNotNone(restored)
+                self.assertEqual(restored['info_state'].user.query('photos'), ['db-rehydrate-session_0.jpg'])
+                self.assertTrue(os.path.exists(os.path.join(self.user_models_dir, 'db-rehydrate-session.pkl')))
+
     def test_photo_status_route_survives_in_memory_session_loss(self):
         with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
             with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
@@ -1003,7 +1019,7 @@ class SessionRehydrationTests(unittest.TestCase):
                 visit_id = db.create_visit('photo-rehydrate-session', 'en', 'black_female', {'name': 'Ludi'})
                 session['info_state'].user.update('visit_id', visit_id)
                 session['info_state'].user.update('photos', ['photo-rehydrate-session_0.jpg'])
-                session['info_state'].save_user_model()
+                session_store.persist_session_state('photo-rehydrate-session', session)
                 session_store.set_session('photo-rehydrate-session', session)
 
                 session_store.clear_sessions()
@@ -1015,6 +1031,27 @@ class SessionRehydrationTests(unittest.TestCase):
                 data = response.get_json()
                 self.assertEqual(data['photo_count'], 1)
                 self.assertIn('photo-rehydrate-session_0.jpg', data['photos'][0])
+
+    def test_photo_status_route_survives_missing_pickle_when_database_snapshot_exists(self):
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session('db-photo-rehydrate-session')
+                visit_id = db.create_visit('db-photo-rehydrate-session', 'en', 'black_female', {'name': 'Ludi'})
+                session['info_state'].user.update('visit_id', visit_id)
+                session['info_state'].user.update('photos', ['db-photo-rehydrate-session_0.jpg'])
+                session_store.persist_session_state('db-photo-rehydrate-session', session)
+                os.remove(os.path.join(self.user_models_dir, 'db-photo-rehydrate-session.pkl'))
+                session_store.set_session('db-photo-rehydrate-session', session)
+
+                session_store.clear_sessions()
+
+                with app.test_client() as client:
+                    response = client.get('/api/photos/db-photo-rehydrate-session')
+
+                self.assertEqual(response.status_code, 200)
+                data = response.get_json()
+                self.assertEqual(data['photo_count'], 1)
+                self.assertIn('db-photo-rehydrate-session_0.jpg', data['photos'][0])
 
 
 class PhotoUploadPersistenceTests(unittest.TestCase):
@@ -1044,7 +1081,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                 session = session_module.create_session(session_id)
                 visit_id = db.create_visit(session_id, 'en', 'black_female', {'name': 'Ludi'})
                 session['info_state'].user.update('visit_id', visit_id)
-                session['info_state'].save_user_model()
+                session_store.persist_session_state(session_id, session)
                 session_store.set_session(session_id, session)
                 return session, visit_id
 
@@ -1118,7 +1155,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         session_id = 'db-photo-session'
         session, visit_id = self._create_photo_session(session_id)
         session['info_state'].user.update('photos', [])
-        session['info_state'].save_user_model()
+        session_store.persist_session_state(session_id, session)
         db.save_photo(visit_id, 'db-photo-session_0.jpg', 0, source='mobile')
 
         with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):

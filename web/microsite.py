@@ -7,6 +7,7 @@ from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 from . import database as db
 from .content_moderation import validate_public_content
+from .session_store import persist_session_state
 
 MICROSITE_PROMPT_VERSION = 'microsite-public-page-v2'
 CONTENT_FIELDS = (
@@ -373,7 +374,7 @@ def _build_result(
     return result
 
 
-def generate(info_state, provider, name: str, session_id: str) -> dict:
+def generate(info_state, provider, name: str, session_id: str, session: dict | None = None) -> dict:
     """Generate donor-page draft content without publishing the public page."""
     history = info_state.user.query('conversation_history') or []
     state = info_state.user.query('interview_state') or {}
@@ -404,12 +405,12 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
 
     info_state.user.update('microsite_draft', result)
     info_state.user.update('microsite_draft_status', 'draft')
-    info_state.save_user_model()
+    persist_session_state(session_id, session or {'info_state': info_state})
 
     return result
 
 
-def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
+def publish(info_state, session_id: str, edits: dict | None = None, session: dict | None = None) -> dict:
     """Publish the reviewed donor-page draft and return its public URL."""
     draft = info_state.user.query('microsite_draft')
     if not draft:
@@ -460,6 +461,6 @@ def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
     info_state.user.update('microsite_draft_status', 'published')
     info_state.user.update('microsite', result)
     info_state.user.update('interview_phase', 'COMPLETE')
-    info_state.save_user_model()
+    persist_session_state(session_id, session or {'info_state': info_state})
 
     return result

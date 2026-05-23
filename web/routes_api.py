@@ -9,7 +9,7 @@ import uuid
 from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
-from .session_store import ensure_session, get_session, set_session
+from .session_store import ensure_session, get_session, persist_session_state, set_session
 from .interview_flow import progress_snapshot
 from . import microsite
 from . import database as db
@@ -213,7 +213,7 @@ def new_session():
         user_agent=request.headers.get('User-Agent', ''),
     )
     info_state.user.update('visit_id', visit_id)
-    info_state.save_user_model()
+    persist_session_state(session_id, s)
 
     phase = info_state.user.query('interview_phase') or 'WELCOME'
     is_returning = phase != 'WELCOME'
@@ -342,7 +342,7 @@ def chat():
     )
     db.update_visit_from_info_state(visit_id, info_state)
 
-    info_state.save_user_model()
+    persist_session_state(session_id, s)
 
     return jsonify({
         'prompt': prompt,
@@ -404,7 +404,7 @@ def generate_microsite():
     try:
         import time
         t0 = time.perf_counter()
-        result = microsite.generate(info_state, provider, name, session_id)
+        result = microsite.generate(info_state, provider, name, session_id, s)
         latency = int((time.perf_counter() - t0) * 1000)
         db.save_draft(
             visit_id,
@@ -457,7 +457,7 @@ def publish_microsite():
         return jsonify(consent_detail), 409
 
     try:
-        result = microsite.publish(info_state, session_id, data.get('edits') or {})
+        result = microsite.publish(info_state, session_id, data.get('edits') or {}, s)
         info_state.user.update('publication_status', 'published')
         info_state.user.update('microsite_draft_status', 'published')
         db.save_draft(

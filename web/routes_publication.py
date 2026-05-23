@@ -6,7 +6,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
-from .session_store import ensure_session, get_session
+from .session_store import ensure_session, get_session, persist_session_state
 from . import database as db
 from . import takedown
 from .structured_logging import log_event
@@ -32,7 +32,7 @@ def unpublish_microsite():
 
     info_state.user.update('publication_status', 'unpublished')
     info_state.user.update('microsite_draft_status', 'unpublished')
-    info_state.save_user_model()
+    persist_session_state(session_id, s)
     log_event(logger, 'microsite_unpublished', session_id=session_id, reason=data.get('reason') or 'user_request')
     return jsonify({
         'status': 'unpublished',
@@ -58,7 +58,7 @@ def delete_microsite():
     info_state.user.update('publication_status', 'deleted')
     info_state.user.update('microsite_draft_status', 'deleted')
     info_state.user.update('photos', [])
-    info_state.save_user_model()
+    persist_session_state(session_id, s)
     log_event(
         logger,
         'microsite_deleted',
