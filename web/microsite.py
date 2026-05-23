@@ -6,6 +6,7 @@ import hashlib
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 from . import database as db
+from .content_moderation import validate_public_content
 
 MICROSITE_PROMPT_VERSION = 'microsite-public-page-v2'
 CONTENT_FIELDS = (
@@ -421,6 +422,14 @@ def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
         for field in CONTENT_FIELDS
     }
     content = _normalize_content(content_input, name)
+    safe, issues = validate_public_content({'name': name, **content})
+    if not safe:
+        raise MicrositeGenerationError(
+            'public_content_blocked',
+            'Please review and edit the donor-page draft before publishing. It contains content that should not be public.',
+            missing=[issue['code'] for issue in issues],
+            status_code=409,
+        )
     visit_id = info_state.user.query('visit_id')
     photos = db.list_visit_photos(visit_id) or (info_state.user.query('photos') or [])
     photo_items = _photo_items(photos)

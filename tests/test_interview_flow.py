@@ -28,6 +28,7 @@ from web import routes_admin
 from web import takedown
 from web import session as session_module
 from web import session_store
+from web.content_moderation import public_content_issues
 from web.routes_api import (
     PUBLICATION_CONSENT_VERSION,
     validate_generation_ready,
@@ -1322,6 +1323,40 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertIn('<link rel="canonical"', html)
                     self.assertIn('name="twitter:description"', html)
                     self.assertIn('Ludi Donor Stories', html)
+
+    def test_publish_blocks_public_contact_information_before_writing_page(self):
+        info_state = self._info_state()
+        with tempfile.TemporaryDirectory() as site_dir:
+            with patch.object(microsite, 'MICROSITES_DIR', site_dir):
+                with app.test_request_context('/microsite'):
+                    microsite.generate(info_state, FakeMicrositeLLM(), 'Sophia', 'unit-blocked')
+
+                    with self.assertRaises(microsite.MicrositeGenerationError) as ctx:
+                        microsite.publish(
+                            info_state,
+                            'unit-blocked',
+                            {'donor_message': 'Please email sophia@example.com if you can help.'},
+                        )
+
+                    self.assertEqual(ctx.exception.error, 'public_content_blocked')
+                    self.assertIn('contact_information', ctx.exception.missing)
+                    self.assertFalse(os.path.exists(os.path.join(site_dir, 'unit-blocked.html')))
+
+
+class PublicContentModerationTests(unittest.TestCase):
+    def test_flags_contact_medical_crisis_and_coercive_language(self):
+        issues = public_content_issues({
+            'short_intro': 'Call 312-555-1212 or email test@example.com.',
+            'kidney_journey': 'You should stop taking medication.',
+            'daily_impact': 'Sometimes I want to hurt myself.',
+            'donor_message': 'You must donate to save my life.',
+        })
+
+        codes = {issue['code'] for issue in issues}
+        self.assertIn('contact_information', codes)
+        self.assertIn('medical_advice_claim', codes)
+        self.assertIn('crisis_language', codes)
+        self.assertIn('coercive_donor_language', codes)
 
 
 class DatabasePersistenceTests(unittest.TestCase):
