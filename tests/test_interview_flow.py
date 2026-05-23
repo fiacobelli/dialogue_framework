@@ -20,6 +20,7 @@ from web.interview_flow import (
 )
 from web import microsite
 from web import database as db
+from web import routes_admin
 from web.routes_api import (
     PUBLICATION_CONSENT_VERSION,
     validate_generation_ready,
@@ -482,6 +483,64 @@ class PublicationControlTests(unittest.TestCase):
         self.assertTrue(db.unpublish_session('published-session'))
         self.assertFalse(db.is_microsite_published('published-session'))
         self.assertFalse(db.is_photo_public('published-session_0.jpg'))
+
+    def test_admin_visit_detail_includes_session_artifacts_and_audit_events(self):
+        visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
+        db.save_message(visit_id, 'user', 'My family is important to me.', turn_number=1, phase='STORY')
+        db.save_photo(visit_id, 'published-session_0.jpg', 0, byte_size=42)
+        db.save_draft(visit_id, self._result(), status='published')
+
+        self.assertTrue(db.unpublish_session('published-session', reason='admin_review', actor='admin'))
+
+        visits = db.list_admin_visits()
+        detail = db.get_admin_visit('published-session')
+
+        self.assertEqual(visits[0]['session_id'], 'published-session')
+        self.assertEqual(detail['visit']['publication_status'], 'unpublished')
+        self.assertEqual(detail['messages'][0]['content'], 'My family is important to me.')
+        self.assertEqual(detail['photos'][0]['stored_filename'], 'published-session_0.jpg')
+        self.assertEqual(detail['drafts'][0]['status'], 'unpublished')
+        self.assertEqual(detail['audit_events'][0]['action'], 'unpublish')
+        self.assertEqual(detail['audit_events'][0]['actor'], 'admin')
+        self.assertEqual(detail['audit_events'][0]['reason'], 'admin_review')
+
+    def test_admin_routes_require_login_and_can_unpublish(self):
+        visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
+        db.save_draft(visit_id, self._result(), status='published')
+
+        with patch.object(routes_admin, 'ADMIN_USERNAME', 'admin'):
+            with patch.object(routes_admin, 'ADMIN_PASSWORD', 'secret'):
+                with app.test_client() as client:
+                    protected = client.get('/admin/')
+                    self.assertEqual(protected.status_code, 302)
+                    self.assertIn('/admin/login', protected.headers['Location'])
+
+                    login = client.post(
+                        '/admin/login',
+                        data={'username': 'admin', 'password': 'secret'},
+                        follow_redirects=False,
+                    )
+                    self.assertEqual(login.status_code, 302)
+
+                    listing = client.get('/admin/')
+                    self.assertEqual(listing.status_code, 200)
+                    self.assertIn(b'published-session', listing.data)
+
+                    detail = client.get('/admin/session/published-session')
+                    self.assertEqual(detail.status_code, 200)
+                    self.assertIn(b'Unpublish Page', detail.data)
+
+                    unpublish = client.post(
+                        '/admin/session/published-session/unpublish',
+                        data={'reason': 'supervisor_review'},
+                        follow_redirects=False,
+                    )
+                    self.assertEqual(unpublish.status_code, 302)
+
+        detail = db.get_admin_visit('published-session')
+        self.assertEqual(detail['visit']['publication_status'], 'unpublished')
+        self.assertEqual(detail['audit_events'][0]['actor'], 'admin')
+        self.assertEqual(detail['audit_events'][0]['reason'], 'supervisor_review')
 
 
 class MicrositeEvidenceTests(unittest.TestCase):

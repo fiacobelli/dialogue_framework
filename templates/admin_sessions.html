@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Microsite Sessions</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; font-family: Georgia, serif; background: #F8F1E8; color: #1C1917; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 24px 32px; background: #FFFDF9; border-bottom: 1px solid #E7DDD5; }
+        h1 { margin: 0; font-size: 30px; }
+        main { padding: 28px 32px; }
+        table { width: 100%; border-collapse: collapse; background: #FFFDF9; border: 1px solid #E7DDD5; border-radius: 16px; overflow: hidden; }
+        th, td { padding: 12px 14px; border-bottom: 1px solid #EFE7DF; text-align: left; vertical-align: top; }
+        th { color: #78716C; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+        a { color: #C05621; font-weight: 700; }
+        .pill { display: inline-block; border-radius: 999px; padding: 4px 9px; background: #F0E9E2; font-size: 13px; }
+        .published { background: #DCFCE7; color: #166534; }
+        .unpublished { background: #FEE2E2; color: #991B1B; }
+        button { border: 0; border-radius: 10px; padding: 9px 12px; background: #6B7280; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Microsite Sessions</h1>
+        <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+    </header>
+    <main>
+        <table>
+            <thead>
+                <tr>
+                    <th>Session</th>
+                    <th>Name</th>
+                    <th>Phase</th>
+                    <th>Draft</th>
+                    <th>Publication</th>
+                    <th>Photos</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for visit in visits %}
+                <tr>
+                    <td><a href="{{ url_for('admin.session_detail', session_id=visit.session_id) }}">{{ visit.session_id[:8] }}</a></td>
+                    <td>{{ visit.patient_display_name or 'Not captured' }}</td>
+                    <td>{{ visit.phase }}</td>
+                    <td><span class="pill">{{ visit.draft_status }}</span></td>
+                    <td><span class="pill {{ visit.publication_status }}">{{ visit.publication_status }}</span></td>
+                    <td>{{ visit.photo_count }}</td>
+                    <td>{{ visit.updated_at }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7">No sessions found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

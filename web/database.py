@@ -209,6 +209,18 @@ def init_db() -> None:
                 FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT,
+                session_id TEXT,
+                actor TEXT,
+                action TEXT NOT NULL,
+                reason TEXT,
+                metadata_json TEXT DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(visit_id) REFERENCES visits(id) ON DELETE SET NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_visits_started_at ON visits(started_at);
             CREATE INDEX IF NOT EXISTS idx_visits_phase ON visits(phase);
             CREATE INDEX IF NOT EXISTS idx_visits_draft_status ON visits(draft_status);
@@ -221,6 +233,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_photos_visit ON photos(visit_id);
             CREATE INDEX IF NOT EXISTS idx_drafts_visit_version ON donor_page_drafts(visit_id, version);
             CREATE INDEX IF NOT EXISTS idx_consents_visit_type ON consents(visit_id, consent_type);
+            CREATE INDEX IF NOT EXISTS idx_audit_visit_created ON audit_events(visit_id, created_at);
             """
         )
         _ensure_columns(c, 'messages', {
@@ -321,6 +334,38 @@ def has_consent(visit_id: str | None, consent_type: str, consent_version: str | 
         return c.execute(query, params).fetchone() is not None
 
 
+def save_audit_event(
+    *,
+    visit_id: str | None = None,
+    session_id: str | None = None,
+    actor: str = 'system',
+    action: str,
+    reason: str = '',
+    metadata: dict | None = None,
+) -> str:
+    """Record a staff/system action for operational traceability."""
+    audit_id = _uuid()
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT INTO audit_events(
+                id, visit_id, session_id, actor, action, reason, metadata_json, created_at
+            ) VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (
+                audit_id,
+                visit_id,
+                session_id,
+                actor,
+                action,
+                reason,
+                _json(metadata),
+                _now(),
+            ),
+        )
+    return audit_id
+
+
 def is_microsite_published(session_id: str) -> bool:
     """Return whether a session's public donor page should be served."""
     with _conn() as c:
@@ -354,7 +399,7 @@ def is_photo_public(stored_filename: str) -> bool:
     return row is not None
 
 
-def unpublish_session(session_id: str, reason: str = 'user_request') -> bool:
+def unpublish_session(session_id: str, reason: str = 'user_request', actor: str = 'patient') -> bool:
     """Mark a public donor page as unpublished so controlled routes stop serving it."""
     now = _now()
     with _conn() as c:
@@ -381,7 +426,100 @@ def unpublish_session(session_id: str, reason: str = 'user_request') -> bool:
             """,
             (visit_id,),
         )
+        c.execute(
+            """
+            INSERT INTO audit_events(
+                id, visit_id, session_id, actor, action, reason, metadata_json, created_at
+            ) VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (_uuid(), visit_id, session_id, actor, 'unpublish', reason, _json({}), now),
+        )
     return True
+
+
+def list_admin_visits(limit: int = 50) -> list[dict[str, Any]]:
+    """Return recent sessions for the staff admin overview."""
+    with _conn() as c:
+        rows = c.execute(
+            """
+            SELECT
+                id, session_id, phase, patient_display_name, draft_status,
+                publication_status, photo_count, total_user_turns,
+                total_assistant_turns, publication_consented_at,
+                started_at, updated_at, completed_at, published_at, unpublished_at
+            FROM visits
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_admin_visit(session_id: str) -> dict[str, Any] | None:
+    """Return a detailed admin view for one session."""
+    with _conn() as c:
+        visit = c.execute('SELECT * FROM visits WHERE session_id = ?', (session_id,)).fetchone()
+        if not visit:
+            return None
+        visit_id = visit['id']
+        messages = c.execute(
+            """
+            SELECT turn_number, role, content, phase, awaiting, task_type,
+                   step_id, input_modality, response_latency_ms,
+                   answer_duration_ms, no_response, retry_count, created_at
+            FROM messages
+            WHERE visit_id = ?
+            ORDER BY turn_number, created_at
+            """,
+            (visit_id,),
+        ).fetchall()
+        photos = c.execute(
+            """
+            SELECT stored_filename, display_order, source, mime_type,
+                   byte_size, width, height, uploaded_at, deleted_at
+            FROM photos
+            WHERE visit_id = ?
+            ORDER BY display_order
+            """,
+            (visit_id,),
+        ).fetchall()
+        drafts = c.execute(
+            """
+            SELECT version, status, name, headline, published_url,
+                   html_path, generated_at, reviewed_at, published_at
+            FROM donor_page_drafts
+            WHERE visit_id = ?
+            ORDER BY version DESC
+            """,
+            (visit_id,),
+        ).fetchall()
+        consents = c.execute(
+            """
+            SELECT consent_type, consent_version, consented, actor, created_at
+            FROM consents
+            WHERE visit_id = ?
+            ORDER BY created_at DESC
+            """,
+            (visit_id,),
+        ).fetchall()
+        audit_events = c.execute(
+            """
+            SELECT actor, action, reason, metadata_json, created_at
+            FROM audit_events
+            WHERE visit_id = ?
+            ORDER BY created_at DESC
+            """,
+            (visit_id,),
+        ).fetchall()
+    return {
+        'visit': dict(visit),
+        'messages': [dict(row) for row in messages],
+        'photos': [dict(row) for row in photos],
+        'drafts': [dict(row) for row in drafts],
+        'consents': [dict(row) for row in consents],
+        'audit_events': [dict(row) for row in audit_events],
+    }
 
 
 def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:

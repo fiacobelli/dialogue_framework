@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Microsite Session Detail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --paper: #FFFDF9;
+            --linen: #F8F1E8;
+            --ink: #1C1917;
+            --muted: #78716C;
+            --line: #E7DDD5;
+            --accent: #E86F2C;
+            --danger: #B91C1C;
+            --ok: #166534;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Georgia, serif; background: var(--linen); color: var(--ink); }
+        header { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 24px 32px; background: var(--paper); border-bottom: 1px solid var(--line); }
+        h1 { margin: 0 0 6px; font-size: 30px; }
+        h2 { margin: 0 0 14px; font-size: 22px; }
+        a { color: #C05621; font-weight: 700; }
+        main { display: grid; gap: 22px; padding: 28px 32px 40px; }
+        section { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: 0 14px 34px rgba(28,25,23,.07); }
+        dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 22px; margin: 0; }
+        dt { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+        dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 11px 10px; border-bottom: 1px solid #EFE7DF; text-align: left; vertical-align: top; }
+        th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+        button { border: 0; border-radius: 10px; padding: 10px 13px; background: #6B7280; color: white; cursor: pointer; font-weight: 700; }
+        input { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; min-width: 220px; }
+        .top-actions { display: flex; align-items: center; gap: 14px; }
+        .muted { color: var(--muted); }
+        .pill { display: inline-block; border-radius: 999px; padding: 4px 9px; background: #F0E9E2; font-size: 13px; }
+        .published { background: #DCFCE7; color: var(--ok); }
+        .unpublished { background: #FEE2E2; color: #991B1B; }
+        .not_published { background: #E5E7EB; color: #374151; }
+        .danger { background: var(--danger); }
+        .content { max-width: 58rem; line-height: 1.5; }
+        .inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+        @media (max-width: 720px) {
+            header { align-items: flex-start; flex-direction: column; padding: 20px; }
+            main { padding: 20px; }
+            table { display: block; overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+    {% set visit = detail.visit %}
+    <header>
+        <div>
+            <a href="{{ url_for('admin.sessions') }}">Back to sessions</a>
+            <h1>{{ visit.patient_display_name or 'Unnamed session' }}</h1>
+            <div class="muted">{{ visit.session_id }}</div>
+        </div>
+        <div class="top-actions">
+            {% if visit.publication_status == 'published' %}
+                <a href="{{ url_for('serve_microsite', session_id=visit.session_id) }}" target="_blank" rel="noopener">View public page</a>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+        </div>
+    </header>
+    <main>
+        <section>
+            <h2>Session Summary</h2>
+            <dl>
+                <div><dt>Phase</dt><dd>{{ visit.phase }}</dd></div>
+                <div><dt>Awaiting</dt><dd>{{ visit.awaiting or 'None' }}</dd></div>
+                <div><dt>Draft</dt><dd><span class="pill">{{ visit.draft_status }}</span></dd></div>
+                <div><dt>Publication</dt><dd><span class="pill {{ visit.publication_status }}">{{ visit.publication_status }}</span></dd></div>
+                <div><dt>Photos</dt><dd>{{ visit.photo_count }}</dd></div>
+                <div><dt>Consent</dt><dd>{{ visit.publication_consented_at or 'Not recorded' }}</dd></div>
+                <div><dt>User Turns</dt><dd>{{ visit.total_user_turns }}</dd></div>
+                <div><dt>Assistant Turns</dt><dd>{{ visit.total_assistant_turns }}</dd></div>
+                <div><dt>Started</dt><dd>{{ visit.started_at }}</dd></div>
+                <div><dt>Updated</dt><dd>{{ visit.updated_at }}</dd></div>
+                <div><dt>Completed</dt><dd>{{ visit.completed_at or 'Not completed' }}</dd></div>
+                <div><dt>Published</dt><dd>{{ visit.published_at or 'Not published' }}</dd></div>
+                <div><dt>Unpublished</dt><dd>{{ visit.unpublished_at or 'Not unpublished' }}</dd></div>
+                <div><dt>Avatar</dt><dd>{{ visit.avatar_id or 'Unknown' }}</dd></div>
+                <div><dt>Client</dt><dd>{{ visit.user_agent or 'Unknown' }}</dd></div>
+            </dl>
+            {% if visit.publication_status == 'published' %}
+                <form class="inline-form" method="post" action="{{ url_for('admin.admin_unpublish', session_id=visit.session_id) }}">
+                    <label for="reason"><strong>Unpublish reason</strong></label>
+                    <input id="reason" name="reason" value="admin_review" required>
+                    <button class="danger" type="submit">Unpublish Page</button>
+                </form>
+            {% endif %}
+        </section>
+
+        <section>
+            <h2>Conversation Timeline</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Turn</th>
+                        <th>Role</th>
+                        <th>Phase</th>
+                        <th>Task</th>
+                        <th>Timing</th>
+                        <th>Content</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in detail.messages %}
+                    <tr>
+                        <td>{{ message.turn_number }}</td>
+                        <td>{{ message.role }}</td>
+                        <td>{{ message.phase or '' }}</td>
+                        <td>{{ message.task_type or '' }}</td>
+                        <td>
+                            Latency: {{ message.response_latency_ms if message.response_latency_ms is not none else 'n/a' }} ms<br>
+                            Duration: {{ message.answer_duration_ms if message.answer_duration_ms is not none else 'n/a' }} ms<br>
+                            Retries: {{ message.retry_count }}
+                        </td>
+                        <td class="content">{{ message.content }}</td>
+                        <td>{{ message.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">No messages saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Photos</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Filename</th>
+                        <th>Source</th>
+                        <th>Size</th>
+                        <th>Dimensions</th>
+                        <th>Uploaded</th>
+                        <th>Deleted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for photo in detail.photos %}
+                    <tr>
+                        <td>{{ photo.display_order }}</td>
+                        <td>{{ photo.stored_filename }}</td>
+                        <td>{{ photo.source or 'unknown' }}</td>
+                        <td>{{ photo.byte_size or 'n/a' }}</td>
+                        <td>{{ photo.width or '?' }} x {{ photo.height or '?' }}</td>
+                        <td>{{ photo.uploaded_at }}</td>
+                        <td>{{ photo.deleted_at or '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">No photos saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Drafts</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Headline</th>
+                        <th>URL</th>
+                        <th>Generated</th>
+                        <th>Published</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for draft in detail.drafts %}
+                    <tr>
+                        <td>{{ draft.version }}</td>
+                        <td>{{ draft.status }}</td>
+                        <td>{{ draft.name or '' }}</td>
+                        <td>{{ draft.headline or '' }}</td>
+                        <td>{{ draft.published_url or draft.html_path or '' }}</td>
+                        <td>{{ draft.generated_at }}</td>
+                        <td>{{ draft.published_at or '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">No page drafts saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Consents</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Version</th>
+                        <th>Consented</th>
+                        <th>Actor</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for consent in detail.consents %}
+                    <tr>
+                        <td>{{ consent.consent_type }}</td>
+                        <td>{{ consent.consent_version }}</td>
+                        <td>{{ 'yes' if consent.consented else 'no' }}</td>
+                        <td>{{ consent.actor or '' }}</td>
+                        <td>{{ consent.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No consents saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Audit Events</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Actor</th>
+                        <th>Reason</th>
+                        <th>Metadata</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in detail.audit_events %}
+                    <tr>
+                        <td>{{ event.action }}</td>
+                        <td>{{ event.actor or '' }}</td>
+                        <td>{{ event.reason or '' }}</td>
+                        <td>{{ event.metadata_json or '{}' }}</td>
+                        <td>{{ event.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No audit events saved for this session.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

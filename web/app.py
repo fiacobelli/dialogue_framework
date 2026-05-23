@@ -15,6 +15,7 @@ from .config import (
     DEFAULT_AVATAR_ID,
 )
 from .routes_api import api_bp
+from .routes_admin import admin_bp
 from .routes_photos import photos_bp
 from .session_store import has_session, get_session
 from . import database as db
@@ -25,6 +26,7 @@ app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.register_blueprint(api_bp)
+app.register_blueprint(admin_bp)
 app.register_blueprint(photos_bp)
 
 os.makedirs(PHOTOS_DIR, exist_ok=True)

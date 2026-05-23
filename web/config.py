@@ -47,6 +47,8 @@ AVATAR_PROFILES = {
 # Server Configuration
 FLASK_PORT = config('FLASK_PORT', default=5000, cast=int)
 FLASK_DEBUG = config('FLASK_DEBUG', default=False, cast=bool)
+ADMIN_USERNAME = config('ADMIN_USERNAME', default='admin')
+ADMIN_PASSWORD = config('ADMIN_PASSWORD', default='')
 
 # LLM Provider URLs
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')

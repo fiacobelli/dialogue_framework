@@ -443,7 +443,7 @@ def unpublish_microsite():
 
     s = get_session(session_id)
     info_state = s['info_state']
-    ok = db.unpublish_session(session_id, reason=data.get('reason') or 'user_request')
+    ok = db.unpublish_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not ok:
         return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
 
