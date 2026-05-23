@@ -126,6 +126,23 @@ class ConversationAPI {
         return await res.json();
     }
 
+    async unpublishMicrosite(reason = 'user_request') {
+        if (!this.sessionId) throw new Error('No active session');
+
+        const res = await fetch(this._url('/api/unpublish'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: this.sessionId,
+                reason
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || 'Failed to unpublish microsite');
+        return data;
+    }
+
     async getQRCode() {
         if (!this.sessionId) throw new Error('No active session');
         const res = await fetch(this._url(`/api/qr/${this.sessionId}`));

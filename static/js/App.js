@@ -137,6 +137,9 @@ class App {
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
 
+        const unpublishBtn = document.getElementById('unpublishBtn');
+        if (unpublishBtn) unpublishBtn.addEventListener('click', () => this.unpublish());
+
         const repeatBtn = document.getElementById('repeatBtn');
         if (repeatBtn) repeatBtn.addEventListener('click', () => {
             speechManager.recordEvent('repeat_clicked');
@@ -581,6 +584,28 @@ class App {
             btn.textContent = 'Copied!';
             setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
         });
+    }
+
+    async unpublish() {
+        const ok = window.confirm('Unpublish this donor page? The public link will stop working.');
+        if (!ok) return;
+        const btn = document.getElementById('unpublishBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Unpublishing...';
+        }
+        try {
+            await conversationAPI.unpublishMicrosite();
+            ui.showUnpublished();
+            ui.setStatus('The donor page is no longer public.');
+        } catch (err) {
+            console.error(err);
+            ui.setStatus('Unpublish failed. Please try again.');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Unpublish Page';
+            }
+        }
     }
 
     repeatLastMessage() {

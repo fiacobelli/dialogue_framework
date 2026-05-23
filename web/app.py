@@ -1,6 +1,6 @@
 """Flask application entry point for the dialogue framework."""
 
-from flask import Flask, render_template, send_from_directory, request
+from flask import Flask, render_template, send_from_directory, request, abort
 from decouple import config
 import os
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -17,6 +17,7 @@ from .config import (
 from .routes_api import api_bp
 from .routes_photos import photos_bp
 from .session_store import has_session, get_session
+from . import database as db
 from .database import configure as db_configure, init_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -62,7 +63,9 @@ def avatar_preview(scene_id):
 
 @app.route('/photos/<filename>')
 def serve_photo(filename):
-    """Serve uploaded photo files."""
+    """Serve uploaded photos only after their donor page is published."""
+    if not db.is_photo_public(filename):
+        abort(404)
     abs_photos_dir = os.path.abspath(PHOTOS_DIR)
     return send_from_directory(abs_photos_dir, filename)
 
@@ -77,9 +80,17 @@ def mobile_upload(session_id):
 
 @app.route('/site/<session_id>')
 def serve_microsite(session_id):
-    """Serve generated microsite HTML."""
+    """Serve generated microsite HTML only when the DB marks it published."""
+    if not db.is_microsite_published(session_id):
+        abort(404)
     abs_microsites_dir = os.path.abspath(MICROSITES_DIR)
     return send_from_directory(abs_microsites_dir, f'{session_id}.html')
+
+
+@app.route('/static/microsites/<path:filename>')
+def block_raw_microsite_static(filename):
+    """Prevent bypassing publication status through Flask's static route."""
+    abort(404)
 
 
 if __name__ == '__main__':

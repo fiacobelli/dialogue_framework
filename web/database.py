@@ -98,6 +98,7 @@ def init_db() -> None:
                 photo_count INTEGER DEFAULT 0,
                 photo_requirement_status TEXT DEFAULT 'pending',
                 draft_status TEXT DEFAULT 'none',
+                publication_status TEXT DEFAULT 'not_published',
                 publication_consent_version TEXT,
                 publication_consented_at TEXT,
                 total_user_turns INTEGER DEFAULT 0,
@@ -106,7 +107,8 @@ def init_db() -> None:
                 started_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 completed_at TEXT,
-                published_at TEXT
+                published_at TEXT,
+                unpublished_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS messages (
@@ -231,8 +233,10 @@ def init_db() -> None:
         })
         _ensure_columns(c, 'visits', {
             'photo_requirement_status': "TEXT DEFAULT 'pending'",
+            'publication_status': "TEXT DEFAULT 'not_published'",
             'publication_consent_version': 'TEXT',
             'publication_consented_at': 'TEXT',
+            'unpublished_at': 'TEXT',
         })
 
 
@@ -317,6 +321,69 @@ def has_consent(visit_id: str | None, consent_type: str, consent_version: str | 
         return c.execute(query, params).fetchone() is not None
 
 
+def is_microsite_published(session_id: str) -> bool:
+    """Return whether a session's public donor page should be served."""
+    with _conn() as c:
+        row = c.execute(
+            """
+            SELECT publication_status, draft_status
+            FROM visits
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+    return bool(row and row['publication_status'] == 'published' and row['draft_status'] == 'published')
+
+
+def is_photo_public(stored_filename: str) -> bool:
+    """Return whether a stored photo belongs to a published, non-deleted page."""
+    with _conn() as c:
+        row = c.execute(
+            """
+            SELECT 1
+            FROM photos p
+            JOIN visits v ON v.id = p.visit_id
+            WHERE p.stored_filename = ?
+              AND p.deleted_at IS NULL
+              AND v.publication_status = 'published'
+              AND v.draft_status = 'published'
+            LIMIT 1
+            """,
+            (stored_filename,),
+        ).fetchone()
+    return row is not None
+
+
+def unpublish_session(session_id: str, reason: str = 'user_request') -> bool:
+    """Mark a public donor page as unpublished so controlled routes stop serving it."""
+    now = _now()
+    with _conn() as c:
+        row = c.execute('SELECT id FROM visits WHERE session_id = ?', (session_id,)).fetchone()
+        if not row:
+            return False
+        visit_id = row['id']
+        c.execute(
+            """
+            UPDATE visits
+            SET publication_status = 'unpublished',
+                draft_status = 'unpublished',
+                unpublished_at = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (now, now, visit_id),
+        )
+        c.execute(
+            """
+            UPDATE donor_page_drafts
+            SET status = 'unpublished'
+            WHERE visit_id = ? AND status = 'published'
+            """,
+            (visit_id,),
+        )
+    return True
+
+
 def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:
     now = _now()
     visit_id = _uuid()
@@ -362,6 +429,7 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 photo_count = ?,
                 photo_requirement_status = ?,
                 draft_status = ?,
+                publication_status = COALESCE(?, publication_status),
                 publication_consent_version = COALESCE(publication_consent_version, ?),
                 publication_consented_at = COALESCE(publication_consented_at, ?),
                 updated_at = ?,
@@ -382,6 +450,7 @@ def update_visit_from_info_state(visit_id: str | None, info_state) -> None:
                 len(photos),
                 info_state.user.query('photo_requirement_status') or ('complete' if len(photos) >= 3 else 'pending'),
                 draft_status,
+                info_state.user.query('publication_status'),
                 info_state.user.query('publication_consent_version'),
                 info_state.user.query('publication_consented_at'),
                 _now(),
@@ -590,7 +659,20 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
             ),
         )
         c.execute(
-            'UPDATE visits SET draft_status = ?, published_at = COALESCE(?, published_at), updated_at = ? WHERE id = ?',
-            ('published' if status == 'published' else 'draft', now if status == 'published' else None, now, visit_id),
+            """
+            UPDATE visits
+            SET draft_status = ?,
+                publication_status = CASE WHEN ? = 'published' THEN 'published' ELSE publication_status END,
+                published_at = COALESCE(?, published_at),
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                'published' if status == 'published' else 'draft',
+                status,
+                now if status == 'published' else None,
+                now,
+                visit_id,
+            ),
         )
     return version

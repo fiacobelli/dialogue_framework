@@ -197,7 +197,9 @@ def _legacy_fields(content: dict) -> dict:
     }
 
 
-def _photo_urls(photos: list) -> list:
+def _photo_urls(photos: list, session_id: str | None = None, *, preview: bool = False) -> list:
+    if preview and session_id:
+        return [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos]
     return [url_for('serve_photo', filename=p) for p in photos]
 
 
@@ -263,7 +265,7 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
         )
 
     content = _normalize_content(content_json, name)
-    result = _build_result(content, name, raw_content, _photo_urls(photos), published=False)
+    result = _build_result(content, name, raw_content, _photo_urls(photos, session_id, preview=True), published=False)
 
     info_state.user.update('microsite_draft', result)
     info_state.user.update('microsite_draft_status', 'draft')

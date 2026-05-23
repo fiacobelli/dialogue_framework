@@ -368,6 +368,24 @@ class UIController {
         if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
     }
 
+    showUnpublished() {
+        const btn = document.getElementById('unpublishBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Page Unpublished';
+        }
+        const viewBtn = document.getElementById('viewBtn');
+        if (viewBtn) {
+            viewBtn.removeAttribute('href');
+            viewBtn.textContent = 'Page Unpublished';
+        }
+        const cta = document.getElementById('viewPageCTA');
+        if (cta) {
+            cta.removeAttribute('href');
+            cta.textContent = 'Page Unpublished';
+        }
+    }
+
     showMicrositePreview(data) {
         document.getElementById('siteName').textContent = `${data.name}'s Story`;
 

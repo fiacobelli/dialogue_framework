@@ -1,6 +1,7 @@
 """Photo and QR code routes blueprint."""
 
 from flask import Blueprint, request, jsonify, url_for
+from flask import send_from_directory
 import os
 import io
 import base64
@@ -95,7 +96,7 @@ def upload_photo():
         'status': 'ok',
         'photo_count': len(photos),
         'max_photos': MAX_PHOTOS,
-        'photos': [url_for('serve_photo', filename=p) for p in photos],
+        'photos': [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos],
         'ready': len(photos) >= MAX_PHOTOS
     })
 
@@ -113,8 +114,20 @@ def get_photo_status(session_id):
         'photo_count': len(photos),
         'ready': len(photos) >= MAX_PHOTOS,
         'max_photos': MAX_PHOTOS,
-        'photos': [url_for('serve_photo', filename=p) for p in photos],
+        'photos': [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos],
     })
+
+
+@photos_bp.route('/photo-preview/<session_id>/<filename>')
+def photo_preview(session_id, filename):
+    """Serve uploaded photos for the active private review session."""
+    if not has_session(session_id):
+        return jsonify({'error': 'Session not found'}), 404
+    info_state = get_session(session_id)['info_state']
+    photos = info_state.user.query('photos') or []
+    if filename not in photos:
+        return jsonify({'error': 'Photo not found for this session'}), 404
+    return send_from_directory(os.path.abspath(PHOTOS_DIR), filename)
 
 
 @photos_bp.route('/qr/<session_id>')

@@ -878,6 +878,7 @@
 .share-btn.email { background: #6B7280; }
 .share-btn.copy { background: #4CAF7D; }
 .share-btn.view { background: #E86F2C; }
+.share-btn.danger { background: #B91C1C; }
 
 @media (min-width: 768px) {
     .photo-section,

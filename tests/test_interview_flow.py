@@ -441,6 +441,49 @@ class PublicationConsentTests(unittest.TestCase):
         self.assertTrue(db.has_consent(visit_id, 'publication', PUBLICATION_CONSENT_VERSION))
 
 
+class PublicationControlTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+
+    def _result(self):
+        return {
+            'name': 'Sophia',
+            'headline': 'Sophia is sharing her kidney donor story',
+            'short_intro': 'Sophia is sharing her story.',
+            'personal_identity': 'Sophia values her family.',
+            'kidney_journey': 'Sophia is living with kidney disease.',
+            'daily_impact': 'Dialysis affects her schedule.',
+            'transplant_hope': 'A transplant could help her regain energy.',
+            'donor_message': 'Sophia wants potential donors to know their help matters.',
+            'my_story': 'Sophia values her family.',
+            'my_struggle': 'Dialysis affects her schedule.',
+            'my_hope': 'A transplant could help her regain energy.',
+            'content': '{}',
+            'microsite_url': '/site/published-session',
+            'microsite_absolute_url': 'https://example.test/site/published-session',
+        }
+
+    def test_publication_status_controls_page_and_photos(self):
+        visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
+        db.save_photo(visit_id, 'published-session_0.jpg', 0)
+
+        self.assertFalse(db.is_microsite_published('published-session'))
+        self.assertFalse(db.is_photo_public('published-session_0.jpg'))
+
+        db.save_draft(visit_id, self._result(), status='published')
+
+        self.assertTrue(db.is_microsite_published('published-session'))
+        self.assertTrue(db.is_photo_public('published-session_0.jpg'))
+
+        self.assertTrue(db.unpublish_session('published-session'))
+        self.assertFalse(db.is_microsite_published('published-session'))
+        self.assertFalse(db.is_photo_public('published-session_0.jpg'))
+
+
 class MicrositeEvidenceTests(unittest.TestCase):
     def test_format_story_evidence_excludes_rejected_operational_turns(self):
         state = {
