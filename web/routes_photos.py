@@ -38,6 +38,25 @@ def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
     return image.size
 
 
+def _photo_urls(session_id: str, photos: list[str]) -> list[str]:
+    return [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos]
+
+
+def _sync_session_photos(info_state, photos: list[str]) -> None:
+    info_state.user.update('photos', photos)
+    info_state.save_user_model()
+
+
+def _current_photos(info_state) -> list[str]:
+    visit_id = info_state.user.query('visit_id')
+    db_photos = db.list_visit_photo_filenames(visit_id)
+    if db_photos:
+        if db_photos != (info_state.user.query('photos') or []):
+            _sync_session_photos(info_state, db_photos)
+        return db_photos
+    return info_state.user.query('photos') or []
+
+
 @photos_bp.route('/upload', methods=['POST'])
 def upload_photo():
     """Handle photo upload from web or mobile."""
@@ -56,28 +75,36 @@ def upload_photo():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    visit_id = info_state.user.query('visit_id')
+    if not visit_id:
+        return jsonify({'error': 'Visit not initialized for this session'}), 400
 
-    photos = info_state.user.query('photos') or []
-    if len(photos) >= MAX_PHOTOS:
+    existing_photos = _current_photos(info_state)
+    if len(existing_photos) >= MAX_PHOTOS:
         return jsonify({'error': f'Max {MAX_PHOTOS} photos already uploaded'}), 400
 
-    photo_id = f"{session_id}_{len(photos)}.jpg"
+    reservation = db.reserve_photo_slot(visit_id, session_id, MAX_PHOTOS)
+    if not reservation:
+        return jsonify({'error': f'Max {MAX_PHOTOS} photos already uploaded'}), 400
+
+    photo_id = reservation['stored_filename']
     photo_path = os.path.join(PHOTOS_DIR, photo_id)
+    os.makedirs(PHOTOS_DIR, exist_ok=True)
     try:
         width, height = _save_processed_photo(photo, photo_path)
+        byte_size = os.path.getsize(photo_path)
+        with open(photo_path, 'rb') as f:
+            sha256 = hashlib.sha256(f.read()).hexdigest()
     except ValueError as exc:
+        db.release_photo_reservation(visit_id, photo_id)
         return jsonify({'error': str(exc)}), 400
-    byte_size = os.path.getsize(photo_path)
-    with open(photo_path, 'rb') as f:
-        sha256 = hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        db.release_photo_reservation(visit_id, photo_id)
+        return jsonify({'error': 'Unable to save uploaded photo'}), 500
 
-    photos.append(photo_id)
-    info_state.user.update('photos', photos)
-    info_state.save_user_model()
-    db.save_photo(
-        info_state.user.query('visit_id'),
+    db.finalize_photo_upload(
+        visit_id,
         photo_id,
-        len(photos) - 1,
         source=request.form.get('source') or 'desktop',
         mime_type='image/jpeg',
         byte_size=byte_size,
@@ -85,18 +112,20 @@ def upload_photo():
         width=width,
         height=height,
     )
+    photos = db.list_visit_photo_filenames(visit_id)
+    _sync_session_photos(info_state, photos)
 
     if len(photos) >= MAX_PHOTOS:
         info_state.user.update('interview_phase', 'COMPLETE')
         info_state.user.update('photo_requirement_status', 'complete')
         info_state.save_user_model()
-    db.update_visit_from_info_state(info_state.user.query('visit_id'), info_state)
+    db.update_visit_from_info_state(visit_id, info_state)
 
     return jsonify({
         'status': 'ok',
         'photo_count': len(photos),
         'max_photos': MAX_PHOTOS,
-        'photos': [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos],
+        'photos': _photo_urls(session_id, photos),
         'ready': len(photos) >= MAX_PHOTOS
     })
 
@@ -108,13 +137,13 @@ def get_photo_status(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
     info_state = get_session(session_id)['info_state']
-    photos = info_state.user.query('photos') or []
+    photos = _current_photos(info_state)
 
     return jsonify({
         'photo_count': len(photos),
         'ready': len(photos) >= MAX_PHOTOS,
         'max_photos': MAX_PHOTOS,
-        'photos': [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos],
+        'photos': _photo_urls(session_id, photos),
     })
 
 
@@ -124,7 +153,7 @@ def photo_preview(session_id, filename):
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
     info_state = get_session(session_id)['info_state']
-    photos = info_state.user.query('photos') or []
+    photos = _current_photos(info_state)
     if filename not in photos:
         return jsonify({'error': 'Photo not found for this session'}), 404
     return send_from_directory(os.path.abspath(PHOTOS_DIR), filename)

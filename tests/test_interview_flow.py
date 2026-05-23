@@ -1,3 +1,4 @@
+import io
 import os
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ from web.interview_flow import (
 )
 from web import microsite
 from web import database as db
+from web import routes_photos
 from web import routes_admin
 from web import session as session_module
 from web import session_store
@@ -766,6 +768,124 @@ class SessionRehydrationTests(unittest.TestCase):
                 data = response.get_json()
                 self.assertEqual(data['photo_count'], 1)
                 self.assertIn('photo-rehydrate-session_0.jpg', data['photos'][0])
+
+
+class PhotoUploadPersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.user_models_dir = os.path.join(self.tmp.name, 'user_models')
+        self.photos_dir = os.path.join(self.tmp.name, 'photos')
+        os.makedirs(self.photos_dir, exist_ok=True)
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+        session_store.clear_sessions()
+        self.addCleanup(session_store.clear_sessions)
+
+    def _jpeg_upload(self, name='photo.jpg'):
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new('RGB', (20, 20), color=(80, 120, 160)).save(buf, format='JPEG')
+        buf.seek(0)
+        return buf, name
+
+    def _create_photo_session(self, session_id='photo-session'):
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session(session_id)
+                visit_id = db.create_visit(session_id, 'en', 'black_female', {'name': 'Ludi'})
+                session['info_state'].user.update('visit_id', visit_id)
+                session['info_state'].save_user_model()
+                session_store.set_session(session_id, session)
+                return session, visit_id
+
+    def test_photo_slots_are_reserved_and_limited_by_database(self):
+        visit_id = db.create_visit('slot-session', 'en', 'black_female', {'name': 'Ludi'})
+
+        first = db.reserve_photo_slot(visit_id, 'slot-session', 3)
+        db.finalize_photo_upload(visit_id, first['stored_filename'], source='mobile')
+        second = db.reserve_photo_slot(visit_id, 'slot-session', 3)
+        db.finalize_photo_upload(visit_id, second['stored_filename'], source='mobile')
+        third = db.reserve_photo_slot(visit_id, 'slot-session', 3)
+        db.finalize_photo_upload(visit_id, third['stored_filename'], source='mobile')
+
+        self.assertEqual(first['display_order'], 0)
+        self.assertEqual(second['display_order'], 1)
+        self.assertEqual(third['display_order'], 2)
+        self.assertIsNone(db.reserve_photo_slot(visit_id, 'slot-session', 3))
+        self.assertEqual(
+            db.list_visit_photo_filenames(visit_id),
+            ['slot-session_0.jpg', 'slot-session_1.jpg', 'slot-session_2.jpg'],
+        )
+
+    def test_failed_upload_releases_reserved_slot(self):
+        session_id = 'failed-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+                with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                    with app.test_client() as client:
+                        response = client.post(
+                            '/api/upload',
+                            data={
+                                'session_id': session_id,
+                                'source': 'mobile',
+                                'photo': (io.BytesIO(b'not an image'), 'bad.txt'),
+                            },
+                            content_type='multipart/form-data',
+                        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(db.list_visit_photo_filenames(visit_id), [])
+        self.assertEqual(session['info_state'].user.query('photos') or [], [])
+
+    def test_photo_status_prefers_database_and_syncs_stale_user_model(self):
+        session_id = 'db-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+        session['info_state'].user.update('photos', [])
+        session['info_state'].save_user_model()
+        db.save_photo(visit_id, 'db-photo-session_0.jpg', 0, source='mobile')
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+                with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                    with app.test_client() as client:
+                        response = client.get(f'/api/photos/{session_id}')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['photo_count'], 1)
+        self.assertIn('db-photo-session_0.jpg', data['photos'][0])
+        self.assertEqual(session['info_state'].user.query('photos'), ['db-photo-session_0.jpg'])
+
+    def test_successful_upload_persists_photo_metadata(self):
+        session_id = 'upload-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+                with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                    with app.test_client() as client:
+                        response = client.post(
+                            '/api/upload',
+                            data={
+                                'session_id': session_id,
+                                'source': 'mobile',
+                                'photo': self._jpeg_upload(),
+                            },
+                            content_type='multipart/form-data',
+                        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['photo_count'], 1)
+        self.assertFalse(data['ready'])
+        self.assertEqual(db.list_visit_photo_filenames(visit_id), ['upload-photo-session_0.jpg'])
+        self.assertEqual(session['info_state'].user.query('photos'), ['upload-photo-session_0.jpg'])
+        self.assertTrue(os.path.exists(os.path.join(self.photos_dir, 'upload-photo-session_0.jpg')))
 
 
 class MicrositeEvidenceTests(unittest.TestCase):
