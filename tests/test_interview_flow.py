@@ -1107,6 +1107,8 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertEqual(draft['prompt_version'], microsite.MICROSITE_PROMPT_VERSION)
                     self.assertEqual(draft['llm_model'], 'fake-microsite-model')
                     self.assertRegex(draft['evidence_hash'], r'^[0-9a-f]{64}$')
+                    self.assertEqual(draft['evidence_snapshot']['source'], 'conversation_history')
+                    self.assertEqual(draft['evidence_snapshot']['evidence_hash'], draft['evidence_hash'])
                     self.assertFalse(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
 
                     published = microsite.publish(
@@ -1121,6 +1123,8 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertEqual(published['prompt_version'], draft['prompt_version'])
                     self.assertEqual(published['llm_model'], draft['llm_model'])
                     self.assertEqual(published['evidence_hash'], draft['evidence_hash'])
+                    self.assertEqual(published['evidence_snapshot'], draft['evidence_snapshot'])
+                    self.assertEqual(published['review_edits']['changed_fields'], ['personal_identity'])
                     html_path = os.path.join(site_dir, 'unit-review.html')
                     self.assertTrue(os.path.exists(html_path))
                     with open(html_path, encoding='utf-8') as f:
@@ -1199,6 +1203,8 @@ class DatabasePersistenceTests(unittest.TestCase):
                 'my_struggle': 'Struggle',
                 'my_hope': 'Hope',
                 'evidence_hash': 'a' * 64,
+                'evidence_snapshot': {'version': 1, 'source': 'story_evidence'},
+                'review_edits': {'version': 1, 'changed_fields': ['my_story']},
                 'content': '{"ok": true}',
             },
             status='draft',
@@ -1226,7 +1232,10 @@ class DatabasePersistenceTests(unittest.TestCase):
         self.assertEqual(draft_row['llm_model'], 'fake-microsite-model')
         self.assertEqual(draft_row['prompt_version'], 'microsite-public-page-v2')
         self.assertEqual(draft_row['generation_latency_ms'], 55)
-        self.assertEqual(json.loads(draft_row['content_json'])['evidence_hash'], 'a' * 64)
+        draft_content = json.loads(draft_row['content_json'])
+        self.assertEqual(draft_content['evidence_hash'], 'a' * 64)
+        self.assertEqual(draft_content['evidence_snapshot']['source'], 'story_evidence')
+        self.assertEqual(draft_content['review_edits']['changed_fields'], ['my_story'])
         self.assertEqual(version, 1)
 
 

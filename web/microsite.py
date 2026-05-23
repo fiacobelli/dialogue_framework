@@ -80,6 +80,46 @@ def _evidence_hash(conversation: str) -> str:
     return hashlib.sha256((conversation or '').encode('utf-8')).hexdigest()
 
 
+def _hash_text(text: str) -> str:
+    return hashlib.sha256((text or '').encode('utf-8')).hexdigest()
+
+
+def _evidence_snapshot(state: dict, conversation: str, source: str) -> dict:
+    evidence = (state or {}).get('story_evidence') or {}
+    skipped = (state or {}).get('skipped_steps') or {}
+    accepted_steps = []
+    if isinstance(evidence, dict):
+        for step_id, entries in evidence.items():
+            if isinstance(entries, dict):
+                entries = [entries]
+            if isinstance(entries, list) and any(isinstance(entry, dict) and entry.get('accepted') for entry in entries):
+                accepted_steps.append(step_id)
+    return {
+        'version': 1,
+        'source': source,
+        'evidence_hash': _evidence_hash(conversation),
+        'accepted_steps': sorted(accepted_steps),
+        'skipped_steps': sorted(skipped.keys()) if isinstance(skipped, dict) else [],
+        'conversation_chars': len(conversation or ''),
+    }
+
+
+def _review_edit_summary(draft: dict, edits: dict, name: str, content: dict) -> dict:
+    changes = {}
+    draft_name = _clean_text(draft.get('name'))
+    if _clean_text(edits.get('name')) and name != draft_name:
+        changes['name'] = {'from_hash': _hash_text(draft_name), 'to_hash': _hash_text(name)}
+    for field in CONTENT_FIELDS:
+        edited = _clean_text(edits.get(field))
+        if edited and edited != _clean_text(draft.get(field)):
+            changes[field] = {
+                'from_hash': _hash_text(_clean_text(draft.get(field))),
+                'to_hash': _hash_text(content.get(field, '')),
+                'to_chars': len(content.get(field, '')),
+            }
+    return {'version': 1, 'changed_fields': sorted(changes.keys()), 'field_changes': changes}
+
+
 def format_conversation(history: list) -> str:
     """Format conversation history as readable transcript."""
     lines = []
@@ -336,7 +376,9 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
     """Generate donor-page draft content without publishing the public page."""
     history = info_state.user.query('conversation_history') or []
     state = info_state.user.query('interview_state') or {}
-    conversation = format_story_evidence(state) or format_conversation(history)
+    story_transcript = format_story_evidence(state)
+    conversation = story_transcript or format_conversation(history)
+    evidence_source = 'story_evidence' if story_transcript else 'conversation_history'
     visit_id = info_state.user.query('visit_id')
     photos = db.list_visit_photos(visit_id) or (info_state.user.query('photos') or [])
 
@@ -357,6 +399,7 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
     result['prompt_version'] = MICROSITE_PROMPT_VERSION
     result['llm_model'] = _provider_model_name(provider)
     result['evidence_hash'] = _evidence_hash(conversation)
+    result['evidence_snapshot'] = _evidence_snapshot(state, conversation, evidence_source)
 
     info_state.user.update('microsite_draft', result)
     info_state.user.update('microsite_draft_status', 'draft')
@@ -395,6 +438,9 @@ def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
     for key in ('prompt_version', 'llm_model', 'evidence_hash'):
         if draft.get(key):
             result[key] = draft[key]
+    if draft.get('evidence_snapshot'):
+        result['evidence_snapshot'] = draft['evidence_snapshot']
+    result['review_edits'] = _review_edit_summary(draft, edits, name, content)
 
     if name != draft.get('name'):
         info_state.user.update('patient_name', name)
