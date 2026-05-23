@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os
 import tempfile
 import unittest
@@ -32,6 +33,7 @@ from web.routes_api import (
     validate_generation_ready,
     validate_publication_consent,
 )
+from web.structured_logging import log_event
 
 
 class InterviewFlowTests(unittest.TestCase):
@@ -1424,6 +1426,20 @@ class DatabasePersistenceTests(unittest.TestCase):
         self.assertEqual(draft_content['evidence_snapshot']['source'], 'story_evidence')
         self.assertEqual(draft_content['review_edits']['changed_fields'], ['my_story'])
         self.assertEqual(version, 1)
+
+
+class StructuredLoggingTests(unittest.TestCase):
+    def test_log_event_writes_json_without_none_fields(self):
+        logger = logging.getLogger('tests.structured_logging')
+
+        with self.assertLogs(logger, level='INFO') as captured:
+            log_event(logger, 'microsite_published', session_id='abc', visit_id=None, photo_count=3)
+
+        payload = json.loads(captured.output[0].split('INFO:tests.structured_logging:', 1)[1])
+        self.assertEqual(payload['event'], 'microsite_published')
+        self.assertEqual(payload['session_id'], 'abc')
+        self.assertEqual(payload['photo_count'], 3)
+        self.assertNotIn('visit_id', payload)
 
 
 if __name__ == '__main__':

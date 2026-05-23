@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from .session_store import ensure_session, get_session
 from . import database as db
 from . import takedown
+from .structured_logging import log_event
 
 publication_bp = Blueprint('publication', __name__, url_prefix='/api')
+logger = logging.getLogger(__name__)
 
 
 @publication_bp.route('/unpublish', methods=['POST'])
@@ -29,6 +33,7 @@ def unpublish_microsite():
     info_state.user.update('publication_status', 'unpublished')
     info_state.user.update('microsite_draft_status', 'unpublished')
     info_state.save_user_model()
+    log_event(logger, 'microsite_unpublished', session_id=session_id, reason=data.get('reason') or 'user_request')
     return jsonify({
         'status': 'unpublished',
         'message': 'The donor page is no longer public.',
@@ -54,6 +59,14 @@ def delete_microsite():
     info_state.user.update('microsite_draft_status', 'deleted')
     info_state.user.update('photos', [])
     info_state.save_user_model()
+    log_event(
+        logger,
+        'microsite_deleted',
+        session_id=session_id,
+        reason=data.get('reason') or 'user_request',
+        removed_html=result.get('removed_html', False),
+        deleted_photos=result.get('deleted_photos', 0),
+    )
     return jsonify({
         'status': 'deleted',
         'message': 'The donor page and uploaded photos are no longer public.',

@@ -2,6 +2,7 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+import logging
 import subprocess
 import uuid
 
@@ -12,8 +13,10 @@ from .session_store import ensure_session, get_session, set_session
 from .interview_flow import progress_snapshot
 from . import microsite
 from . import database as db
+from .structured_logging import log_event
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+logger = logging.getLogger(__name__)
 
 
 def _turn_meta(data: dict) -> dict:
@@ -412,12 +415,22 @@ def generate_microsite():
             prompt_version=result.get('prompt_version'),
         )
         db.update_visit_from_info_state(visit_id, info_state)
+        log_event(
+            logger,
+            'microsite_draft_generated',
+            session_id=session_id,
+            visit_id=visit_id,
+            latency_ms=latency,
+            prompt_version=result.get('prompt_version'),
+            llm_model=result.get('llm_model'),
+            photo_count=len(result.get('photos') or []),
+        )
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:
+        log_event(logger, 'microsite_generate_failed', level=logging.WARNING, session_id=session_id, error=e.error)
         return jsonify(e.to_response()), e.status_code
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception('microsite_generate_unhandled_error session_id=%s', session_id)
         return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/publish', methods=['POST'])
@@ -456,12 +469,22 @@ def publish_microsite():
         )
         db.revoke_upload_tokens(visit_id, reason='published')
         db.update_visit_from_info_state(visit_id, info_state)
+        log_event(
+            logger,
+            'microsite_published',
+            session_id=session_id,
+            visit_id=visit_id,
+            prompt_version=result.get('prompt_version'),
+            llm_model=result.get('llm_model'),
+            photo_count=len(result.get('photos') or []),
+        )
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:
+        log_event(logger, 'microsite_publish_failed', level=logging.WARNING, session_id=session_id, error=e.error)
         return jsonify(e.to_response()), 409
     except ValueError as e:
+        log_event(logger, 'microsite_publish_failed', level=logging.WARNING, session_id=session_id, error='draft_not_ready')
         return jsonify({'error': 'draft_not_ready', 'message': str(e)}), 409
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception('microsite_publish_unhandled_error session_id=%s', session_id)
         return jsonify({'error': str(e)}), 500
