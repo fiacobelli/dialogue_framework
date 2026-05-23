@@ -551,6 +551,23 @@
 #sendBtn:hover   { background: #C45D20; }
 #sendBtn:disabled { background: #C8BEB8; cursor: not-allowed; }
 
+.skip-question-btn {
+    align-self: center;
+    background: transparent;
+    border: 0;
+    color: #78716C;
+    display: none;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 8px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.skip-question-btn:hover {
+    color: #E86F2C;
+}
+
 #status {
     font-size: 14px;
     color: #9E8F87;

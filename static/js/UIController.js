@@ -30,6 +30,7 @@ class UIController {
             reviewSection: document.getElementById('reviewSection'),
             micrositePreview: document.getElementById('micrositePreview'),
             repeatBtn: document.getElementById('repeatBtn'),
+            skipQuestionBtn: document.getElementById('skipQuestionBtn'),
             avatarFrame: document.getElementById('avatarFrame'),
             waveform: document.getElementById('waveform'),
             progressWrap: document.getElementById('progress-bar-wrap'),
@@ -234,6 +235,11 @@ class UIController {
             const stepText = current > 0 && total > 0 ? `Step ${current} of ${total}` : progress.label;
             this.elements.progressText.textContent = `${progress.label || 'Interview'} · ${stepText}`;
             this.elements.progressText.classList.remove('hidden');
+        }
+
+        if (this.elements.skipQuestionBtn) {
+            const canSkip = ['STORY', 'FINAL_DETAILS'].includes(progress.phase);
+            this.elements.skipQuestionBtn.style.display = canSkip ? 'inline-flex' : 'none';
         }
     }
 

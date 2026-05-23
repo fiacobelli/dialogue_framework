@@ -25,6 +25,7 @@ def _turn_meta(data: dict) -> dict:
         'client_sent_at': data.get('client_sent_at'),
         'retry_count': data.get('retry_count', 0),
         'no_response': data.get('no_response', False),
+        'skip_requested': data.get('skip_requested', False),
         'tts_duration_ms': data.get('tts_duration_ms'),
         'events': data.get('events', []),
     }

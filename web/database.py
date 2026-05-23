@@ -26,6 +26,7 @@ ALLOWED_EVENT_TYPES = {
     'pause_clicked',
     'resume_clicked',
     'repeat_clicked',
+    'skip_clicked',
     'mic_error',
     'vad_init',
     'vad_speech_end',

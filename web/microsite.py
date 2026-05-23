@@ -101,6 +101,11 @@ def format_story_evidence(state: dict) -> str:
         label = step_id.replace('_', ' ').title()
         for answer in accepted_answers:
             lines.append(f"{label}: {answer}")
+    skipped = (state or {}).get('skipped_steps') or {}
+    if isinstance(skipped, dict):
+        for step_id in skipped:
+            label = step_id.replace('_', ' ').title()
+            lines.append(f"{label}: The patient chose to skip this section.")
     return "\n\n".join(lines)
 
 
@@ -109,8 +114,12 @@ def story_evidence_ready(state: dict) -> dict:
     evidence = (state or {}).get('story_evidence') or {}
     if not isinstance(evidence, dict):
         evidence = {}
+    skipped = (state or {}).get('skipped_steps') or {}
+    if not isinstance(skipped, dict):
+        skipped = {}
 
     missing = []
+    accepted_count = 0
     for label, step_ids in REQUIRED_EVIDENCE_GROUPS.items():
         has_accepted = False
         for step_id in step_ids:
@@ -124,9 +133,14 @@ def story_evidence_ready(state: dict) -> dict:
                 for entry in entries
             ):
                 has_accepted = True
+                accepted_count += 1
                 break
-        if not has_accepted:
+        has_skip = any(step_id in skipped for step_id in step_ids)
+        if not has_accepted and not has_skip:
             missing.append(label)
+
+    if accepted_count == 0:
+        missing.append('story_content')
 
     return {'ready': not missing, 'missing': missing}
 

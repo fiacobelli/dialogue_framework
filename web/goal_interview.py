@@ -64,6 +64,8 @@ class InterviewGoal(Goal):
             'clarification_request',
         }:
             should_store_user = False
+        if task.get('type') in {'skip_then_next', 'skip_to_photos'}:
+            should_store_user = False
         if should_store_user:
             history.append({"role": "user", "content": user_input})
             info_state.user.update('conversation_history', history)
@@ -97,7 +99,7 @@ class InterviewGoal(Goal):
         log_interview(session_id, f"OUTGOING_TURN: {outgoing_turn}")
 
         # Code owns completion. Phrase matching must never force an early photo transition.
-        is_ending = task['type'] == 'close_to_photos'
+        is_ending = task['type'] in {'close_to_photos', 'skip_to_photos'}
         log_interview(session_id, f"_is_goodbye check: {is_ending}")
 
         if is_ending:

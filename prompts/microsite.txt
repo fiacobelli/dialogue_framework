@@ -5,6 +5,7 @@ INTERVIEW EVIDENCE:
 
 CONTENT RULES:
 - Use only details explicitly supported by the interview evidence.
+- If the evidence says the patient chose to skip a section, do not invent details for that section. Keep the related page section brief and neutral.
 - Do not invent children, jobs, hobbies, cities, emotions, diagnosis details, transplant status, timelines, or family relationships.
 - Write in first person as {name}.
 - Make the writing warm, clear, and specific without pressure, guilt, exaggeration, or unrealistic promises.

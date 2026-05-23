@@ -117,6 +117,9 @@ class App {
         const sendBtn = document.getElementById('sendBtn');
         if (sendBtn) sendBtn.addEventListener('click', () => this.sendTextInput());
 
+        const skipQuestionBtn = document.getElementById('skipQuestionBtn');
+        if (skipQuestionBtn) skipQuestionBtn.addEventListener('click', () => this.skipCurrentQuestion());
+
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
@@ -367,6 +370,16 @@ class App {
         await this._processUserInput(text, 'typed');
     }
 
+    async skipCurrentQuestion() {
+        if (!this.conversationActive || !conversationAPI.getSessionId()) return;
+        if (!window.confirm('Skip this question and move to the next part of your story?')) return;
+
+        speechManager.recordEvent('skip_clicked');
+        ui.clearTranscript();
+        ui.showProcessing();
+        await this._processUserInput('[skip]', 'typed', { skip_requested: true });
+    }
+
     _markTypedStarted(value) {
         if (!value || this._typedStartedAt !== null) return;
         this._typedStartedAt = performance.now();
@@ -389,7 +402,7 @@ class App {
         return Math.max(0, Math.round(end.ts - start.ts));
     }
 
-    _buildTurnMetadata(inputModality) {
+    _buildTurnMetadata(inputModality, extra = {}) {
         const speechEvents = speechManager.consumeTurnEvents();
         const typedEvents = this._typedEvents.slice();
         const events = [...speechEvents, ...typedEvents];
@@ -417,7 +430,8 @@ class App {
             client_sent_at: new Date().toISOString(),
             retry_count: this._retryCount,
             tts_duration_ms: speechManager.getLastTtsDuration(),
-            events
+            events,
+            ...extra
         };
 
         this._retryCount = 0;
@@ -426,7 +440,7 @@ class App {
         return metadata;
     }
 
-    async _processUserInput(text, inputModality = 'unknown') {
+    async _processUserInput(text, inputModality = 'unknown', metadataExtra = {}) {
         if (!conversationAPI.getSessionId()) {
             ui.setStatus('No active session.');
             ui.showIdle();
@@ -438,7 +452,7 @@ class App {
             this._lastSpokenText = '';
             ui.clearMessage();
 
-            const data = await conversationAPI.sendMessage(text, this._buildTurnMetadata(inputModality));
+            const data = await conversationAPI.sendMessage(text, this._buildTurnMetadata(inputModality, metadataExtra));
             this._lastSpokenText = data.prompt;
             ui.updateProgress(data.progress);
             ui.showMessage(data.prompt);

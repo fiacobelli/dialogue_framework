@@ -189,6 +189,36 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
 
+    def test_skip_story_question_records_skip_and_advances(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        task = decide_next_task(state, '[skip]', {'skip_requested': True})
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'skip_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        self.assertEqual(state['awaiting'], 'main_answer')
+        self.assertEqual(state['skipped_steps']['personal_background']['reason'], 'patient_requested_skip')
+        self.assertIn('No problem, we can skip that.', response)
+
+    def test_skip_final_details_closes_to_photos(self):
+        state = build_interview_state()
+        state.update({
+            'step_index': 6,
+            'phase': 'FINAL_DETAILS',
+            'awaiting': 'main_answer',
+            'patient_name': 'Sophia',
+            'patient_name_status': 'confirmed',
+        })
+
+        task = decide_next_task(state, 'skip this question')
+
+        self.assertEqual(task['type'], 'skip_to_photos')
+        self.assertTrue(state['complete'])
+        self.assertIn('final_details', state['skipped_steps'])
+
     def test_operational_complaint_repairs_without_advancing(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
@@ -532,6 +562,30 @@ class GenerationGateTests(unittest.TestCase):
         self.assertFalse(ready)
         self.assertIn('story_evidence', detail['missing'])
         self.assertIn('identity', detail['missing_story_sections'])
+
+    def test_generation_allowed_when_required_section_was_skipped(self):
+        info_state = self._info_state()
+        evidence = self._accepted_evidence()
+        evidence.pop('donor_message')
+        info_state.user.update('interview_phase', 'PHOTOS')
+        info_state.user.update('interview_state', {
+            'complete': True,
+            'story_evidence': evidence,
+            'skipped_steps': {
+                'donor_message': {
+                    'reason': 'patient_requested_skip',
+                    'question': 'What would you want a potential donor to know about you as a person?',
+                }
+            },
+        })
+        info_state.user.update('patient_name', 'Sophia')
+        info_state.user.update('patient_name_status', 'confirmed')
+        info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
+
+        ready, detail = validate_generation_ready(info_state)
+
+        self.assertTrue(ready)
+        self.assertEqual(detail['name'], 'Sophia')
 
 
 class PublicationConsentTests(unittest.TestCase):
@@ -953,6 +1007,26 @@ class MicrositeEvidenceTests(unittest.TestCase):
 
         self.assertIn('Dialysis leaves me tired', transcript)
         self.assertNotIn('picking stuff up', transcript)
+
+    def test_format_story_evidence_marks_skipped_sections(self):
+        state = {
+            'story_evidence': {
+                'daily_life': [
+                    {
+                        'answer': 'Dialysis leaves me tired after treatment and limits my work schedule.',
+                        'accepted': True,
+                    },
+                ]
+            },
+            'skipped_steps': {
+                'donor_message': {'reason': 'patient_requested_skip'},
+            },
+        }
+
+        transcript = microsite.format_story_evidence(state)
+
+        self.assertIn('Daily Life: Dialysis leaves me tired', transcript)
+        self.assertIn('Donor Message: The patient chose to skip this section.', transcript)
 
 
 class MicrositeReviewTests(unittest.TestCase):

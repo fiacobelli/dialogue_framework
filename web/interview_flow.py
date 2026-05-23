@@ -104,6 +104,22 @@ OPERATIONAL_ISSUE_TERMS = {
     'taking a while', 'too slow', 'slower', 'hear me',
 }
 
+SKIP_TERMS = {
+    'skip',
+    'skip this',
+    'skip this question',
+    'pass',
+    'i pass',
+    'next',
+    'next question',
+    'move on',
+    'prefer not to answer',
+    "i'd rather not answer",
+    'rather not answer',
+    'do not want to answer',
+    "don't want to answer",
+}
+
 READY_TERMS = {'yes', 'yeah', 'yep', 'yup', 'ready', 'sure', 'ok', 'okay', 'start', 'begin', 'go ahead'}
 NOT_READY_TERMS = {'no', 'not yet', 'not ready', 'wait', 'hold on', 'later', 'stop', 'pause'}
 READINESS_QUESTION_TERMS = {'why', 'what for', 'what is this', 'how does this work', 'who will see', 'share'}
@@ -201,6 +217,7 @@ def build_interview_state() -> dict[str, Any]:
         'last_step_id': None,
         'complete': False,
         'story_evidence': {},
+        'skipped_steps': {},
         'thin_evidence': {},
         'deepening_count_by_step': {},
         'last_followup_kind': None,
@@ -226,6 +243,7 @@ def normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
     base.setdefault('followup_count', 0)
     base.setdefault('repair_count', 0)
     base.setdefault('story_evidence', {})
+    base.setdefault('skipped_steps', {})
     base.setdefault('thin_evidence', {})
     base.setdefault('deepening_count_by_step', {})
     base.setdefault('last_followup_kind', None)
@@ -367,6 +385,26 @@ def _is_operational_issue(text: str, turn_meta: dict[str, Any] | None = None) ->
 
     operational_words = {'hear', 'heard', 'listen', 'repeat', 'again', 'louder', 'slow', 'frustrating', 'work', 'working'}
     return bool(operational_words.intersection(normalized.split()))
+
+
+def is_skip_intent(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
+    """Return whether the patient explicitly chose to skip the current story question."""
+    turn_meta = turn_meta or {}
+    if turn_meta.get('skip_requested'):
+        return True
+    normalized = normalize_answer(text)
+    if not normalized:
+        return False
+    if normalized in SKIP_TERMS:
+        return True
+    return any(term in normalized for term in {
+        'skip this question',
+        'prefer not to answer',
+        'rather not answer',
+        'do not want to answer',
+        "don't want to answer",
+        'move on to the next',
+    })
 
 
 def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, Any]:
@@ -548,6 +586,19 @@ def _record_story_evidence(
         evidence[step['id']] = [step_entries, entry]
 
 
+def _record_skipped_step(state: dict[str, Any], step: dict[str, str] | None, user_input: str, awaiting: str) -> None:
+    if not step:
+        return
+    skipped = state.setdefault('skipped_steps', {})
+    skipped[step['id']] = {
+        'question': step.get('question'),
+        'phase': step.get('phase'),
+        'answer_kind': awaiting,
+        'reason': 'patient_requested_skip',
+        'utterance': user_input,
+    }
+
+
 def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]:
     phase = extra.pop('phase', state.get('phase', 'INTRO'))
     step = extra.get('step', current_step(state))
@@ -604,6 +655,20 @@ def decide_next_task(
 
     if awaiting in {'main_answer', 'followup_answer'}:
         step = current_step(state)
+        if step and is_skip_intent(user_input, turn_meta):
+            _record_skipped_step(state, step, user_input, awaiting)
+            state['last_decision'] = {'skip': {'skipped': True, 'step_id': step['id']}}
+            next_step = _advance_step(state)
+            if next_step:
+                state['awaiting'] = 'main_answer'
+                state['phase'] = next_step['phase']
+                return _task('skip_then_next', state, phase=next_step['phase'], step=next_step, skipped_step=step)
+
+            state['awaiting'] = 'photos'
+            state['phase'] = 'PHOTOS'
+            state['complete'] = True
+            return _task('skip_to_photos', state, phase='PHOTOS', step=None, skipped_step=step)
+
         guard = input_guard_decision(step, user_input, turn_meta)
         if guard['repair']:
             state['last_decision'] = {'input_guard': guard}
@@ -684,6 +749,10 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
         return FINAL_PHOTOS_PROMPT
     if task_type == 'already_complete':
         return "The story interview is complete. You can continue with the photo step."
+    if task_type == 'skip_to_photos':
+        return f"No problem, we can skip that. {FINAL_PHOTOS_PROMPT}"
+    if task_type == 'skip_then_next' and question:
+        return f"No problem, we can skip that. {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
     if task_type == 'ask_readiness' and task.get('decision', {}).get('kind') == 'not_ready':
         return "That's okay. Take your time, and when you're ready, tell me you want to begin."
     if task_type == 'ask_readiness' and task.get('decision', {}).get('kind') == 'unclear':
@@ -728,7 +797,7 @@ def expected_question_text(task: dict[str, Any]) -> str | None:
     """Return the exact question the backend expects this task to deliver."""
     task_type = task.get('type')
     step = task.get('step') or {}
-    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer'}:
+    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
         return step.get('question')
     if task_type == 'ask_followup':
         return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
@@ -747,7 +816,7 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
         return 'name'
     if task_type in {'ask_readiness', 'answer_readiness_question'}:
         return 'readiness'
-    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer'}:
+    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
         return state.get('awaiting') or 'main_answer'
     if task_type in {'ask_followup', 'ask_deepening'}:
         return 'followup_answer'
