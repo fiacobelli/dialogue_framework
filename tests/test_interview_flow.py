@@ -1415,6 +1415,10 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertIn('<link rel="canonical"', html)
                     self.assertIn('name="twitter:description"', html)
                     self.assertIn('Ludi Donor Stories', html)
+                    self.assertIn('Skip to story', html)
+                    self.assertIn('id="main-content"', html)
+                    self.assertIn('not medical advice', html)
+                    self.assertIn('prefers-reduced-motion', html)
 
     def test_publish_blocks_public_contact_information_before_writing_page(self):
         info_state = self._info_state()
