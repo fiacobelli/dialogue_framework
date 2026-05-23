@@ -2,10 +2,12 @@
 import os
 import re
 import json
+import hashlib
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 from . import database as db
 
+MICROSITE_PROMPT_VERSION = 'microsite-public-page-v2'
 CONTENT_FIELDS = (
     'headline',
     'short_intro',
@@ -68,6 +70,14 @@ def parse_llm_json(text: str) -> dict:
         if start != -1 and end != -1 and end > start:
             text = text[start:end + 1]
     return json.loads(text)
+
+
+def _provider_model_name(provider) -> str:
+    return str(getattr(provider, 'model', None) or provider.__class__.__name__)
+
+
+def _evidence_hash(conversation: str) -> str:
+    return hashlib.sha256((conversation or '').encode('utf-8')).hexdigest()
 
 
 def format_conversation(history: list) -> str:
@@ -344,6 +354,9 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
 
     content = _normalize_content(content_json, name)
     result = _build_result(content, name, raw_content, _photo_items(photos, session_id, preview=True), published=False)
+    result['prompt_version'] = MICROSITE_PROMPT_VERSION
+    result['llm_model'] = _provider_model_name(provider)
+    result['evidence_hash'] = _evidence_hash(conversation)
 
     info_state.user.update('microsite_draft', result)
     info_state.user.update('microsite_draft_status', 'draft')
@@ -379,6 +392,9 @@ def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
         microsite_url=microsite_url,
         published=True,
     )
+    for key in ('prompt_version', 'llm_model', 'evidence_hash'):
+        if draft.get(key):
+            result[key] = draft[key]
 
     if name != draft.get('name'):
         info_state.user.update('patient_name', name)

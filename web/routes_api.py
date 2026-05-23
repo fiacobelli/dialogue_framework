@@ -403,7 +403,14 @@ def generate_microsite():
         t0 = time.perf_counter()
         result = microsite.generate(info_state, provider, name, session_id)
         latency = int((time.perf_counter() - t0) * 1000)
-        db.save_draft(visit_id, result, status='draft', generation_latency_ms=latency)
+        db.save_draft(
+            visit_id,
+            result,
+            status='draft',
+            generation_latency_ms=latency,
+            llm_model=result.get('llm_model'),
+            prompt_version=result.get('prompt_version'),
+        )
         db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:
@@ -441,7 +448,13 @@ def publish_microsite():
         result = microsite.publish(info_state, session_id, data.get('edits') or {})
         info_state.user.update('publication_status', 'published')
         info_state.user.update('microsite_draft_status', 'published')
-        db.save_draft(visit_id, result, status='published')
+        db.save_draft(
+            visit_id,
+            result,
+            status='published',
+            llm_model=result.get('llm_model'),
+            prompt_version=result.get('prompt_version'),
+        )
         db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:

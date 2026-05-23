@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -322,6 +323,8 @@ class FakeLLM:
 
 
 class FakeMicrositeLLM:
+    model = 'fake-microsite-model'
+
     def generate(self, messages, system_prompt=None):
         return """{
             "headline": "Sophia is looking for a kidney donor",
@@ -1101,6 +1104,9 @@ class MicrositeReviewTests(unittest.TestCase):
                     draft = microsite.generate(info_state, FakeMicrositeLLM(), 'Sophia', 'unit-review')
                     self.assertFalse(draft['published'])
                     self.assertIsNone(draft['microsite_url'])
+                    self.assertEqual(draft['prompt_version'], microsite.MICROSITE_PROMPT_VERSION)
+                    self.assertEqual(draft['llm_model'], 'fake-microsite-model')
+                    self.assertRegex(draft['evidence_hash'], r'^[0-9a-f]{64}$')
                     self.assertFalse(os.path.exists(os.path.join(site_dir, 'unit-review.html')))
 
                     published = microsite.publish(
@@ -1112,6 +1118,9 @@ class MicrositeReviewTests(unittest.TestCase):
                     self.assertTrue(published['published'])
                     self.assertEqual(published['personal_identity'], 'Edited story approved by Sophia.')
                     self.assertEqual(published['my_story'], 'Edited story approved by Sophia.')
+                    self.assertEqual(published['prompt_version'], draft['prompt_version'])
+                    self.assertEqual(published['llm_model'], draft['llm_model'])
+                    self.assertEqual(published['evidence_hash'], draft['evidence_hash'])
                     html_path = os.path.join(site_dir, 'unit-review.html')
                     self.assertTrue(os.path.exists(html_path))
                     with open(html_path, encoding='utf-8') as f:
@@ -1189,10 +1198,13 @@ class DatabasePersistenceTests(unittest.TestCase):
                 'my_story': 'Story',
                 'my_struggle': 'Struggle',
                 'my_hope': 'Hope',
+                'evidence_hash': 'a' * 64,
                 'content': '{"ok": true}',
             },
             status='draft',
             generation_latency_ms=55,
+            llm_model='fake-microsite-model',
+            prompt_version='microsite-public-page-v2',
         )
 
         import sqlite3
@@ -1210,6 +1222,11 @@ class DatabasePersistenceTests(unittest.TestCase):
         self.assertEqual(assistant_row['delivery_validated'], 1)
         self.assertEqual(conn.execute('SELECT COUNT(*) FROM turn_events').fetchone()[0], 2)
         self.assertEqual(conn.execute('SELECT photo_count FROM visits').fetchone()[0], 1)
+        draft_row = conn.execute('SELECT * FROM donor_page_drafts').fetchone()
+        self.assertEqual(draft_row['llm_model'], 'fake-microsite-model')
+        self.assertEqual(draft_row['prompt_version'], 'microsite-public-page-v2')
+        self.assertEqual(draft_row['generation_latency_ms'], 55)
+        self.assertEqual(json.loads(draft_row['content_json'])['evidence_hash'], 'a' * 64)
         self.assertEqual(version, 1)
 
 
