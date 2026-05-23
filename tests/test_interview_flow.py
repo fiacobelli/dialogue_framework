@@ -873,6 +873,29 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
             db.list_visit_photo_filenames(visit_id),
             ['slot-session_0.jpg', 'slot-session_1.jpg', 'slot-session_2.jpg'],
         )
+        self.assertEqual(
+            [item['photo_role'] for item in db.list_visit_photos(visit_id)],
+            ['before', 'during', 'hope'],
+        )
+
+    def test_photo_metadata_update_reorders_and_sets_roles(self):
+        visit_id = db.create_visit('role-session', 'en', 'black_female', {'name': 'Ludi'})
+        db.save_photo(visit_id, 'role-session_0.jpg', 0)
+        db.save_photo(visit_id, 'role-session_1.jpg', 1)
+        db.save_photo(visit_id, 'role-session_2.jpg', 2)
+
+        updated = db.update_visit_photo_metadata(visit_id, [
+            {'stored_filename': 'role-session_2.jpg', 'photo_role': 'hope'},
+            {'stored_filename': 'role-session_0.jpg', 'photo_role': 'before'},
+            {'stored_filename': 'role-session_1.jpg', 'photo_role': 'during'},
+        ])
+
+        self.assertEqual(
+            [item['stored_filename'] for item in updated],
+            ['role-session_2.jpg', 'role-session_0.jpg', 'role-session_1.jpg'],
+        )
+        self.assertEqual([item['display_order'] for item in updated], [0, 1, 2])
+        self.assertEqual([item['photo_role'] for item in updated], ['hope', 'before', 'during'])
 
     def test_failed_upload_releases_reserved_slot(self):
         session_id = 'failed-photo-session'
@@ -941,9 +964,42 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data['photo_count'], 1)
         self.assertFalse(data['ready'])
+        self.assertEqual(data['photo_items'][0]['photo_role'], 'before')
         self.assertEqual(db.list_visit_photo_filenames(visit_id), ['upload-photo-session_0.jpg'])
         self.assertEqual(session['info_state'].user.query('photos'), ['upload-photo-session_0.jpg'])
         self.assertTrue(os.path.exists(os.path.join(self.photos_dir, 'upload-photo-session_0.jpg')))
+
+    def test_photo_metadata_route_updates_roles_and_session_order(self):
+        session_id = 'metadata-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+        db.save_photo(visit_id, 'metadata-photo-session_0.jpg', 0)
+        db.save_photo(visit_id, 'metadata-photo-session_1.jpg', 1)
+        session['info_state'].user.update('photos', [
+            'metadata-photo-session_0.jpg',
+            'metadata-photo-session_1.jpg',
+        ])
+
+        with app.test_client() as client:
+            response = client.post(
+                f'/api/photos/{session_id}/metadata',
+                json={
+                    'photos': [
+                        {'stored_filename': 'metadata-photo-session_1.jpg', 'photo_role': 'hope'},
+                        {'stored_filename': 'metadata-photo-session_0.jpg', 'photo_role': 'before'},
+                    ]
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(
+            [item['stored_filename'] for item in data['photo_items']],
+            ['metadata-photo-session_1.jpg', 'metadata-photo-session_0.jpg'],
+        )
+        self.assertEqual(session['info_state'].user.query('photos'), [
+            'metadata-photo-session_1.jpg',
+            'metadata-photo-session_0.jpg',
+        ])
 
     def test_mobile_upload_rejects_missing_token(self):
         session_id = 'token-required-session'

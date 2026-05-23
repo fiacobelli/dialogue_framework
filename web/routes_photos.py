@@ -18,6 +18,12 @@ photos_bp = Blueprint('photos', __name__, url_prefix='/api')
 
 MAX_IMAGE_EDGE = 1600
 JPEG_QUALITY = 88
+PHOTO_ROLE_LABELS = {
+    'before': 'Before',
+    'during': 'During treatment',
+    'hope': 'Hope after transplant',
+    'general': 'General',
+}
 
 
 def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
@@ -40,6 +46,21 @@ def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
 
 def _photo_urls(session_id: str, photos: list[str]) -> list[str]:
     return [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos]
+
+
+def _photo_items(session_id: str, visit_id: str | None) -> list[dict]:
+    items = []
+    for photo in db.list_visit_photos(visit_id):
+        role = photo.get('photo_role') or 'general'
+        items.append({
+            'stored_filename': photo['stored_filename'],
+            'url': url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename']),
+            'display_order': photo['display_order'],
+            'photo_role': role,
+            'role_label': PHOTO_ROLE_LABELS.get(role, 'General'),
+            'caption': photo.get('caption') or '',
+        })
+    return items
 
 
 def _sync_session_photos(info_state, photos: list[str]) -> None:
@@ -136,6 +157,7 @@ def upload_photo():
         'photo_count': len(photos),
         'max_photos': MAX_PHOTOS,
         'photos': _photo_urls(session_id, photos),
+        'photo_items': _photo_items(session_id, visit_id),
         'ready': len(photos) >= MAX_PHOTOS
     })
 
@@ -158,6 +180,31 @@ def get_photo_status(session_id):
         'ready': len(photos) >= MAX_PHOTOS,
         'max_photos': MAX_PHOTOS,
         'photos': _photo_urls(session_id, photos),
+        'photo_items': _photo_items(session_id, visit_id),
+    })
+
+
+@photos_bp.route('/photos/<session_id>/metadata', methods=['POST'])
+def update_photo_metadata(session_id):
+    """Update photo role/order metadata before donor-page generation."""
+    if not ensure_session(session_id):
+        return jsonify({'error': 'Session not found'}), 404
+
+    info_state = get_session(session_id)['info_state']
+    visit_id = info_state.user.query('visit_id')
+    items = (request.json or {}).get('photos') or []
+    updated = db.update_visit_photo_metadata(visit_id, items)
+    filenames = [item['stored_filename'] for item in updated]
+    _sync_session_photos(info_state, filenames)
+    db.update_visit_from_info_state(visit_id, info_state)
+
+    return jsonify({
+        'status': 'ok',
+        'photo_count': len(updated),
+        'max_photos': MAX_PHOTOS,
+        'photos': _photo_urls(session_id, filenames),
+        'photo_items': _photo_items(session_id, visit_id),
+        'ready': len(updated) >= MAX_PHOTOS,
     })
 
 

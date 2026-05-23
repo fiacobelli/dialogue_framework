@@ -181,6 +181,18 @@ class ConversationAPI {
         return await res.json();
     }
 
+    async updatePhotoMetadata(photos = []) {
+        if (!this.sessionId) throw new Error('No active session');
+        const res = await fetch(this._url(`/api/photos/${this.sessionId}/metadata`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photos })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update photo details');
+        return data;
+    }
+
     getSessionId() {
         return this.sessionId;
     }

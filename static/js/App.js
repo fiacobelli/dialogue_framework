@@ -123,8 +123,24 @@ class App {
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
-            slot.addEventListener('click', () => photoInput?.click());
+            slot.addEventListener('click', (e) => {
+                if (e.target.closest('.photo-role-controls')) return;
+                photoInput?.click();
+            });
         });
+        const photoSection = document.getElementById('photoSection');
+        if (photoSection) {
+            photoSection.addEventListener('change', (e) => {
+                if (e.target?.classList.contains('photo-role-select')) this.savePhotoMetadata();
+            });
+            photoSection.addEventListener('click', (e) => {
+                const btn = e.target?.closest?.('.photo-move-btn');
+                if (btn) {
+                    e.preventDefault();
+                    this.movePhoto(btn.dataset.filename, btn.dataset.direction);
+                }
+            });
+        }
 
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
@@ -519,11 +535,13 @@ class App {
             try {
                 const status = await conversationAPI.getPhotoStatus();
                 ui.updatePhotoProgress(status.photo_count, status.max_photos);
-                (status.photos || []).forEach((url, index) => ui.showPhotoSlot(index, url));
+                const photoItems = status.photo_items || (status.photos || []).map((url) => ({ url }));
+                photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
 
                 if (status.ready) {
                     this.stopPhotoPolling();
-                    this.autoGenerate();
+                    ui.showGenerateSection();
+                    ui.setStatus('Review the photo order and meaning, then generate your donor page.');
                 }
             } catch (err) {
                 console.error('Photo polling error:', err);
@@ -548,14 +566,20 @@ class App {
             for (const file of files) {
                 latest = await conversationAPI.uploadPhoto(file, 'desktop');
                 if (latest.status === 'ok') {
-                    ui.showPhotoSlot(latest.photo_count - 1, URL.createObjectURL(file));
+                    const photoItems = latest.photo_items || [];
+                    if (photoItems.length) {
+                        photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
+                    } else {
+                        ui.showPhotoSlot(latest.photo_count - 1, URL.createObjectURL(file));
+                    }
                     ui.updatePhotoProgress(latest.photo_count, latest.max_photos || 3);
                 }
                 if (latest.ready) break;
             }
             if (latest?.ready) {
                 this.stopPhotoPolling();
-                this.autoGenerate();
+                ui.showGenerateSection();
+                ui.setStatus('Review the photo order and meaning, then generate your donor page.');
             }
         } catch (err) {
             ui.setStatus(`Upload failed: ${err.message}`);
@@ -564,12 +588,61 @@ class App {
         fileInput.value = '';
     }
 
+    collectPhotoMetadata() {
+        return Array.from(document.querySelectorAll('.photo-section .photo-role-select'))
+            .map((select, index) => ({
+                stored_filename: select.dataset.filename,
+                photo_role: select.value,
+                display_order: index
+            }))
+            .filter(item => item.stored_filename);
+    }
+
+    async savePhotoMetadata() {
+        const photos = this.collectPhotoMetadata();
+        if (!photos.length) return null;
+        try {
+            const data = await conversationAPI.updatePhotoMetadata(photos);
+            const photoItems = data.photo_items || [];
+            photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
+            return data;
+        } catch (err) {
+            ui.setStatus(`Could not save photo details: ${err.message}`);
+            console.error(err);
+            return null;
+        }
+    }
+
+    async movePhoto(filename, direction) {
+        const photos = this.collectPhotoMetadata();
+        const index = photos.findIndex(item => item.stored_filename === filename);
+        if (index < 0) return;
+        const target = direction === 'up' ? index - 1 : index + 1;
+        if (target < 0 || target >= photos.length) return;
+        [photos[index], photos[target]] = [photos[target], photos[index]];
+        await this.savePhotoMetadataFromItems(photos);
+    }
+
+    async savePhotoMetadataFromItems(photos) {
+        try {
+            const data = await conversationAPI.updatePhotoMetadata(photos);
+            const photoItems = data.photo_items || [];
+            photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
+            return data;
+        } catch (err) {
+            ui.setStatus(`Could not reorder photos: ${err.message}`);
+            console.error(err);
+            return null;
+        }
+    }
+
     async autoGenerate() {
         if (this.generationInProgress) return;
         this.generationInProgress = true;
         ui.showGenerating();
 
         try {
+            await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite('');
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');
@@ -611,6 +684,7 @@ class App {
             : 'Generating your donor page...');
 
         try {
+            await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite(name, { allowPartialPhotos });
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');

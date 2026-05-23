@@ -376,10 +376,10 @@
                 </div>
             </div>
 
-            {% if photos %}
+            {% if photo_items %}
             <figure class="photo-card">
-                <img src="{{ photos[0] }}" alt="Photo of {{ name }}">
-                <figcaption class="photo-caption">{{ name }} is sharing this story in the hope of finding a living kidney donor.</figcaption>
+                <img src="{{ photo_items[0].url }}" alt="{{ photo_items[0].role_label }} photo of {{ name }}">
+                <figcaption class="photo-caption">{{ photo_items[0].caption }}</figcaption>
             </figure>
             {% else %}
             <div class="photo-card placeholder">
@@ -414,21 +414,16 @@
             </div>
         </section>
 
-        {% if photos and photos|length > 1 %}
+        {% if photo_items and photo_items|length > 1 %}
         <section class="photo-story" aria-label="Before, during, and after story photos">
-            <h2>Before, during, and after</h2>
+            <h2>Photos {{ name }} chose for this story</h2>
             <div class="photo-story-grid">
-                {% set labels = [
-                    ('Before', 'The life, people, and identity that matter beyond kidney disease.'),
-                    ('During', 'The kidney journey and the daily impact of treatment.'),
-                    ('After', 'The hope of returning to more of what matters.')
-                ] %}
-                {% for photo in photos[:3] %}
+                {% for photo in photo_items[:3] %}
                 <figure class="timeline-photo">
-                    <img src="{{ photo }}" alt="{{ labels[loop.index0][0] }} photo of {{ name }}">
+                    <img src="{{ photo.url }}" alt="{{ photo.role_label }} photo of {{ name }}">
                     <figcaption>
-                        <strong>{{ labels[loop.index0][0] }}</strong>
-                        {{ labels[loop.index0][1] }}
+                        <strong>{{ photo.role_label }}</strong>
+                        {{ photo.caption }}
                     </figcaption>
                 </figure>
                 {% endfor %}

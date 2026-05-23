@@ -289,9 +289,43 @@ class UIController {
         this.updateContinueWithPhotos(count, max);
     }
 
-    showPhotoSlot(index, url) {
+    showPhotoSlot(index, photo) {
         const slot = document.getElementById(`photo${index}`);
-        if (slot) slot.innerHTML = `<img src="${url}" alt="Uploaded photo">`;
+        if (!slot) return;
+        const item = typeof photo === 'string' ? { url: photo, stored_filename: '', photo_role: 'general' } : (photo || {});
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        const filename = escapeHtml(item.stored_filename || '');
+        const url = escapeHtml(item.url || '');
+        const role = escapeHtml(item.photo_role || 'general');
+        const roles = [
+            ['before', 'Before'],
+            ['during', 'During treatment'],
+            ['hope', 'Hope after transplant'],
+            ['general', 'General']
+        ];
+        slot.classList.add('filled');
+        slot.innerHTML = `
+            <img src="${url}" alt="Uploaded photo">
+            <div class="photo-role-controls">
+                <label>
+                    Photo meaning
+                    <select class="photo-role-select" data-filename="${filename}">
+                        ${roles.map(([value, label]) => `
+                            <option value="${value}" ${value === role ? 'selected' : ''}>${label}</option>
+                        `).join('')}
+                    </select>
+                </label>
+                <div class="photo-order-controls">
+                    <button type="button" class="photo-move-btn" data-direction="up" data-filename="${filename}" ${index === 0 ? 'disabled' : ''}>Move left</button>
+                    <button type="button" class="photo-move-btn" data-direction="down" data-filename="${filename}">Move right</button>
+                </div>
+            </div>
+        `;
     }
 
     showGenerateSection() {

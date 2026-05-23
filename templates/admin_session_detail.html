@@ -133,6 +133,7 @@
                     <tr>
                         <th>Order</th>
                         <th>Filename</th>
+                        <th>Role</th>
                         <th>Source</th>
                         <th>Size</th>
                         <th>Dimensions</th>
@@ -145,6 +146,7 @@
                     <tr>
                         <td>{{ photo.display_order }}</td>
                         <td>{{ photo.stored_filename }}</td>
+                        <td>{{ photo.photo_role or 'general' }}</td>
                         <td>{{ photo.source or 'unknown' }}</td>
                         <td>{{ photo.byte_size or 'n/a' }}</td>
                         <td>{{ photo.width or '?' }} x {{ photo.height or '?' }}</td>
@@ -152,7 +154,7 @@
                         <td>{{ photo.deleted_at or '' }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7">No photos saved for this session.</td></tr>
+                    <tr><td colspan="8">No photos saved for this session.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

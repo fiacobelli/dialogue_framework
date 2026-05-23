@@ -4,6 +4,7 @@ import re
 import json
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
+from . import database as db
 
 CONTENT_FIELDS = (
     'headline',
@@ -211,20 +212,58 @@ def _legacy_fields(content: dict) -> dict:
     }
 
 
-def _photo_urls(photos: list, session_id: str | None = None, *, preview: bool = False) -> list:
+PHOTO_ROLE_LABELS = {
+    'before': ('Before', 'The life, people, and identity that matter beyond kidney disease.'),
+    'during': ('During treatment', 'The kidney journey and the daily impact of treatment.'),
+    'hope': ('Hope after transplant', 'The hope of returning to more of what matters.'),
+    'general': ('Story photo', 'A photo chosen to help tell this story.'),
+}
+
+
+def _photo_url(filename: str, session_id: str | None = None, *, preview: bool = False) -> str:
     if preview and session_id:
-        return [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos]
-    return [url_for('serve_photo', filename=p) for p in photos]
+        return url_for('photos.photo_preview', session_id=session_id, filename=filename)
+    return url_for('serve_photo', filename=filename)
 
 
-def _render_and_save(session_id: str, name: str, content: dict, photo_urls: list) -> tuple[str, str]:
+def _photo_items(photos: list, session_id: str | None = None, *, preview: bool = False) -> list[dict]:
+    items = []
+    for index, photo in enumerate(photos or []):
+        if isinstance(photo, dict):
+            filename = photo.get('stored_filename')
+            role = photo.get('photo_role') or 'general'
+            caption = photo.get('caption') or ''
+        else:
+            filename = str(photo)
+            role = ('before', 'during', 'hope')[index] if index < 3 else 'general'
+            caption = ''
+        if not filename:
+            continue
+        label, default_caption = PHOTO_ROLE_LABELS.get(role, PHOTO_ROLE_LABELS['general'])
+        items.append({
+            'stored_filename': filename,
+            'url': _photo_url(filename, session_id, preview=preview),
+            'photo_role': role,
+            'role_label': label,
+            'caption': caption or default_caption,
+        })
+    return items
+
+
+def _photo_urls(photos: list, session_id: str | None = None, *, preview: bool = False) -> list:
+    return [item['url'] for item in _photo_items(photos, session_id, preview=preview)]
+
+
+def _render_and_save(session_id: str, name: str, content: dict, photo_items: list[dict]) -> tuple[str, str]:
     microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
     microsite_path = url_for('serve_microsite', session_id=session_id)
+    photo_urls = [item['url'] for item in photo_items]
 
     html = render_template('microsite.html',
         name=name,
         content=content,
         photos=photo_urls,
+        photo_items=photo_items,
         url=microsite_url
     )
 
@@ -252,10 +291,14 @@ def _build_result(
         'name': name,
         'content': raw_content,
         'photos': photo_urls,
+        'photo_items': _photo_items(photo_urls),
         'microsite_url': microsite_path,
         'microsite_absolute_url': microsite_url,
         'published': published,
     }
+    if photo_urls and isinstance(photo_urls[0], dict):
+        result['photo_items'] = photo_urls
+        result['photos'] = [item['url'] for item in photo_urls]
     return result
 
 
@@ -264,7 +307,8 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
     history = info_state.user.query('conversation_history') or []
     state = info_state.user.query('interview_state') or {}
     conversation = format_story_evidence(state) or format_conversation(history)
-    photos = info_state.user.query('photos') or []
+    visit_id = info_state.user.query('visit_id')
+    photos = db.list_visit_photos(visit_id) or (info_state.user.query('photos') or [])
 
     prompt_template = load_prompt(MICROSITE_PROMPT_FILE)
     prompt = prompt_template.format(name=name, conversation=conversation)
@@ -279,7 +323,7 @@ def generate(info_state, provider, name: str, session_id: str) -> dict:
         )
 
     content = _normalize_content(content_json, name)
-    result = _build_result(content, name, raw_content, _photo_urls(photos, session_id, preview=True), published=False)
+    result = _build_result(content, name, raw_content, _photo_items(photos, session_id, preview=True), published=False)
 
     info_state.user.update('microsite_draft', result)
     info_state.user.update('microsite_draft_status', 'draft')
@@ -301,15 +345,16 @@ def publish(info_state, session_id: str, edits: dict | None = None) -> dict:
         for field in CONTENT_FIELDS
     }
     content = _normalize_content(content_input, name)
-    photos = info_state.user.query('photos') or []
-    photo_urls = _photo_urls(photos)
-    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_urls)
+    visit_id = info_state.user.query('visit_id')
+    photos = db.list_visit_photos(visit_id) or (info_state.user.query('photos') or [])
+    photo_items = _photo_items(photos)
+    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_items)
 
     result = _build_result(
         content,
         name,
         draft.get('content', ''),
-        photo_urls,
+        photo_items,
         microsite_path=microsite_path,
         microsite_url=microsite_url,
         published=True,
