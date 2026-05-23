@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from .emotional_support import emotional_support_decision
 from .interview_answer_analysis import (
     can_request_deepening,
     extract_patient_name,
@@ -70,6 +71,7 @@ def normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
     base.setdefault('skipped_steps', {})
     base.setdefault('thin_evidence', {})
     base.setdefault('deepening_count_by_step', {})
+    base.setdefault('emotional_support_count_by_step', {})
     base.setdefault('last_followup_kind', None)
     base.setdefault('patient_name_status', 'missing')
     return base
@@ -248,6 +250,18 @@ def decide_next_task(
         answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
         _record_story_evidence(state, step, user_input, decision, awaiting)
 
+        if awaiting == 'main_answer' and step and int(state.get('followup_count') or 0) < 1:
+            emotional = emotional_support_decision(step, user_input, state)
+            if emotional.get('should_support'):
+                counts = state.setdefault('emotional_support_count_by_step', {})
+                counts[step['id']] = int(counts.get(step['id']) or 0) + 1
+                state['last_decision'] = {'sufficiency': decision, 'emotional_support': emotional}
+                state['followup_count'] = int(state.get('followup_count') or 0) + 1
+                state['last_followup_kind'] = 'emotional_support'
+                state['awaiting'] = 'followup_answer'
+                state['phase'] = step['phase']
+                return _task('ask_emotional_support', state, phase=step['phase'], step=step, decision=emotional, sufficiency=decision)
+
         if (
             awaiting == 'main_answer'
             and step
@@ -344,6 +358,10 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
     if task_type == 'ask_followup' and step_id:
         followup = (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
         return f"I want to make sure I capture this part clearly. {followup}"
+    if task_type == 'ask_emotional_support':
+        support_response = (task.get('decision') or {}).get('response')
+        if support_response:
+            return support_response
     if task_type == 'ask_deepening':
         deepening_question = (task.get('decision') or {}).get('question')
         if deepening_question:
@@ -368,7 +386,7 @@ def expected_question_text(task: dict[str, Any]) -> str | None:
         return step.get('question')
     if task_type == 'ask_followup':
         return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
-    if task_type == 'ask_deepening':
+    if task_type in {'ask_deepening', 'ask_emotional_support'}:
         return (task.get('decision') or {}).get('question')
     if task_type == 'repair_name':
         return 'What name would you like shown publicly on your donor page?'
@@ -385,7 +403,7 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
         return 'readiness'
     if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
         return state.get('awaiting') or 'main_answer'
-    if task_type in {'ask_followup', 'ask_deepening'}:
+    if task_type in {'ask_followup', 'ask_deepening', 'ask_emotional_support'}:
         return 'followup_answer'
     return None
 
@@ -439,6 +457,14 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
             '- Stay on the same topic.\n'
             '- Ask the provided story-deepening follow-up question exactly.\n'
             '- Do not move to a new topic. Ask only one question.'
+        )
+    if task_type == 'ask_emotional_support':
+        return (
+            'RUNTIME TURN DIRECTIVE:\n'
+            '- The patient shared emotional distress.\n'
+            '- Validate briefly without counseling or medical advice.\n'
+            '- Ask the provided optional follow-up question exactly.\n'
+            '- Do not ask for unnecessary third-party private details. Ask only one question.'
         )
     if task_type in {'ack_then_next', 'ask_final'}:
         return (

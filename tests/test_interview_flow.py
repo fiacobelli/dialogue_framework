@@ -131,6 +131,48 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['type'], 'ask_followup')
         self.assertIn('When you say peace', response)
 
+    def test_emotional_disclosure_gets_bounded_optional_followup(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        task = decide_next_task(state, 'My kids matter most, but I am scared all the time')
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'ask_emotional_support')
+        self.assertEqual(state['awaiting'], 'followup_answer')
+        self.assertEqual(state['last_followup_kind'], 'emotional_support')
+        self.assertIn('Thank you for trusting me with that', response)
+        self.assertIn('what do you wish people understood about that fear?', response)
+        self.assertNotIn('medical advice', response.lower())
+
+    def test_emotional_followup_answer_then_advances(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        decide_next_task(state, 'My kids matter most, but I am scared all the time')
+
+        task = decide_next_task(state, 'I want people to understand I keep going for my kids')
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        evidence = state['story_evidence']['personal_background']
+        self.assertEqual(evidence[-1]['answer_kind'], 'followup_answer')
+        self.assertEqual(evidence[-1]['followup_kind'], 'emotional_support')
+
+    def test_crisis_language_returns_resource_without_continuing_to_next_section(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        task = decide_next_task(state, 'My kids matter but sometimes I want to hurt myself')
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'ask_emotional_support')
+        self.assertEqual(task['decision']['category'], 'crisis')
+        self.assertIn('call or text 988', response)
+        self.assertEqual(state['step_index'], 0)
+
     def test_sufficient_answer_can_trigger_bounded_story_deepening(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
