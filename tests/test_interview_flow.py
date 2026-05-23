@@ -739,12 +739,22 @@ class PublicationControlTests(unittest.TestCase):
             'microsite_absolute_url': 'https://example.test/site/published-session',
         }
 
+    def _accepted_evidence(self):
+        return {
+            'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
+            'daily_life': [{'answer': 'Dialysis makes me tired and limits my schedule.', 'accepted': True}],
+            'transplant_hope': [{'answer': 'A transplant would help me have more energy.', 'accepted': True}],
+            'donor_message': [{'answer': 'I want donors to know their help would matter.', 'accepted': True}],
+        }
+
     def test_publication_status_controls_page_and_photos(self):
         visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
+        token = db.create_upload_token(visit_id)['token']
         db.save_photo(visit_id, 'published-session_0.jpg', 0)
 
         self.assertFalse(db.is_microsite_published('published-session'))
         self.assertFalse(db.is_photo_public('published-session_0.jpg'))
+        self.assertTrue(db.validate_upload_token(visit_id, token))
 
         db.save_draft(visit_id, self._result(), status='published')
 
@@ -754,6 +764,42 @@ class PublicationControlTests(unittest.TestCase):
         self.assertTrue(db.unpublish_session('published-session'))
         self.assertFalse(db.is_microsite_published('published-session'))
         self.assertFalse(db.is_photo_public('published-session_0.jpg'))
+        self.assertFalse(db.validate_upload_token(visit_id, token))
+        detail = db.get_admin_visit('published-session')
+        audit_metadata = json.loads(detail['audit_events'][0]['metadata_json'])
+        self.assertEqual(audit_metadata['revoked_upload_tokens'], 1)
+
+    def test_publish_endpoint_revokes_active_upload_tokens(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+            session = session_store.get_session(session_id)
+            info_state = session['info_state']
+            visit_id = info_state.user.query('visit_id')
+            token = db.create_upload_token(visit_id)['token']
+            info_state.user.update('interview_phase', 'PHOTOS')
+            info_state.user.update('interview_state', {
+                'complete': True,
+                'story_evidence': self._accepted_evidence(),
+            })
+            info_state.user.update('patient_name', 'Sophia')
+            info_state.user.update('patient_name_status', 'confirmed')
+            info_state.user.update('photos', ['a.jpg', 'b.jpg', 'c.jpg'])
+            info_state.user.update('microsite_draft', self._result())
+
+            with tempfile.TemporaryDirectory() as site_dir:
+                with patch.object(microsite, 'MICROSITES_DIR', site_dir):
+                    response = client.post('/api/publish', json={
+                        'session_id': session_id,
+                        'publication_consent': {
+                            'accepted': True,
+                            'version': PUBLICATION_CONSENT_VERSION,
+                        },
+                    })
+
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(db.validate_upload_token(visit_id, token))
 
     def test_soft_delete_blocks_page_photos_and_revokes_upload_token(self):
         visit_id = db.create_visit('delete-session', 'en', 'black_female', {'name': 'Ludi'})

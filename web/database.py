@@ -570,13 +570,31 @@ def unpublish_session(session_id: str, reason: str = 'user_request', actor: str 
             """,
             (visit_id,),
         )
+        token_result = c.execute(
+            """
+            UPDATE upload_tokens
+            SET revoked_at = ?
+            WHERE visit_id = ?
+              AND revoked_at IS NULL
+            """,
+            (now, visit_id),
+        )
         c.execute(
             """
             INSERT INTO audit_events(
                 id, visit_id, session_id, actor, action, reason, metadata_json, created_at
             ) VALUES (?,?,?,?,?,?,?,?)
             """,
-            (_uuid(), visit_id, session_id, actor, 'unpublish', reason, _json({}), now),
+            (
+                _uuid(),
+                visit_id,
+                session_id,
+                actor,
+                'unpublish',
+                reason,
+                _json({'revoked_upload_tokens': token_result.rowcount}),
+                now,
+            ),
         )
     return True
 

@@ -454,6 +454,7 @@ def publish_microsite():
             llm_model=result.get('llm_model'),
             prompt_version=result.get('prompt_version'),
         )
+        db.revoke_upload_tokens(visit_id, reason='published')
         db.update_visit_from_info_state(visit_id, info_state)
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:
