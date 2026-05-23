@@ -83,6 +83,71 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['step_index'], 0)
         self.assertEqual(state['awaiting'], 'followup_answer')
 
+    def test_sufficient_answer_can_trigger_bounded_story_deepening(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        def planner(step, answer, current_state):
+            return {
+                'should_deepen': True,
+                'reason': 'children are central to identity',
+                'evidence_quote': 'family friends kids',
+                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
+            }
+
+        task = decide_next_task(state, 'yes my family my friends my kids', deepening_decider=planner)
+        response = deterministic_response(task, state)
+
+        self.assertEqual(task['type'], 'ask_deepening')
+        self.assertEqual(state['awaiting'], 'followup_answer')
+        self.assertEqual(state['last_followup_kind'], 'deepening')
+        self.assertIn('your kids', response)
+
+    def test_deepening_followup_answer_then_advances_to_next_story_section(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        decide_next_task(
+            state,
+            'yes my family my friends my kids',
+            deepening_decider=lambda *_: {
+                'should_deepen': True,
+                'reason': 'children are central to identity',
+                'evidence_quote': 'kids',
+                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
+            },
+        )
+
+        task = decide_next_task(state, 'I try to be present for my kids and support them every day')
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        self.assertEqual(state['awaiting'], 'main_answer')
+        evidence = state['story_evidence']['personal_background']
+        self.assertEqual(evidence[-1]['answer_kind'], 'followup_answer')
+        self.assertEqual(evidence[-1]['followup_kind'], 'deepening')
+
+    def test_invalid_deepening_planner_output_is_ignored(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+
+        task = decide_next_task(
+            state,
+            'yes my family my friends my kids',
+            deepening_decider=lambda *_: {
+                'should_deepen': True,
+                'reason': 'invented',
+                'evidence_quote': 'marathon runner',
+                'followup_question': 'How did running marathons shape your life?',
+            },
+        )
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        self.assertNotEqual(state.get('last_followup_kind'), 'deepening')
+
     def test_broad_dialysis_answer_is_not_sufficient_daily_life(self):
         step = {'id': 'daily_life'}
         decision = sufficiency_decision(step, 'most of the time treatments dialysis treatment')
@@ -235,6 +300,20 @@ class FakeMicrositeLLM:
         }"""
 
 
+class FakeDeepeningPlannerLLM:
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, messages, system_prompt=None):
+        self.calls += 1
+        return """{
+            "should_deepen": true,
+            "reason": "children are central to identity",
+            "evidence_quote": "kids",
+            "followup_question": "You mentioned your kids; what would you want people to understand about your kids?"
+        }"""
+
+
 class InterviewGoalTests(unittest.TestCase):
     def test_active_story_question_is_deterministic_and_does_not_call_llm(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -311,6 +390,51 @@ class InterviewGoalTests(unittest.TestCase):
             self.assertEqual(fake.calls, 0)
             self.assertEqual(msg[MSG.RESPONSE], FINAL_PHOTOS_PROMPT)
             self.assertEqual(info_state.user.query('interview_phase'), 'PHOTOS')
+
+    def test_interview_goal_uses_planner_for_story_deepening(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            user_file = os.path.join(tmp, 'user.pkl')
+            info_state = InformationState(user_file, 'domains/interview.json')
+            info_state.user.update('session_id', 'unit-deepening')
+            info_state.user.update('avatar_profile', {'name': 'Ludi'})
+            info_state.user.update('interview_state', {
+                'version': 2,
+                'step_index': 0,
+                'phase': 'STORY',
+                'awaiting': 'main_answer',
+                'followup_count': 0,
+                'repair_count': 0,
+                'last_task': 'ask_main',
+                'last_step_id': 'personal_background',
+                'complete': False,
+                'story_evidence': {},
+                'thin_evidence': {},
+                'patient_name': 'Sophia',
+                'patient_name_status': 'confirmed',
+                'patient_name_source': 'user_explicit',
+                'last_decision': None,
+                'current_outgoing_turn': {
+                    'outgoing_turn_id': 'story-turn',
+                    'asked_step_id': 'personal_background',
+                    'asked_question_text': 'Can you tell me a little about yourself and the roles or relationships that matter most in your life?',
+                    'expected_answer_kind': 'main_answer',
+                    'delivered_phase': 'STORY',
+                    'delivery_validated': True,
+                    'task_type': 'ask_main',
+                },
+            })
+
+            fake = FakeDeepeningPlannerLLM()
+            goal = InterviewGoal(fake, 'You are {avatar_name}.')
+            msg = {MSG.ORIG_TEXT: 'yes my family my friends my kids'}
+
+            goal.execute_goal(msg, info_state)
+
+            state = info_state.user.query('interview_state')
+            self.assertEqual(fake.calls, 1)
+            self.assertEqual(msg['interview_task']['type'], 'ask_deepening')
+            self.assertEqual(state['awaiting'], 'followup_answer')
+            self.assertIn('your kids', msg[MSG.RESPONSE])
 
 
 class GenerationGateTests(unittest.TestCase):

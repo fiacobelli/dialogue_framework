@@ -7,7 +7,7 @@ interview contract: intake, story order, follow-up depth, and completion.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Callable
 
 
 INTERVIEW_STEPS: list[dict[str, str]] = [
@@ -178,6 +178,15 @@ FOLLOWUP_QUESTIONS: dict[str, str] = {
     'final_details': 'Could you tell me what else you would like included, or say that there is nothing else?',
 }
 
+DEEPENING_MAX_PER_STEP = 1
+
+CONTENT_STOPWORDS = {
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can',
+    'could', 'do', 'for', 'from', 'has', 'have', 'how', 'i', 'if', 'in',
+    'is', 'it', 'me', 'my', 'of', 'or', 'that', 'the', 'this', 'to', 'want',
+    'what', 'when', 'with', 'would', 'you', 'your',
+}
+
 
 def build_interview_state() -> dict[str, Any]:
     """Initial state stored in info_state.user."""
@@ -193,6 +202,8 @@ def build_interview_state() -> dict[str, Any]:
         'complete': False,
         'story_evidence': {},
         'thin_evidence': {},
+        'deepening_count_by_step': {},
+        'last_followup_kind': None,
         'patient_name': None,
         'patient_name_status': 'missing',
         'patient_name_source': None,
@@ -216,6 +227,8 @@ def normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
     base.setdefault('repair_count', 0)
     base.setdefault('story_evidence', {})
     base.setdefault('thin_evidence', {})
+    base.setdefault('deepening_count_by_step', {})
+    base.setdefault('last_followup_kind', None)
     base.setdefault('patient_name_status', 'missing')
     return base
 
@@ -393,6 +406,78 @@ def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, An
     return {'sufficient': False, 'reason': 'missing_required_evidence', 'matched': matched}
 
 
+def _content_words(text: str) -> set[str]:
+    words = set(normalize_answer(text).split())
+    return {word for word in words if len(word) > 2 and word not in CONTENT_STOPWORDS}
+
+
+def validate_deepening_decision(
+    step: dict[str, str] | None,
+    text: str,
+    state: dict[str, Any],
+    candidate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate an LLM-proposed story-deepening follow-up against code-owned guardrails."""
+    if not step:
+        return {'should_deepen': False, 'reason': 'no_step', 'question': None, 'evidence_quote': ''}
+
+    step_id = step['id']
+    if step_id == 'final_details':
+        return {'should_deepen': False, 'reason': 'final_details_no_deepening', 'question': None, 'evidence_quote': ''}
+
+    counts = state.setdefault('deepening_count_by_step', {})
+    if int(counts.get(step_id) or 0) >= DEEPENING_MAX_PER_STEP:
+        return {'should_deepen': False, 'reason': 'deepening_limit_reached', 'question': None, 'evidence_quote': ''}
+
+    if not isinstance(candidate, dict):
+        return {'should_deepen': False, 'reason': 'invalid_planner_output', 'question': None, 'evidence_quote': ''}
+    if not candidate.get('should_deepen'):
+        return {
+            'should_deepen': False,
+            'reason': str(candidate.get('reason') or 'planner_declined')[:120],
+            'question': None,
+            'evidence_quote': str(candidate.get('evidence_quote') or '')[:180],
+        }
+
+    question = str(candidate.get('followup_question') or candidate.get('question') or '').strip()
+    evidence_quote = str(candidate.get('evidence_quote') or '').strip()
+    reason = str(candidate.get('reason') or 'planner_deepening')[:120]
+
+    if not 20 <= len(question) <= 240:
+        return {'should_deepen': False, 'reason': 'invalid_question_length', 'question': None, 'evidence_quote': evidence_quote}
+    if question.count('?') != 1 or not question.endswith('?'):
+        return {'should_deepen': False, 'reason': 'question_must_be_single_question', 'question': None, 'evidence_quote': evidence_quote}
+
+    answer_words = _content_words(text)
+    quote_words = _content_words(evidence_quote)
+    question_words = _content_words(question)
+    if not answer_words or not quote_words:
+        return {'should_deepen': False, 'reason': 'missing_grounding_evidence', 'question': None, 'evidence_quote': evidence_quote}
+    if not quote_words.issubset(answer_words):
+        return {'should_deepen': False, 'reason': 'evidence_quote_not_in_answer', 'question': None, 'evidence_quote': evidence_quote}
+    if not question_words.intersection(answer_words):
+        return {'should_deepen': False, 'reason': 'question_not_grounded_in_answer', 'question': None, 'evidence_quote': evidence_quote}
+
+    return {
+        'should_deepen': True,
+        'reason': reason,
+        'question': question,
+        'evidence_quote': evidence_quote,
+    }
+
+
+def can_request_deepening(step: dict[str, str] | None, state: dict[str, Any]) -> bool:
+    if not step or step.get('id') == 'final_details':
+        return False
+    counts = state.setdefault('deepening_count_by_step', {})
+    return int(counts.get(step['id']) or 0) < DEEPENING_MAX_PER_STEP
+
+
+def no_deepening_decider(step: dict[str, str] | None, text: str, state: dict[str, Any]) -> dict[str, Any]:
+    """Default planner for deterministic tests and degraded operation."""
+    return {'should_deepen': False, 'reason': 'no_planner', 'question': None, 'evidence_quote': ''}
+
+
 def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
     """Detect non-answers before they can advance the story state."""
     normalized = normalize_answer(text)
@@ -434,6 +519,7 @@ def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     state['step_index'] = int(state.get('step_index') or 0) + 1
     state['followup_count'] = 0
     state['repair_count'] = 0
+    state['last_followup_kind'] = None
     return current_step(state)
 
 
@@ -442,6 +528,7 @@ def _record_story_evidence(
     step: dict[str, str] | None,
     user_input: str,
     decision: dict[str, Any],
+    answer_kind: str = 'main_answer',
 ) -> None:
     if not step:
         return
@@ -449,6 +536,8 @@ def _record_story_evidence(
         'answer': user_input,
         'sufficiency': decision,
         'followup_count': state.get('followup_count', 0),
+        'answer_kind': answer_kind,
+        'followup_kind': state.get('last_followup_kind') if answer_kind == 'followup_answer' else None,
         'accepted': bool(decision.get('sufficient')),
     }
     evidence = state.setdefault('story_evidence', {})
@@ -467,7 +556,12 @@ def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]
     return {'type': task_type, 'phase': phase, 'step': step, **extra}
 
 
-def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+def decide_next_task(
+    state: dict[str, Any],
+    user_input: str = '',
+    turn_meta: dict[str, Any] | None = None,
+    deepening_decider: Callable[[dict[str, str] | None, str, dict[str, Any]], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Update state and return the next code-owned task."""
     normalized = normalize_state(state)
     state.clear()
@@ -520,7 +614,8 @@ def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dic
 
         decision = sufficiency_decision(step, user_input)
         state['last_decision'] = {'sufficiency': decision}
-        _record_story_evidence(state, step, user_input, decision)
+        answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
+        _record_story_evidence(state, step, user_input, decision, awaiting)
 
         if (
             awaiting == 'main_answer'
@@ -529,9 +624,26 @@ def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dic
             and int(state.get('followup_count') or 0) < 1
         ):
             state['followup_count'] = int(state.get('followup_count') or 0) + 1
+            state['last_followup_kind'] = 'repair'
             state['awaiting'] = 'followup_answer'
             state['phase'] = step['phase']
             return _task('ask_followup', state, phase=step['phase'], step=step, decision=decision)
+
+        if awaiting == 'main_answer' and step and decision['sufficient'] and can_request_deepening(step, state):
+            planner = deepening_decider or no_deepening_decider
+            try:
+                candidate_deepening = planner(step, user_input, state)
+            except Exception as e:
+                candidate_deepening = {'should_deepen': False, 'reason': f'planner_error:{type(e).__name__}'}
+            deepening = validate_deepening_decision(step, user_input, state, candidate_deepening)
+            if deepening['should_deepen']:
+                counts = state.setdefault('deepening_count_by_step', {})
+                counts[step['id']] = int(counts.get(step['id']) or 0) + 1
+                state['last_decision'] = {'sufficiency': decision, 'deepening': deepening}
+                state['last_followup_kind'] = 'deepening'
+                state['awaiting'] = 'followup_answer'
+                state['phase'] = step['phase']
+                return _task('ask_deepening', state, phase=step['phase'], step=step, decision=deepening, sufficiency=decision)
 
         if step and not decision['sufficient']:
             state.setdefault('thin_evidence', {})[step['id']] = decision
@@ -541,7 +653,14 @@ def decide_next_task(state: dict[str, Any], user_input: str = '', turn_meta: dic
             state['awaiting'] = 'main_answer'
             state['phase'] = next_step['phase']
             task_type = 'ask_final' if next_step['id'] == 'final_details' else 'ack_then_next'
-            return _task(task_type, state, phase=next_step['phase'], step=next_step, decision=decision)
+            return _task(
+                task_type,
+                state,
+                phase=next_step['phase'],
+                step=next_step,
+                decision=decision,
+                answered_followup_kind=answered_followup_kind,
+            )
 
         state['awaiting'] = 'photos'
         state['phase'] = 'PHOTOS'
@@ -582,11 +701,17 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
     if task_type == 'ask_main' and question:
         return f"{SECTION_TRANSITIONS.get(step_id, 'Let us continue with your story')} {question}"
     if task_type == 'ack_then_next' and question:
-        return f"Thank you for sharing that. {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
+        prefix = 'That gives this part of your story more depth.' if task.get('answered_followup_kind') == 'deepening' else 'Thank you for sharing that.'
+        return f"{prefix} {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
     if task_type == 'ask_final' and question:
-        return f"Thank you, that helps tell your story. {SECTION_TRANSITIONS.get(step_id, 'Before we move on,')} {question}"
+        prefix = 'That gives this part of your story more depth.' if task.get('answered_followup_kind') == 'deepening' else 'Thank you, that helps tell your story.'
+        return f"{prefix} {SECTION_TRANSITIONS.get(step_id, 'Before we move on,')} {question}"
     if task_type == 'ask_followup' and step_id:
         return f"I want to make sure I capture this part clearly. {FOLLOWUP_QUESTIONS.get(step_id, question)}"
+    if task_type == 'ask_deepening':
+        deepening_question = (task.get('decision') or {}).get('question')
+        if deepening_question:
+            return deepening_question
     if task_type == 'repair_answer' and question:
         decision = task.get('decision') or {}
         if decision.get('reason') == 'clarification_request':
@@ -607,6 +732,8 @@ def expected_question_text(task: dict[str, Any]) -> str | None:
         return step.get('question')
     if task_type == 'ask_followup':
         return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
+    if task_type == 'ask_deepening':
+        return (task.get('decision') or {}).get('question')
     if task_type == 'repair_name':
         return 'What name would you like shown publicly on your donor page?'
     if task_type in {'ask_readiness', 'answer_readiness_question'}:
@@ -622,7 +749,7 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
         return 'readiness'
     if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer'}:
         return state.get('awaiting') or 'main_answer'
-    if task_type == 'ask_followup':
+    if task_type in {'ask_followup', 'ask_deepening'}:
         return 'followup_answer'
     return None
 
@@ -667,6 +794,14 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
             f'- Ask one open follow-up for the same topic: {focus}.\n'
             f'- The answer should help capture: {required}.\n'
             '- Begin with What, How, or Tell me about.\n'
+            '- Do not move to a new topic. Ask only one question.'
+        )
+    if task_type == 'ask_deepening':
+        return (
+            'RUNTIME TURN DIRECTIVE:\n'
+            '- The previous answer was usable, but included an important story detail worth understanding more deeply.\n'
+            '- Stay on the same topic.\n'
+            '- Ask the provided story-deepening follow-up question exactly.\n'
             '- Do not move to a new topic. Ask only one question.'
         )
     if task_type in {'ack_then_next', 'ask_final'}:

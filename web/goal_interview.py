@@ -1,5 +1,7 @@
 """Interview goal - LLM-driven interview using system prompt."""
+import json
 import os
+import re
 import time
 import uuid
 from datetime import datetime
@@ -46,7 +48,14 @@ class InterviewGoal(Goal):
 
         log_interview(session_id, f"USER: {user_input}")
 
-        task = decide_next_task(state, user_input, msg.get('turn_meta'))
+        avatar_profile = info_state.user.query('avatar_profile') or {}
+        avatar_name = avatar_profile.get('name', 'Assistant')
+        task = decide_next_task(
+            state,
+            user_input,
+            msg.get('turn_meta'),
+            deepening_decider=self._deepening_decider(avatar_name, language),
+        )
         decision = task.get('decision') or {}
         should_store_user = bool(user_input) and not msg.get('turn_meta', {}).get('no_response')
         if task.get('type') == 'repair_answer' and decision.get('reason') in {
@@ -67,8 +76,6 @@ class InterviewGoal(Goal):
         )
 
         response = deterministic_response(task, state)
-        avatar_profile = info_state.user.query('avatar_profile') or {}
-        avatar_name = avatar_profile.get('name', 'Assistant')
         if response is None:
             prompt = self._build_prompt(avatar_name, language, build_runtime_directive(task))
             if language != 'en':
@@ -121,6 +128,52 @@ class InterviewGoal(Goal):
         }
         msg['llm_latency_ms'] = llm_latency_ms
         msg[MSG.RESPONSE] = response
+
+    def _deepening_decider(self, avatar_name: str, language: str):
+        def decide(step, user_input, state):
+            if not step:
+                return {'should_deepen': False, 'reason': 'no_step'}
+
+            prompt = (
+                "You are a bounded donor-story interview planner. "
+                "Decide whether the patient's latest answer deserves one brief story-deepening follow-up before moving on.\n\n"
+                "Return JSON only with these keys:\n"
+                "- should_deepen: boolean\n"
+                "- reason: short string\n"
+                "- evidence_quote: exact words copied from the patient answer that justify the follow-up, or empty string\n"
+                "- followup_question: one patient-facing question, or empty string\n\n"
+                "Rules:\n"
+                "- Only propose a follow-up if the answer contains a meaningful personal, emotional, relational, or story detail worth expanding.\n"
+                "- The follow-up must stay within the current section focus.\n"
+                "- The follow-up must be grounded only in exact words the patient said.\n"
+                "- Ask exactly one question.\n"
+                "- Do not give medical advice.\n"
+                "- Do not invent facts, feelings, relationships, or motivations.\n"
+                "- If the answer is already enough but has no clear deepening opportunity, set should_deepen to false.\n\n"
+                f"Assistant name: {avatar_name}\n"
+                f"Language: {language}\n"
+                f"Current section id: {step.get('id')}\n"
+                f"Current section focus: {step.get('focus')}\n"
+                f"Current section required evidence: {step.get('required')}\n"
+                f"Patient answer: {user_input}\n"
+            )
+            raw = self.llm.generate([], prompt)
+            try:
+                return json.loads(self._extract_json(raw))
+            except Exception:
+                return {'should_deepen': False, 'reason': 'planner_json_invalid', 'raw': raw[:240] if isinstance(raw, str) else ''}
+        return decide
+
+    def _extract_json(self, text: str) -> str:
+        text = (text or '').strip()
+        if text.startswith('```'):
+            text = re.sub(r'^```(?:json)?\s*', '', text)
+            text = re.sub(r'\s*```$', '', text)
+        start = text.find('{')
+        end = text.rfind('}')
+        if start >= 0 and end >= start:
+            return text[start:end + 1]
+        return text
 
     def _is_goodbye(self, text: str) -> bool:
         """Check if the response signals end of interview."""
