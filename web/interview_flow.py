@@ -27,6 +27,7 @@ from .interview_flow_config import (
     SECTION_TRANSITIONS,
 )
 from .story_evaluator import structured_answer_decision
+from .turn_interpreter import interpret_story_turn
 
 
 def build_interview_state() -> dict[str, Any]:
@@ -166,6 +167,21 @@ def _record_skipped_step(state: dict[str, Any], step: dict[str, str] | None, use
     }
 
 
+def _advance_or_close(state: dict[str, Any], decision: dict[str, Any], *, default_task_type: str = 'ack_then_next',
+                      close_task_type: str = 'close_to_photos', answered_followup_kind: str | None = None,
+                      **extra: Any) -> dict[str, Any]:
+    next_step = _advance_step(state)
+    if next_step:
+        state['awaiting'] = 'main_answer'
+        state['phase'] = next_step['phase']
+        task_type = 'ask_final' if default_task_type == 'ack_then_next' and next_step['id'] == 'final_details' else default_task_type
+        return _task(task_type, state, phase=next_step['phase'], step=next_step, decision=decision, answered_followup_kind=answered_followup_kind, **extra)
+    state['awaiting'] = 'photos'
+    state['phase'] = 'PHOTOS'
+    state['complete'] = True
+    return _task(close_task_type, state, phase='PHOTOS', step=None, decision=decision, **extra)
+
+
 def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]:
     phase = extra.pop('phase', state.get('phase', 'INTRO'))
     step = extra.get('step', current_step(state))
@@ -225,17 +241,39 @@ def decide_next_task(
         step = current_step(state)
         if step and is_skip_intent(user_input, turn_meta):
             _record_skipped_step(state, step, user_input, awaiting)
-            state['last_decision'] = {'skip': {'skipped': True, 'step_id': step['id']}}
-            next_step = _advance_step(state)
-            if next_step:
-                state['awaiting'] = 'main_answer'
-                state['phase'] = next_step['phase']
-                return _task('skip_then_next', state, phase=next_step['phase'], step=next_step, skipped_step=step)
+            decision = {'skipped': True, 'step_id': step['id']}
+            state['last_decision'] = {'skip': decision}
+            return _advance_or_close(
+                state, decision, default_task_type='skip_then_next', close_task_type='skip_to_photos', skipped_step=step
+            )
 
-            state['awaiting'] = 'photos'
-            state['phase'] = 'PHOTOS'
-            state['complete'] = True
-            return _task('skip_to_photos', state, phase='PHOTOS', step=None, skipped_step=step)
+        interpretation = interpret_story_turn(step, state, user_input, awaiting)
+        if interpretation['category'] == 'prior_reference':
+            state['last_decision'] = {'turn_interpretation': interpretation}
+            if interpretation['current_step_has_accepted_evidence']:
+                decision = {
+                    'sufficient': True,
+                    'reason': 'prior_reference_existing_evidence',
+                    'matched': interpretation['matched'],
+                    'turn_interpretation': interpretation,
+                }
+                answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
+                return _advance_or_close(state, decision, answered_followup_kind=answered_followup_kind)
+
+            state['repair_count'] = int(state.get('repair_count') or 0) + 1
+            state['phase'] = step['phase'] if step else 'STORY'
+            state['awaiting'] = awaiting
+            return _task(
+                'repair_answer',
+                state,
+                phase=state['phase'],
+                step=step,
+                decision={
+                    'repair': True,
+                    'reason': 'prior_reference_without_evidence',
+                    'turn_interpretation': interpretation,
+                },
+            )
 
         guard = input_guard_decision(step, user_input, turn_meta)
         if guard['repair']:
@@ -293,24 +331,7 @@ def decide_next_task(
         if step and not decision['sufficient']:
             state.setdefault('thin_evidence', {})[step['id']] = decision
 
-        next_step = _advance_step(state)
-        if next_step:
-            state['awaiting'] = 'main_answer'
-            state['phase'] = next_step['phase']
-            task_type = 'ask_final' if next_step['id'] == 'final_details' else 'ack_then_next'
-            return _task(
-                task_type,
-                state,
-                phase=next_step['phase'],
-                step=next_step,
-                decision=decision,
-                answered_followup_kind=answered_followup_kind,
-            )
-
-        state['awaiting'] = 'photos'
-        state['phase'] = 'PHOTOS'
-        state['complete'] = True
-        return _task('close_to_photos', state, phase='PHOTOS', step=None, decision=decision)
+        return _advance_or_close(state, decision, answered_followup_kind=answered_followup_kind)
 
     state['awaiting'] = 'name'
     state['phase'] = 'INTRO'
@@ -368,6 +389,8 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
             return f"I did not catch that clearly. Please try again: {question}"
         if decision.get('reason') == 'operational_issue':
             return f"I am sorry, it sounds like the microphone had trouble. Let's try the same question again: {question}"
+        if decision.get('reason') == 'prior_reference_without_evidence':
+            return f"I may have missed that earlier. Could you share the part you want included for this question? {question}"
         return f"I only caught a little of that. {question}"
     return None
 

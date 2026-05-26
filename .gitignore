@@ -177,6 +177,7 @@ docs/plans/*
 !docs/plans/MICROSITE_FOUNDATION_FINAL_PLAN.md
 tests/*
 !tests/test_interview_flow.py
+!tests/test_turn_interpreter.py
 photos/
 user_models/
 static/microsites/
