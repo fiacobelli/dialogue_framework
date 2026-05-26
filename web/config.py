@@ -53,6 +53,8 @@ ADMIN_PASSWORD = config('ADMIN_PASSWORD', default='')
 # LLM Provider URLs
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
 GROQ_API_URL = config('GROQ_API_URL', default='https://api.groq.com/openai/v1/chat/completions')
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_WHISPER_URL = config('GROQ_WHISPER_URL', default='https://api.groq.com/openai/v1/audio/transcriptions')
 LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 
 # Interview Settings

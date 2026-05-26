@@ -1047,6 +1047,139 @@ class ClientDiagnosticsTests(unittest.TestCase):
         self.assertEqual(detail['turn_events'][0]['event_type'], 'mic_preflight_result')
         self.assertIn('Bluetooth Headset', detail['turn_events'][0]['metadata_json'])
 
+    def test_client_events_endpoint_saves_transcription_diagnostics(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+
+            event_response = client.post('/api/client-events', json={
+                'session_id': session_id,
+                'turn_number': 1,
+                'events': [
+                    {'type': 'listening_started', 'ts': 100},
+                    {'type': 'transcribe_started', 'ts': 500},
+                    {
+                        'type': 'transcribe_ended',
+                        'ts': 900,
+                        'metadata': {'status': 'ok', 'duration_ms': 400, 'transcript_words': 3},
+                    },
+                    {'type': 'listening_ended', 'ts': 950, 'metadata': {'transcript_words': 3}},
+                    {'type': 'transcribe_error', 'ts': 1200, 'metadata': {'status': 'failed', 'error_message': 'bad'}},
+                ],
+            })
+
+            self.assertEqual(event_response.status_code, 200)
+
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        self.addCleanup(conn.close)
+        rows = conn.execute('SELECT event_type, metadata_json FROM turn_events ORDER BY client_ts_ms').fetchall()
+
+        self.assertEqual(
+            [row['event_type'] for row in rows],
+            ['listening_started', 'transcribe_started', 'transcribe_ended', 'listening_ended', 'transcribe_error'],
+        )
+        self.assertIn('"duration_ms": 400', rows[2]['metadata_json'])
+        self.assertIn('"error_message": "bad"', rows[4]['metadata_json'])
+
+
+class TranscriptionEndpointTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db_path = os.path.join(self.tmp.name, 'test.db')
+        db.configure(self.db_path)
+        db.init_db()
+        session_store.clear_sessions()
+        self.addCleanup(session_store.clear_sessions)
+
+    def _session_auth(self, client):
+        response = client.get('/api/session?lang=en&avatar=black_female')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        return data['session_id'], data['patient_token']
+
+    def _audio_payload(self, session_id, patient_token, audio_bytes=b'RIFFfake'):
+        return {
+            'session_id': session_id,
+            'patient_token': patient_token,
+            'language': 'en',
+            'audio': (io.BytesIO(audio_bytes), 'audio.wav'),
+        }
+
+    def test_transcribe_requires_patient_token(self):
+        with app.test_client() as client:
+            session_id, _ = self._session_auth(client)
+            response = client.post('/api/transcribe', data={
+                'session_id': session_id,
+                'audio': (io.BytesIO(b'RIFFfake'), 'audio.wav'),
+            })
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
+
+    def test_transcribe_requires_audio(self):
+        with app.test_client() as client:
+            session_id, patient_token = self._session_auth(client)
+            response = client.post('/api/transcribe', data={
+                'session_id': session_id,
+                'patient_token': patient_token,
+            })
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['error'], 'no_audio')
+
+    def test_transcribe_rejects_oversized_audio(self):
+        with app.test_client() as client:
+            session_id, patient_token = self._session_auth(client)
+            response = client.post(
+                '/api/transcribe',
+                data=self._audio_payload(session_id, patient_token, b'0' * (1024 * 1024 + 1)),
+            )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.get_json()['error'], 'audio_too_large')
+
+    def test_transcribe_requires_groq_key(self):
+        with app.test_client() as client:
+            session_id, patient_token = self._session_auth(client)
+            with patch('web.routes_transcribe.GROQ_API_KEY', ''):
+                response = client.post('/api/transcribe', data=self._audio_payload(session_id, patient_token))
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.get_json()['error'], 'transcription_unavailable')
+
+    def test_transcribe_returns_groq_transcript(self):
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {'text': ' hello from whisper '}
+
+        with app.test_client() as client:
+            session_id, patient_token = self._session_auth(client)
+            with patch('web.routes_transcribe.GROQ_API_KEY', 'test-key'):
+                with patch('web.routes_transcribe.http_requests.post', return_value=FakeResponse()) as post:
+                    response = client.post('/api/transcribe', data=self._audio_payload(session_id, patient_token))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['transcript'], 'hello from whisper')
+        self.assertEqual(post.call_args.kwargs['data']['model'], 'whisper-large-v3-turbo')
+        self.assertEqual(post.call_args.kwargs['data']['language'], 'en')
+
+    def test_transcribe_returns_safe_error_when_groq_fails(self):
+        with app.test_client() as client:
+            session_id, patient_token = self._session_auth(client)
+            with patch('web.routes_transcribe.GROQ_API_KEY', 'test-key'):
+                with patch('web.routes_transcribe.http_requests.post', side_effect=RuntimeError('boom')):
+                    response = client.post('/api/transcribe', data=self._audio_payload(session_id, patient_token))
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()['error'], 'transcribe_failed')
+
 
 class SessionRehydrationTests(unittest.TestCase):
     def setUp(self):

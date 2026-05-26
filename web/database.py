@@ -2,110 +2,42 @@
 
 from __future__ import annotations
 
-import json
 import os
-import hashlib
 import secrets
-import sqlite3
-import uuid
-from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any
 
-_db_path: str | None = None
-
-DEFAULT_PHOTO_ROLES = ('before', 'during', 'hope')
-ALLOWED_PHOTO_ROLES = {'before', 'during', 'hope', 'general'}
-
-ALLOWED_EVENT_TYPES = {
-    'tts_started',
-    'tts_ended',
-    'vad_fired',
-    'recognition_started',
-    'recognition_ended',
-    'empty_input',
-    'typed_started',
-    'typed_sent',
-    'pause_clicked',
-    'resume_clicked',
-    'repeat_clicked',
-    'skip_clicked',
-    'mic_error',
-    'vad_init',
-    'vad_speech_end',
-    'vad_misfire',
-    'silence_timeout',
-    'mic_preflight_started',
-    'mic_preflight_result',
-}
-
-ALLOWED_EVENT_METADATA = {
-    'source',
-    'reason',
-    'state',
-    'duration_ms',
-    'end_reason',
-    'transcript_words',
-    'count',
-    'status',
-    'secure_context',
-    'speech_recognition_supported',
-    'media_devices_supported',
-    'vad_available',
-    'permission_state',
-    'audioinput_count',
-    'device_labels_available',
-    'active_track_label',
-    'active_track_state',
-    'device_labels',
-    'bluetooth_input_detected',
-    'error_name',
-    'error_message',
-}
-
-
-def configure(path: str) -> None:
-    """Set the SQLite database path."""
-    global _db_path
-    _db_path = path
-
-
-def _now() -> str:
-    return datetime.utcnow().isoformat()
-
-
-def _json(value: Any) -> str:
-    return json.dumps(value if value is not None else {}, sort_keys=True)
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
-
-
-def _word_count(text: str | None) -> int:
-    return len((text or '').split())
-
-
-@contextmanager
-def _conn():
-    if not _db_path:
-        raise RuntimeError('Database path not configured')
-    conn = sqlite3.connect(_db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON')
-    conn.execute('PRAGMA busy_timeout = 5000')
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+from .database_common import (
+    ALLOWED_EVENT_METADATA,
+    ALLOWED_EVENT_TYPES,
+    configure,
+    get_db_path,
+    health_check,
+    _conn,
+    _ensure_columns,
+    _hash_token,
+    _json,
+    _now,
+    _uuid,
+    _word_count,
+)
+from .database_photos import (
+    finalize_photo_upload,
+    list_visit_photo_filenames,
+    list_visit_photos,
+    release_photo_reservation,
+    reserve_photo_slot,
+    save_photo,
+    update_visit_photo_metadata,
+)
 
 
 def init_db() -> None:
     """Create the database schema and idempotent indexes."""
-    if not _db_path:
+    db_path = get_db_path()
+    if not db_path:
         raise RuntimeError('Database path not configured')
-    os.makedirs(os.path.dirname(_db_path) or '.', exist_ok=True)
+    os.makedirs(os.path.dirname(db_path) or '.', exist_ok=True)
     with _conn() as c:
         c.execute('PRAGMA journal_mode = WAL')
         c.executescript(
@@ -319,18 +251,6 @@ def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str
     for name, definition in columns.items():
         if name not in existing:
             conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {definition}')
-
-
-def health_check() -> dict[str, Any]:
-    """Return a minimal DB health summary for deployment checks."""
-    with _conn() as c:
-        c.execute('SELECT 1').fetchone()
-        row = c.execute('SELECT COUNT(*) AS n FROM visits').fetchone()
-    return {'ok': True, 'visits': int(row['n'])}
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
 def create_upload_token(visit_id: str | None, *, ttl_minutes: int = 480) -> dict[str, str] | None:
@@ -1029,264 +949,6 @@ def update_assistant_tts(visit_id: str | None, turn_number: int, tts_duration_ms
         )
 
 
-def save_photo(visit_id: str | None, stored_filename: str, display_order: int, *, source: str = 'unknown',
-               mime_type: str | None = None, byte_size: int | None = None, sha256: str | None = None,
-               width: int | None = None, height: int | None = None, photo_role: str | None = None) -> None:
-    if not visit_id:
-        return
-    now = _now()
-    with _conn() as c:
-        c.execute(
-            """
-            INSERT OR IGNORE INTO photos(
-                id, visit_id, stored_filename, display_order, source, mime_type,
-                byte_size, sha256, width, height, photo_role, uploaded_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (_uuid(), visit_id, stored_filename, display_order, source, mime_type,
-             byte_size, sha256, width, height, _normalized_photo_role(photo_role, display_order), now),
-        )
-        count = c.execute(
-            """
-            SELECT COUNT(*) AS n
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            """,
-            (visit_id,),
-        ).fetchone()['n']
-        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, now, visit_id))
-
-
-def reserve_photo_slot(visit_id: str | None, session_id: str, max_photos: int) -> dict[str, Any] | None:
-    """Atomically reserve the next available photo display slot for a visit."""
-    if not visit_id or not session_id:
-        return None
-    now = _now()
-    with _conn() as c:
-        c.execute('BEGIN IMMEDIATE')
-        active_rows = c.execute(
-            """
-            SELECT display_order
-            FROM photos
-            WHERE visit_id = ? AND deleted_at IS NULL
-            ORDER BY display_order
-            """,
-            (visit_id,),
-        ).fetchall()
-        used_orders = {int(row['display_order']) for row in active_rows}
-        if len(used_orders) >= max_photos:
-            return None
-
-        display_order = next((i for i in range(max_photos) if i not in used_orders), None)
-        if display_order is None:
-            return None
-
-        stored_filename = f'{session_id}_{display_order}.jpg'
-        photo_role = _normalized_photo_role(None, display_order)
-        c.execute(
-            """
-            INSERT INTO photos(
-                id, visit_id, stored_filename, display_order, source, photo_role, uploaded_at
-            ) VALUES (?,?,?,?,?,?,?)
-            """,
-            (_uuid(), visit_id, stored_filename, display_order, 'reserved', photo_role, now),
-        )
-        return {
-            'stored_filename': stored_filename,
-            'display_order': display_order,
-            'photo_count': len(used_orders) + 1,
-        }
-
-
-def finalize_photo_upload(visit_id: str | None, stored_filename: str, *, source: str = 'unknown',
-                          mime_type: str | None = None, byte_size: int | None = None,
-                          sha256: str | None = None, width: int | None = None,
-                          height: int | None = None) -> int:
-    """Mark a reserved photo as uploaded and return the finalized photo count."""
-    if not visit_id:
-        return 0
-    now = _now()
-    with _conn() as c:
-        c.execute(
-            """
-            UPDATE photos
-            SET source = ?,
-                mime_type = ?,
-                byte_size = ?,
-                sha256 = ?,
-                width = ?,
-                height = ?,
-                uploaded_at = ?
-            WHERE visit_id = ?
-              AND stored_filename = ?
-              AND deleted_at IS NULL
-            """,
-            (source, mime_type, byte_size, sha256, width, height, now, visit_id, stored_filename),
-        )
-        count = c.execute(
-            """
-            SELECT COUNT(*) AS n
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            """,
-            (visit_id,),
-        ).fetchone()['n']
-        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, now, visit_id))
-    return int(count)
-
-
-def release_photo_reservation(visit_id: str | None, stored_filename: str) -> None:
-    """Release a reserved photo slot after validation or file processing fails."""
-    if not visit_id:
-        return
-    now = _now()
-    with _conn() as c:
-        c.execute(
-            """
-            UPDATE photos
-            SET deleted_at = ?
-            WHERE visit_id = ?
-              AND stored_filename = ?
-              AND source = 'reserved'
-              AND deleted_at IS NULL
-            """,
-            (now, visit_id, stored_filename),
-        )
-        count = c.execute(
-            """
-            SELECT COUNT(*) AS n
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            """,
-            (visit_id,),
-        ).fetchone()['n']
-        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, now, visit_id))
-
-
-def list_visit_photo_filenames(visit_id: str | None) -> list[str]:
-    """Return finalized, non-deleted photo filenames in display order."""
-    if not visit_id:
-        return []
-    with _conn() as c:
-        rows = c.execute(
-            """
-            SELECT stored_filename
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            ORDER BY display_order
-            """,
-            (visit_id,),
-        ).fetchall()
-    return [row['stored_filename'] for row in rows]
-
-
-def _normalized_photo_role(role: str | None, display_order: int | None = None) -> str:
-    role = (role or '').strip().lower()
-    if role in ALLOWED_PHOTO_ROLES:
-        return role
-    if display_order is not None and 0 <= int(display_order) < len(DEFAULT_PHOTO_ROLES):
-        return DEFAULT_PHOTO_ROLES[int(display_order)]
-    return 'general'
-
-
-def list_visit_photos(visit_id: str | None) -> list[dict[str, Any]]:
-    """Return finalized, non-deleted photo records in display order."""
-    if not visit_id:
-        return []
-    with _conn() as c:
-        rows = c.execute(
-            """
-            SELECT stored_filename, display_order, source, mime_type, byte_size,
-                   sha256, width, height, photo_role, caption, uploaded_at
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            ORDER BY display_order
-            """,
-            (visit_id,),
-        ).fetchall()
-    result = []
-    for row in rows:
-        item = dict(row)
-        item['photo_role'] = _normalized_photo_role(item.get('photo_role'), item.get('display_order'))
-        result.append(item)
-    return result
-
-
-def update_visit_photo_metadata(visit_id: str | None, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Update photo roles/order for active photos belonging to one visit."""
-    if not visit_id:
-        return []
-    with _conn() as c:
-        existing_rows = c.execute(
-            """
-            SELECT stored_filename
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            ORDER BY display_order
-            """,
-            (visit_id,),
-        ).fetchall()
-        existing = [row['stored_filename'] for row in existing_rows]
-        existing_set = set(existing)
-
-        clean_items = []
-        seen = set()
-        for item in items or []:
-            filename = str((item or {}).get('stored_filename') or '').strip()
-            if filename not in existing_set or filename in seen:
-                continue
-            seen.add(filename)
-            clean_items.append({
-                'stored_filename': filename,
-                'photo_role': _normalized_photo_role((item or {}).get('photo_role')),
-                'caption': str((item or {}).get('caption') or '').strip()[:240],
-            })
-
-        for filename in existing:
-            if filename not in seen:
-                clean_items.append({
-                    'stored_filename': filename,
-                    'photo_role': _normalized_photo_role(None, len(clean_items)),
-                    'caption': '',
-                })
-
-        now = _now()
-        # Move to temporary negative positions first to avoid UNIQUE(display_order) conflicts.
-        for index, item in enumerate(clean_items):
-            c.execute(
-                """
-                UPDATE photos
-                SET display_order = ?
-                WHERE visit_id = ? AND stored_filename = ? AND deleted_at IS NULL
-                """,
-                (-(index + 1), visit_id, item['stored_filename']),
-            )
-        for index, item in enumerate(clean_items):
-            c.execute(
-                """
-                UPDATE photos
-                SET display_order = ?,
-                    photo_role = ?,
-                    caption = ?
-                WHERE visit_id = ? AND stored_filename = ? AND deleted_at IS NULL
-                """,
-                (index, item['photo_role'], item['caption'], visit_id, item['stored_filename']),
-            )
-        c.execute('UPDATE visits SET updated_at = ? WHERE id = ?', (now, visit_id))
-
-    return list_visit_photos(visit_id)
 
 
 def _next_draft_version(conn, visit_id: str) -> int:

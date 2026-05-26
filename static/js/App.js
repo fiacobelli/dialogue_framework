@@ -90,11 +90,6 @@ class App {
             }
         });
 
-        speechManager.on('recognitionEnded', () => {
-            if (this.conversationActive && !this._paused && turnManager.getState() === TurnState.IDLE) {
-                speechManager.startListening();
-            }
-        });
 
         speechManager.on('error', ({ type, message }) => {
             console.error('Speech error:', type, message);
@@ -440,7 +435,7 @@ class App {
             ? speechManager.getResponseLatency()
             : null;
         let answerDuration = inputModality === 'voice'
-            ? this._durationBetween(events, 'recognition_started', 'recognition_ended')
+            ? this._durationBetween(events, 'listening_started', 'listening_ended')
             : null;
 
         if (inputModality === 'typed' && typedSent) {

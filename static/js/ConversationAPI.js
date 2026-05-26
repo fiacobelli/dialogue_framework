@@ -229,6 +229,10 @@ class ConversationAPI {
         return this.sessionId;
     }
 
+    getPatientToken() {
+        return this.patientToken;
+    }
+
     clearSession() {
         this.sessionId = null;
         this.patientToken = null;

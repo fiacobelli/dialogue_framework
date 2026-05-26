@@ -18,6 +18,7 @@ from .routes_api import api_bp
 from .routes_admin import admin_bp
 from .routes_photos import photos_bp
 from .routes_publication import publication_bp
+from .routes_transcribe import transcribe_bp
 from .session_store import ensure_session
 from . import database as db
 from .database import configure as db_configure, init_db
@@ -30,6 +31,7 @@ app.register_blueprint(api_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(photos_bp)
 app.register_blueprint(publication_bp)
+app.register_blueprint(transcribe_bp)
 
 os.makedirs(PHOTOS_DIR, exist_ok=True)
 os.makedirs(MICROSITES_DIR, exist_ok=True)

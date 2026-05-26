@@ -1,55 +1,63 @@
 /**
  * SpeechManager - Handles speech recognition and synthesis.
  *
- * Starts browser speech recognition as soon as the patient turn begins.
- * Silero VAD is used as telemetry and to extend silence windows, not as the
- * gate that starts recognition. This avoids losing the first words while
- * Web Speech is still warming up.
+ * VAD (Silero) owns the mic exclusively. On speech end, audio is encoded as
+ * WAV and sent to Flask /api/transcribe (Groq Whisper) for transcription.
+ * This avoids the Android Chrome mic conflict that broke Web Speech API.
  */
+
+function float32ToWav(samples) {
+    const sampleRate = 16000; // VAD always resamples to 16kHz internally
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);  // PCM
+    view.setUint16(22, 1, true);  // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+}
 
 class SpeechManager {
     constructor(turnManager) {
         this.turnManager = turnManager;
-        this.recognition = null;
         this.synthesis = window.speechSynthesis;
         this.voices = [];
-        this.transcript = '';
-        this.silenceTimeout = null;
         this.listeners = {};
         this.lang = 'en-US';
         this.voiceConfig = { lang: 'en', gender: 'female' };
 
         this._vad = null;
         this._vadReady = false;
-        this._recognitionActive = false;
-        this._finishing = false;
-        this._speechDetectedCount = 0;
         this._micStream = null;
+        this.silenceTimeout = null;
+
+        this._audioChunks = [];
+        this._commitTimer = null;
+        this._transcribing = false;
+        this._speechDetectedCount = 0;
 
         this._turnEvents = [];
         this._speakStartTime = null;
         this._speakEndTime = null;
         this._vadFireTime = null;
-        this._recognitionStartTime = null;
-        this._speechConfidence = null;
-        this._lastInterimTranscript = '';
 
-        this._initRecognition();
         this._loadVoices();
-    }
-
-    _initRecognition() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-            this._emit('error', { type: 'unsupported', message: 'Speech recognition not supported' });
-            return;
-        }
-        this.recognition = new SR();
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        this.recognition.onresult = (e) => this._handleResult(e);
-        this.recognition.onerror = (e) => this._handleError(e);
-        this.recognition.onend = () => this._handleEnd();
     }
 
     _loadVoices() {
@@ -86,9 +94,6 @@ class SpeechManager {
 
         if (!isSecure) {
             return { ok: false, metadata: { ...metadata, status: 'insecure_context' } };
-        }
-        if (!SR) {
-            return { ok: false, metadata: { ...metadata, status: 'speech_recognition_unsupported' } };
         }
         if (!navigator.mediaDevices?.getUserMedia) {
             return { ok: false, metadata: { ...metadata, status: 'get_user_media_unsupported' } };
@@ -159,17 +164,17 @@ class SpeechManager {
     async initVAD(preflightStream = null) {
         if (this._vadReady && this._vad) return;
         if (!window.vad || !window.vad.MicVAD) {
-            console.warn('[SpeechManager] VAD library not loaded - using continuous recognition fallback');
+            console.warn('[SpeechManager] VAD library not loaded');
             return;
         }
 
         const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
         if (!isSecure) {
-            console.warn('[SpeechManager] VAD requires HTTPS - using continuous recognition fallback');
+            console.warn('[SpeechManager] VAD requires HTTPS');
             return;
         }
         if (!navigator.mediaDevices?.getUserMedia) {
-            console.warn('[SpeechManager] getUserMedia unavailable - using continuous recognition fallback');
+            console.warn('[SpeechManager] getUserMedia unavailable');
             return;
         }
 
@@ -181,7 +186,7 @@ class SpeechManager {
                 onnxWASMBasePath: vadAssetPath,
                 model: 'legacy',
                 onSpeechStart: () => this._onVADSpeechStart(),
-                onSpeechEnd: () => this._onVADSpeechEnd(),
+                onSpeechEnd: (audio) => this._onVADSpeechEnd(audio),
                 onVADMisfire: () => this._onVADMisfire(),
             };
             if (preflightStream) {
@@ -211,7 +216,7 @@ class SpeechManager {
             this.recordEvent('vad_init', { state: 'ready' });
             console.log('[SpeechManager] VAD ready');
         } catch (err) {
-            console.warn('[SpeechManager] VAD init failed - using continuous recognition fallback:', err);
+            console.warn('[SpeechManager] VAD init failed:', err);
             this._vad = null;
             this._vadReady = false;
             this.recordEvent('vad_init', { state: 'failed', reason: err?.message || 'unknown' });
@@ -224,75 +229,99 @@ class SpeechManager {
             this._vadFireTime = performance.now();
         }
         this.recordEvent('vad_fired', { count: this._speechDetectedCount });
-
-        if (this._recognitionActive) {
-            this._resetSilenceTimer(EXTENDED_SILENCE_DELAY_MS);
-            return;
+        this._clearSilenceTimer();
+        if (!this._transcribing) {
+            clearTimeout(this._commitTimer);
+            this._commitTimer = null;
         }
     }
 
-    _onVADSpeechEnd() {
+    _onVADSpeechEnd(audio) {
         this.recordEvent('vad_speech_end');
+        if (this._transcribing) return;
+        if (!audio || !audio.length) return;
+        this._audioChunks.push(audio);
+        clearTimeout(this._commitTimer);
+        this._commitTimer = setTimeout(() => this._transcribeAndFinish(), 3000);
     }
 
     _onVADMisfire() {
         this.recordEvent('vad_misfire');
     }
 
-    _handleResult(e) {
-        this._resetSilenceTimer();
-        let interim = '';
-        let final = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-            const text = e.results[i][0].transcript;
-            if (e.results[i].isFinal) {
-                final += `${text} `;
-                const conf = e.results[i][0].confidence;
-                if (conf > 0) {
-                    this._speechConfidence = this._speechConfidence === null
-                        ? conf
-                        : (this._speechConfidence + conf) / 2;
-                }
-            } else {
-                interim += text;
-            }
+    async _transcribeAndFinish() {
+        this._commitTimer = null;
+        if (this.turnManager.getState() !== TurnState.USER_SPEAKING) return;
+        if (this._audioChunks.length === 0) {
+            this.turnManager.reset();
+            this._emit('empty', {});
+            return;
         }
-        if (final) this.transcript += final;
-        this._lastInterimTranscript = interim;
-        this._emit('transcript', {
-            final: this.transcript.trim(),
-            interim,
-            full: (this.transcript + interim).trim()
-        });
-    }
+        this._transcribing = true;
+        if (this._vadReady && this._vad) this._vad.pause();
 
-    _handleError(e) {
-        this._clearSilenceTimer();
-        this.recordEvent('mic_error', { reason: e.error || 'unknown' });
-        this._recognitionActive = false;
-        this._emit('error', { type: e.error, message: e.message });
-        this.turnManager.reset();
-    }
+        const totalLength = this._audioChunks.reduce((sum, a) => sum + a.length, 0);
+        const merged = new Float32Array(totalLength);
+        let off = 0;
+        for (const chunk of this._audioChunks) { merged.set(chunk, off); off += chunk.length; }
+        this._audioChunks = [];
 
-    _handleEnd() {
-        this._clearSilenceTimer();
-        if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
-            this._finishListening('recognition_end');
-        } else {
-            this._emit('recognitionEnded', {});
+        const transcribeStartedAt = performance.now();
+        this.recordEvent('transcribe_started');
+        try {
+            const wav = float32ToWav(merged);
+            const form = new FormData();
+            form.append('audio', wav, 'audio.wav');
+            form.append('language', this.lang.split('-')[0]);
+            if (typeof conversationAPI !== 'undefined' && conversationAPI.getSessionId) {
+                form.append('session_id', conversationAPI.getSessionId() || '');
+            }
+            if (typeof conversationAPI !== 'undefined' && conversationAPI.getPatientToken) {
+                form.append('patient_token', conversationAPI.getPatientToken() || '');
+            }
+
+            const resp = await fetch(appUrl('/api/transcribe'), { method: 'POST', body: form });
+            if (!resp.ok) throw new Error(`transcribe ${resp.status}`);
+            const { transcript } = await resp.json();
+            const text = (transcript || '').trim();
+
+            this.recordEvent('transcribe_ended', {
+                status: 'ok',
+                duration_ms: Math.round(performance.now() - transcribeStartedAt),
+                transcript_words: text ? text.split(/\s+/).length : 0
+            });
+            this.recordEvent('listening_ended', { transcript_words: text ? text.split(/\s+/).length : 0 });
+            if (text && this.turnManager.getState() === TurnState.USER_SPEAKING) {
+                this.turnManager.endUserTurn();
+                this._emit('complete', { transcript: text });
+            } else {
+                this.turnManager.reset();
+                this._emit('empty', {});
+            }
+        } catch (err) {
+            this.recordEvent('transcribe_error', {
+                status: 'failed',
+                duration_ms: Math.round(performance.now() - transcribeStartedAt),
+                error_message: err?.message || 'Transcription failed'
+            });
+            this.turnManager.reset();
+            this._emit('empty', {});
+        } finally {
+            this._transcribing = false;
         }
     }
 
     _resetSilenceTimer(delay) {
         this._clearSilenceTimer();
-        const d = delay !== undefined
-            ? delay
-            : (this._speechDetectedCount > 1 ? EXTENDED_SILENCE_DELAY_MS : SILENCE_DELAY_MS);
         this.silenceTimeout = setTimeout(() => {
-            this.recordEvent('silence_timeout', { duration_ms: d });
-            this._emit('silence', { duration: d });
-            this._finishListening('silence_timeout');
-        }, d);
+            this.recordEvent('silence_timeout', { duration_ms: delay });
+            this._emit('silence', { duration: delay });
+            clearTimeout(this._commitTimer);
+            this._commitTimer = null;
+            this._audioChunks = [];
+            this.turnManager.reset();
+            this._emit('empty', {});
+        }, delay);
     }
 
     _clearSilenceTimer() {
@@ -302,43 +331,8 @@ class SpeechManager {
         }
     }
 
-    _finishListening(endReason = 'manual_stop') {
-        if (this._finishing) return;
-        this._finishing = true;
-        try {
-            this._clearSilenceTimer();
-            if (this._vadReady && this._vad) this._vad.pause();
-            this._recognitionActive = false;
-            if (this.recognition) {
-                try { this.recognition.stop(); } catch (_) {}
-            }
-            const combinedText = `${this.transcript} ${this._lastInterimTranscript}`.trim();
-            const text = combinedText.replace(/\s+/g, ' ');
-            this.recordEvent('recognition_ended', {
-                end_reason: endReason,
-                transcript_words: text ? text.split(/\s+/).length : 0
-            });
-
-            this.transcript = '';
-            this._lastInterimTranscript = '';
-            this._speechDetectedCount = 0;
-
-            if (text) {
-                this.turnManager.endUserTurn();
-                this._emit('complete', { transcript: text });
-            } else {
-                this.recordEvent('empty_input');
-                this.turnManager.reset();
-                this._emit('empty', {});
-            }
-        } finally {
-            this._finishing = false;
-        }
-    }
-
     setLanguage(langCode) {
         this.lang = langCode;
-        if (this.recognition) this.recognition.lang = langCode;
     }
 
     setVoiceConfig(config) {
@@ -346,8 +340,8 @@ class SpeechManager {
     }
 
     startListening() {
-        if (!this.recognition) {
-            this._emit('error', { type: 'unsupported' });
+        if (!this._vadReady) {
+            this._emit('error', { type: 'vad_unavailable', message: 'Voice detection unavailable on this device.' });
             return false;
         }
         if (!this.turnManager.canUserSpeak()) return false;
@@ -362,42 +356,34 @@ class SpeechManager {
             return false;
         }
 
-        this.transcript = '';
-        this._lastInterimTranscript = '';
+        this._audioChunks = [];
+        clearTimeout(this._commitTimer);
+        this._commitTimer = null;
+        this._transcribing = false;
         this._speechDetectedCount = 0;
-        this._speechConfidence = null;
         this._vadFireTime = null;
 
-        if (this._vadReady) {
-            this._vad.start();
-        }
-
+        this._vad.start();
         if (!this.turnManager.startUserTurn()) return false;
-        this.recognition.lang = this.lang;
-        try {
-            this.recognition.start();
-            this._recognitionActive = true;
-            this._recognitionStartTime = performance.now();
-            if (!this._vadReady) this._vadFireTime = this._recognitionStartTime;
-            this.recordEvent('recognition_started', { source: this._vadReady ? 'hot_with_vad' : 'fallback' });
-            this._resetSilenceTimer(SILENCE_DELAY_MS);
-        } catch (err) {
-            console.error('Speech recognition failed to start', err);
-            this._recognitionActive = false;
-            this.turnManager.reset();
-            this._emit('error', {
-                type: err?.name || 'start_failed',
-                message: 'Microphone could not start. Please ensure speech recognition is allowed for this site.'
-            });
-            return false;
-        }
+
+        this.recordEvent('listening_started');
+        this._resetSilenceTimer(SILENCE_DELAY_MS);
         this._emit('listening', {});
         return true;
     }
 
     stopListening() {
+        this._clearSilenceTimer();
+        clearTimeout(this._commitTimer);
+        this._commitTimer = null;
         if (this._vadReady && this._vad) this._vad.pause();
-        this._finishListening('manual_stop');
+        if (this._audioChunks.length > 0 && !this._transcribing) {
+            this._transcribeAndFinish();
+        } else {
+            this._audioChunks = [];
+            this.turnManager.reset();
+            this._emit('empty', {});
+        }
     }
 
     speak(text) {
@@ -407,9 +393,6 @@ class SpeechManager {
         }
 
         if (this._vadReady && this._vad) this._vad.pause();
-        if (this.recognition) {
-            try { this.recognition.stop(); } catch (_) {}
-        }
 
         this.recordEvent('tts_started');
         this._speakStartTime = performance.now();
@@ -456,16 +439,16 @@ class SpeechManager {
     }
 
     getSpeechConfidence() {
-        return this._speechConfidence;
+        return null; // Groq Whisper does not report per-utterance confidence
     }
 
     pauseListening() {
         this._clearSilenceTimer();
+        clearTimeout(this._commitTimer);
+        this._commitTimer = null;
+        this._audioChunks = [];
         if (this._vadReady && this._vad) {
             this._vad.pause();
-        } else if (this._recognitionActive) {
-            this._recognitionActive = false;
-            try { this.recognition.stop(); } catch (_) {}
         }
         if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
             this.turnManager.reset();
@@ -481,14 +464,13 @@ class SpeechManager {
 
     destroy() {
         this._clearSilenceTimer();
+        clearTimeout(this._commitTimer);
+        this._commitTimer = null;
         if (this._vad) {
             try { this._vad.pause(); } catch (_) {}
             try { this._vad.destroy(); } catch (_) {}
             this._vad = null;
             this._vadReady = false;
-        }
-        if (this.recognition) {
-            try { this.recognition.stop(); } catch (_) {}
         }
         this._stopMicStream();
     }
