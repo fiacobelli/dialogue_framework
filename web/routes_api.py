@@ -13,6 +13,7 @@ from .session_store import ensure_session, get_session, persist_session_state, s
 from .interview_flow import progress_snapshot
 from . import microsite
 from . import database as db
+from .patient_auth import issue_patient_token, is_patient_authorized
 from .structured_logging import log_event
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -205,6 +206,7 @@ def new_session():
     info_state.user.update('language', lang)
     info_state.user.update('avatar', avatar_id)
     info_state.user.update('avatar_profile', avatar_profile)
+    patient_token = issue_patient_token(info_state)
     visit_id = db.create_visit(
         session_id,
         lang,
@@ -249,6 +251,7 @@ def new_session():
         'returning': is_returning,
         'avatar': avatar_profile,
         'progress': _progress(info_state, phase),
+        'patient_token': patient_token,
     })
 
 
@@ -384,6 +387,8 @@ def generate_microsite():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
     provider = s['goal_mgr'].goal.llm
     visit_id = info_state.user.query('visit_id')
     allow_partial_photos = bool(data.get('allow_partial_photos'))
@@ -444,6 +449,8 @@ def publish_microsite():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
     visit_id = info_state.user.query('visit_id')
     ready, detail = validate_generation_ready(info_state)
     if not ready:

@@ -7,6 +7,7 @@ from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
 from . import database as db
 from .content_moderation import validate_public_content
+from .patient_auth import patient_token
 from .session_store import persist_session_state
 
 MICROSITE_PROMPT_VERSION = 'microsite-public-page-v2'
@@ -291,13 +292,25 @@ def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) 
     }
 
 
-def _photo_url(filename: str, session_id: str | None = None, *, preview: bool = False) -> str:
+def _photo_url(
+    filename: str,
+    session_id: str | None = None,
+    *,
+    preview: bool = False,
+    token: str | None = None,
+) -> str:
     if preview and session_id:
-        return url_for('photos.photo_preview', session_id=session_id, filename=filename)
+        return url_for('photos.photo_preview', session_id=session_id, filename=filename, patient_token=token)
     return url_for('serve_photo', filename=filename)
 
 
-def _photo_items(photos: list, session_id: str | None = None, *, preview: bool = False) -> list[dict]:
+def _photo_items(
+    photos: list,
+    session_id: str | None = None,
+    *,
+    preview: bool = False,
+    token: str | None = None,
+) -> list[dict]:
     items = []
     for index, photo in enumerate(photos or []):
         if isinstance(photo, dict):
@@ -313,7 +326,7 @@ def _photo_items(photos: list, session_id: str | None = None, *, preview: bool =
         label, default_caption = PHOTO_ROLE_LABELS.get(role, PHOTO_ROLE_LABELS['general'])
         items.append({
             'stored_filename': filename,
-            'url': _photo_url(filename, session_id, preview=preview),
+            'url': _photo_url(filename, session_id, preview=preview, token=token),
             'photo_role': role,
             'role_label': label,
             'caption': caption or default_caption,
@@ -321,8 +334,14 @@ def _photo_items(photos: list, session_id: str | None = None, *, preview: bool =
     return items
 
 
-def _photo_urls(photos: list, session_id: str | None = None, *, preview: bool = False) -> list:
-    return [item['url'] for item in _photo_items(photos, session_id, preview=preview)]
+def _photo_urls(
+    photos: list,
+    session_id: str | None = None,
+    *,
+    preview: bool = False,
+    token: str | None = None,
+) -> list:
+    return [item['url'] for item in _photo_items(photos, session_id, preview=preview, token=token)]
 
 
 def _render_and_save(session_id: str, name: str, content: dict, photo_items: list[dict]) -> tuple[str, str]:
@@ -397,7 +416,13 @@ def generate(info_state, provider, name: str, session_id: str, session: dict | N
         )
 
     content = _normalize_content(content_json, name)
-    result = _build_result(content, name, raw_content, _photo_items(photos, session_id, preview=True), published=False)
+    result = _build_result(
+        content,
+        name,
+        raw_content,
+        _photo_items(photos, session_id, preview=True, token=patient_token(info_state)),
+        published=False,
+    )
     result['prompt_version'] = MICROSITE_PROMPT_VERSION
     result['llm_model'] = _provider_model_name(provider)
     result['evidence_hash'] = _evidence_hash(conversation)

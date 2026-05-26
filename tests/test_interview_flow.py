@@ -35,6 +35,7 @@ from web.routes_api import (
     validate_generation_ready,
     validate_publication_consent,
 )
+from web.patient_auth import issue_patient_token
 from web.structured_logging import log_event
 
 
@@ -803,6 +804,7 @@ class PublicationControlTests(unittest.TestCase):
             session_response = client.get('/api/session?lang=en&avatar=black_female')
             self.assertEqual(session_response.status_code, 200)
             session_id = session_response.get_json()['session_id']
+            patient_token = session_response.get_json()['patient_token']
             session = session_store.get_session(session_id)
             info_state = session['info_state']
             visit_id = info_state.user.query('visit_id')
@@ -821,6 +823,7 @@ class PublicationControlTests(unittest.TestCase):
                 with patch.object(microsite, 'MICROSITES_DIR', site_dir):
                     response = client.post('/api/publish', json={
                         'session_id': session_id,
+                        'patient_token': patient_token,
                         'publication_consent': {
                             'accepted': True,
                             'version': PUBLICATION_CONSENT_VERSION,
@@ -829,6 +832,17 @@ class PublicationControlTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertFalse(db.validate_upload_token(visit_id, token))
+
+    def test_publish_endpoint_requires_patient_token(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+
+            response = client.post('/api/publish', json={'session_id': session_id})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
 
     def test_soft_delete_blocks_page_photos_and_revokes_upload_token(self):
         visit_id = db.create_visit('delete-session', 'en', 'black_female', {'name': 'Ludi'})
@@ -1103,6 +1117,7 @@ class SessionRehydrationTests(unittest.TestCase):
                 session = session_module.create_session('photo-rehydrate-session')
                 visit_id = db.create_visit('photo-rehydrate-session', 'en', 'black_female', {'name': 'Ludi'})
                 session['info_state'].user.update('visit_id', visit_id)
+                token = issue_patient_token(session['info_state'])
                 session['info_state'].user.update('photos', ['photo-rehydrate-session_0.jpg'])
                 session_store.persist_session_state('photo-rehydrate-session', session)
                 session_store.set_session('photo-rehydrate-session', session)
@@ -1110,7 +1125,7 @@ class SessionRehydrationTests(unittest.TestCase):
                 session_store.clear_sessions()
 
                 with app.test_client() as client:
-                    response = client.get('/api/photos/photo-rehydrate-session')
+                    response = client.get(f'/api/photos/photo-rehydrate-session?patient_token={token}')
 
                 self.assertEqual(response.status_code, 200)
                 data = response.get_json()
@@ -1123,6 +1138,7 @@ class SessionRehydrationTests(unittest.TestCase):
                 session = session_module.create_session('db-photo-rehydrate-session')
                 visit_id = db.create_visit('db-photo-rehydrate-session', 'en', 'black_female', {'name': 'Ludi'})
                 session['info_state'].user.update('visit_id', visit_id)
+                token = issue_patient_token(session['info_state'])
                 session['info_state'].user.update('photos', ['db-photo-rehydrate-session_0.jpg'])
                 session_store.persist_session_state('db-photo-rehydrate-session', session)
                 os.remove(os.path.join(self.user_models_dir, 'db-photo-rehydrate-session.pkl'))
@@ -1131,7 +1147,7 @@ class SessionRehydrationTests(unittest.TestCase):
                 session_store.clear_sessions()
 
                 with app.test_client() as client:
-                    response = client.get('/api/photos/db-photo-rehydrate-session')
+                    response = client.get(f'/api/photos/db-photo-rehydrate-session?patient_token={token}')
 
                 self.assertEqual(response.status_code, 200)
                 data = response.get_json()
@@ -1174,6 +1190,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                 session = session_module.create_session(session_id)
                 visit_id = db.create_visit(session_id, 'en', 'black_female', {'name': 'Ludi'})
                 session['info_state'].user.update('visit_id', visit_id)
+                issue_patient_token(session['info_state'])
                 session_store.persist_session_state(session_id, session)
                 session_store.set_session(session_id, session)
                 return session, visit_id
@@ -1294,6 +1311,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
     def test_photo_status_prefers_database_and_syncs_stale_user_model(self):
         session_id = 'db-photo-session'
         session, visit_id = self._create_photo_session(session_id)
+        patient_token = session['info_state'].user.query('patient_token')
         session['info_state'].user.update('photos', [])
         session_store.persist_session_state(session_id, session)
         db.save_photo(visit_id, 'db-photo-session_0.jpg', 0, source='mobile')
@@ -1302,13 +1320,24 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
             with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
                 with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
                     with app.test_client() as client:
-                        response = client.get(f'/api/photos/{session_id}')
+                        response = client.get(f'/api/photos/{session_id}?patient_token={patient_token}')
 
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertEqual(data['photo_count'], 1)
+        self.assertIn('patient_token=', data['photos'][0])
         self.assertIn('db-photo-session_0.jpg', data['photos'][0])
         self.assertEqual(session['info_state'].user.query('photos'), ['db-photo-session_0.jpg'])
+
+    def test_photo_status_requires_patient_token(self):
+        session_id = 'photo-status-auth-session'
+        self._create_photo_session(session_id)
+
+        with app.test_client() as client:
+            response = client.get(f'/api/photos/{session_id}')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
 
     def test_deleted_session_private_preview_is_blocked_even_with_stale_user_model(self):
         session_id = 'deleted-preview-session'
@@ -1362,6 +1391,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
     def test_upload_can_replace_existing_photo_after_max_reached(self):
         session_id = 'replace-photo-session'
         session, visit_id = self._create_photo_session(session_id)
+        patient_token = session['info_state'].user.query('patient_token')
 
         with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
             with app.test_client() as client:
@@ -1370,6 +1400,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                         '/api/upload',
                         data={
                             'session_id': session_id,
+                            'patient_token': patient_token,
                             'source': 'desktop',
                             'photo': self._jpeg_upload(),
                         },
@@ -1381,6 +1412,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
                     '/api/upload',
                     data={
                         'session_id': session_id,
+                        'patient_token': patient_token,
                         'source': 'desktop',
                         'replace_filename': 'replace-photo-session_0.jpg',
                         'photo': self._jpeg_upload('replacement.jpg'),
@@ -1403,9 +1435,29 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
             'replace-photo-session_2.jpg',
         ])
 
+    def test_desktop_upload_requires_patient_token(self):
+        session_id = 'desktop-auth-session'
+        self._create_photo_session(session_id)
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with app.test_client() as client:
+                response = client.post(
+                    '/api/upload',
+                    data={
+                        'session_id': session_id,
+                        'source': 'desktop',
+                        'photo': self._jpeg_upload(),
+                    },
+                    content_type='multipart/form-data',
+                )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
+
     def test_photo_metadata_route_updates_roles_and_session_order(self):
         session_id = 'metadata-photo-session'
         session, visit_id = self._create_photo_session(session_id)
+        patient_token = session['info_state'].user.query('patient_token')
         db.save_photo(visit_id, 'metadata-photo-session_0.jpg', 0)
         db.save_photo(visit_id, 'metadata-photo-session_1.jpg', 1)
         session['info_state'].user.update('photos', [
@@ -1417,6 +1469,7 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
             response = client.post(
                 f'/api/photos/{session_id}/metadata',
                 json={
+                    'patient_token': patient_token,
                     'photos': [
                         {'stored_filename': 'metadata-photo-session_1.jpg', 'photo_role': 'hope'},
                         {'stored_filename': 'metadata-photo-session_0.jpg', 'photo_role': 'before'},
@@ -1455,12 +1508,13 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
 
     def test_qr_link_contains_valid_upload_token(self):
         session_id = 'qr-token-session'
-        self._create_photo_session(session_id)
+        session, _ = self._create_photo_session(session_id)
+        patient_token = session['info_state'].user.query('patient_token')
 
         with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
             with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
                 with app.test_client() as client:
-                    qr_response = client.get(f'/api/qr/{session_id}')
+                    qr_response = client.get(f'/api/qr/{session_id}?patient_token={patient_token}')
 
                     self.assertEqual(qr_response.status_code, 200)
                     qr_data = qr_response.get_json()
@@ -1472,6 +1526,16 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
 
         self.assertEqual(missing_token.status_code, 404)
         self.assertEqual(valid_link.status_code, 200)
+
+    def test_qr_route_requires_patient_token(self):
+        session_id = 'qr-auth-session'
+        self._create_photo_session(session_id)
+
+        with app.test_client() as client:
+            response = client.get(f'/api/qr/{session_id}')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
 
 
 class MicrositeEvidenceTests(unittest.TestCase):

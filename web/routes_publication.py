@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, request
 from .session_store import ensure_session, get_session, persist_session_state
 from . import database as db
 from . import takedown
+from .patient_auth import is_patient_authorized
 from .structured_logging import log_event
 
 publication_bp = Blueprint('publication', __name__, url_prefix='/api')
@@ -26,6 +27,8 @@ def unpublish_microsite():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
     ok = db.unpublish_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not ok:
         return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
@@ -48,6 +51,8 @@ def delete_microsite():
 
     if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
+    if not is_patient_authorized(get_session(session_id)['info_state'], data):
+        return jsonify({'error': 'unauthorized_session'}), 403
 
     result = takedown.delete_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not result:

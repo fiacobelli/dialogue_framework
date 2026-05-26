@@ -13,6 +13,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from .config import PHOTOS_DIR, MAX_PHOTOS, MAX_PHOTO_UPLOAD_BYTES
 from .session_store import ensure_session, get_session, persist_session_state
 from . import database as db
+from .patient_auth import is_patient_authorized, patient_token
 
 photos_bp = Blueprint('photos', __name__, url_prefix='/api')
 
@@ -57,17 +58,22 @@ def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
     return image.size
 
 
-def _photo_urls(session_id: str, photos: list[str]) -> list[str]:
-    return [url_for('photos.photo_preview', session_id=session_id, filename=p) for p in photos]
+def _photo_urls(session_id: str, photos: list[str], token: str | None = None) -> list[str]:
+    return [
+        url_for('photos.photo_preview', session_id=session_id, filename=p, patient_token=token)
+        if token else url_for('photos.photo_preview', session_id=session_id, filename=p)
+        for p in photos
+    ]
 
 
-def _photo_items(session_id: str, visit_id: str | None) -> list[dict]:
+def _photo_items(session_id: str, visit_id: str | None, token: str | None = None) -> list[dict]:
     items = []
     for photo in db.list_visit_photos(visit_id):
         role = photo.get('photo_role') or 'general'
         items.append({
             'stored_filename': photo['stored_filename'],
-            'url': url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename']),
+            'url': url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename'], patient_token=token)
+            if token else url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename']),
             'display_order': photo['display_order'],
             'photo_role': role,
             'role_label': PHOTO_ROLE_LABELS.get(role, 'General'),
@@ -137,6 +143,8 @@ def upload_photo():
     visit_id = info_state.user.query('visit_id')
     if not visit_id:
         return jsonify({'error': 'Visit not initialized for this session'}), 400
+    if (request.form.get('source') or 'desktop') != 'mobile' and not is_patient_authorized(info_state):
+        return jsonify({'error': 'unauthorized_session'}), 403
     if not _mobile_upload_authorized(visit_id):
         return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
 
@@ -194,8 +202,8 @@ def upload_photo():
         'status': 'ok',
         'photo_count': len(photos),
         'max_photos': MAX_PHOTOS,
-        'photos': _photo_urls(session_id, photos),
-        'photo_items': _photo_items(session_id, visit_id),
+        'photos': _photo_urls(session_id, photos, patient_token(info_state)),
+        'photo_items': _photo_items(session_id, visit_id, patient_token(info_state)),
         'replaced': bool(replace_photo_id),
         'ready': len(photos) >= MAX_PHOTOS
     })
@@ -209,6 +217,8 @@ def get_photo_status(session_id):
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state):
+        return jsonify({'error': 'unauthorized_session'}), 403
     token = request.args.get('token')
     visit_id = info_state.user.query('visit_id')
     if token and not db.validate_upload_token(visit_id, token, mark_used=False):
@@ -219,8 +229,8 @@ def get_photo_status(session_id):
         'photo_count': len(photos),
         'ready': len(photos) >= MAX_PHOTOS,
         'max_photos': MAX_PHOTOS,
-        'photos': _photo_urls(session_id, photos),
-        'photo_items': _photo_items(session_id, visit_id),
+        'photos': _photo_urls(session_id, photos, patient_token(info_state)),
+        'photo_items': _photo_items(session_id, visit_id, patient_token(info_state)),
     })
 
 
@@ -232,6 +242,8 @@ def update_photo_metadata(session_id):
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, request.json or {}):
+        return jsonify({'error': 'unauthorized_session'}), 403
     visit_id = info_state.user.query('visit_id')
     items = (request.json or {}).get('photos') or []
     updated = db.update_visit_photo_metadata(visit_id, items)
@@ -243,8 +255,8 @@ def update_photo_metadata(session_id):
         'status': 'ok',
         'photo_count': len(updated),
         'max_photos': MAX_PHOTOS,
-        'photos': _photo_urls(session_id, filenames),
-        'photo_items': _photo_items(session_id, visit_id),
+        'photos': _photo_urls(session_id, filenames, patient_token(info_state)),
+        'photo_items': _photo_items(session_id, visit_id, patient_token(info_state)),
         'ready': len(updated) >= MAX_PHOTOS,
     })
 
@@ -258,6 +270,8 @@ def photo_preview(session_id, filename):
         return jsonify({'error': 'Session not found'}), 404
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state):
+        return jsonify({'error': 'unauthorized_session'}), 403
     photos = _current_photos(session_id, s)
     if filename not in photos:
         return jsonify({'error': 'Photo not found for this session'}), 404
@@ -271,6 +285,8 @@ def get_qr_code(session_id):
         return jsonify({'error': 'Session not found'}), 404
 
     info_state = get_session(session_id)['info_state']
+    if not is_patient_authorized(info_state):
+        return jsonify({'error': 'unauthorized_session'}), 403
     token = db.create_upload_token(info_state.user.query('visit_id'))
     if not token:
         return jsonify({'error': 'Visit not initialized for this session'}), 400
