@@ -14,6 +14,7 @@ from web.interview_flow import (
     FINAL_PHOTOS_PROMPT,
     build_outgoing_turn_contract,
     build_interview_state,
+    build_runtime_directive,
     decide_next_task,
     deterministic_response,
     extract_patient_name,
@@ -221,6 +222,29 @@ class InterviewFlowTests(unittest.TestCase):
         evidence = state['story_evidence']['personal_background']
         self.assertEqual(evidence[-1]['answer_kind'], 'followup_answer')
         self.assertEqual(evidence[-1]['followup_kind'], 'deepening')
+
+    def test_transition_after_followup_uses_llm_not_canned_depth_phrase(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        decide_next_task(
+            state,
+            'yes my family my friends my kids',
+            deepening_decider=lambda *_: {
+                'should_deepen': True,
+                'reason': 'children are central to identity',
+                'evidence_quote': 'kids',
+                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
+            },
+        )
+
+        task = decide_next_task(state, 'I did mention it before')
+        directive = build_runtime_directive(task)
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertIsNone(deterministic_response(task, state))
+        self.assertIn('If the patient says they already mentioned something', directive)
+        self.assertIn('Do not use stock phrases', directive)
 
     def test_invalid_deepening_planner_output_is_ignored(self):
         state = build_interview_state()

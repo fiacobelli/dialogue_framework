@@ -349,15 +349,9 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
         )
     if task_type == 'ask_main' and question:
         return f"{SECTION_TRANSITIONS.get(step_id, 'Let us continue with your story')} {question}"
-    if task_type == 'ack_then_next' and question:
-        prefix = 'That gives this part of your story more depth.' if task.get('answered_followup_kind') == 'deepening' else 'Thank you for sharing that.'
-        return f"{prefix} {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
-    if task_type == 'ask_final' and question:
-        prefix = 'That gives this part of your story more depth.' if task.get('answered_followup_kind') == 'deepening' else 'Thank you, that helps tell your story.'
-        return f"{prefix} {SECTION_TRANSITIONS.get(step_id, 'Before we move on,')} {question}"
     if task_type == 'ask_followup' and step_id:
         followup = (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
-        return f"I want to make sure I capture this part clearly. {followup}"
+        return followup
     if task_type == 'ask_emotional_support':
         support_response = (task.get('decision') or {}).get('response')
         if support_response:
@@ -469,8 +463,10 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
     if task_type in {'ack_then_next', 'ask_final'}:
         return (
             'RUNTIME TURN DIRECTIVE:\n'
-            '- Briefly acknowledge what the patient just shared.\n'
-            f'- Then ask this next donor-story question in natural conversational wording: "{question}"\n'
+            '- Briefly acknowledge one concrete detail from what the patient just shared or previously clarified.\n'
+            '- If the patient says they already mentioned something, acknowledge that and use the earlier context; do not praise it as new detail.\n'
+            '- Do not use stock phrases like "That gives this part of your story more depth" or "Thank you for sharing that."\n'
+            f'- Then ask this next donor-story question exactly, verbatim, at the end: "{question}"\n'
             f'- Listen for: {focus}.\n'
             '- Ask only one question.'
         )

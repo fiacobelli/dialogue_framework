@@ -5,9 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
     <style>
-        .upload-container { max-width: 400px; margin: 0 auto; padding: 20px; }
+        html, body { margin: 0; min-height: 100%; overflow-x: hidden; }
+        body { background: #FFF8EF; }
+        .upload-container {
+            width: 100%;
+            max-width: 480px;
+            min-height: 100svh;
+            margin: 0 auto;
+            padding: clamp(12px, 4vw, 20px);
+            box-sizing: border-box;
+        }
+        .upload-container .card { width: 100%; box-sizing: border-box; }
         .upload-prompt { text-align: center; margin-bottom: 20px; color: #555; }
-        .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+        .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; width: 100%; }
         .photo-slot {
             aspect-ratio: 1; border: 2px dashed #ccc; border-radius: 8px;
             display: flex; align-items: center; justify-content: center;
@@ -72,14 +82,14 @@
             document.getElementById(mode === 'camera' ? 'cameraInput' : 'libraryInput').click();
         }
 
-        async function uploadOnePhoto(file) {
+        async function uploadOnePhoto(file, replaceIndex = null) {
             const formData = new FormData();
             formData.append('session_id', sessionId);
             formData.append('upload_token', uploadToken);
             formData.append('photo', file);
             formData.append('source', 'mobile');
-            if (currentSlot < uploadedCount) {
-                formData.append('replace_index', String(currentSlot));
+            if (replaceIndex !== null) {
+                formData.append('replace_index', String(replaceIndex));
             }
 
             setStatus('Uploading...', '');
@@ -93,7 +103,7 @@
                     return;
                 }
 
-                const slotIndex = Math.max(0, data.photo_count - 1);
+                const slotIndex = data.replaced && replaceIndex !== null ? replaceIndex : Math.max(0, data.photo_count - 1);
                 const slot = document.getElementById(`photo${slotIndex}`);
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -122,10 +132,11 @@
             if (!files.length) return;
 
             try {
-                const selectedFiles = currentSlot < uploadedCount ? files.slice(0, 1) : files;
+                const replaceIndex = currentSlot < uploadedCount ? currentSlot : null;
+                const selectedFiles = replaceIndex !== null ? files.slice(0, 1) : files;
                 for (const file of selectedFiles) {
-                    if (uploadedCount >= 3) break;
-                    const data = await uploadOnePhoto(file);
+                    if (replaceIndex === null && uploadedCount >= 3) break;
+                    const data = await uploadOnePhoto(file, replaceIndex);
                     if (data.ready) break;
                 }
             } finally {

@@ -8,21 +8,25 @@ CONTENT RULES:
 - If the evidence says the patient chose to skip a section, do not invent details for that section. Keep the related page section brief and neutral.
 - Do not invent children, jobs, hobbies, cities, emotions, diagnosis details, transplant status, timelines, or family relationships.
 - Write in first person as {name}.
-- Make the writing warm, clear, and specific without pressure, guilt, exaggeration, or unrealistic promises.
+- Make the writing warm, clear, specific, and publication-ready without pressure, guilt, exaggeration, or unrealistic promises.
 - You may improve flow, transitions, phrasing, and emotional clarity, but every concrete fact must come from the evidence.
+- Use the strongest concrete details from the evidence instead of flattening them into generic donor-page language.
+- When evidence supports it, include specific relationships, activities, values, support people, timeline, and hopes the patient mentioned.
 - If a section has sparse evidence, keep it concise. Do not pad with generic emotional language.
 - Do not mention the interview tool, microphone, uploads, repeated attempts, or technical frustration.
 - Avoid cliches such as "second chance", "new lease on life", and "life-changing gift" unless the patient used those words.
 - The headline should be specific to the supported story, not a generic donor slogan.
+- Do not say the patient is "counting on" donors, trying to "touch hearts", or asking anyone to "give back" unless the patient used that framing.
 - Do not provide donation instructions, medical advice, or contact information that was not supplied.
+- Prefer vivid but restrained sentences over bare summaries. The page should read like a respectful personal profile, not a form recap.
 
 Return ONLY valid JSON with exactly these keys:
 {{
   "headline": "One supported sentence, 8-16 words, suitable for the hero section.",
   "short_intro": "Two or three concise sentences introducing why this donor page matters, using only supported details.",
-  "personal_identity": "A paragraph about who {name} is as a person, grounded only in stated identity, relationships, values, work, hobbies, or community.",
-  "kidney_journey": "A paragraph about the beginning or current state of the kidney journey, using only stated medical timeline or context.",
-  "daily_impact": "A paragraph about how kidney disease or dialysis affects daily life, physically, emotionally, socially, or practically.",
-  "transplant_hope": "A paragraph about what receiving a transplant could make possible, using only stated hopes or life changes.",
-  "donor_message": "A direct, respectful message to potential donors or supporters, grounded in what the patient said."
+  "personal_identity": "Two to four sentences about who {name} is as a person, grounded only in stated identity, relationships, values, work, hobbies, or community.",
+  "kidney_journey": "Two to four sentences about the beginning or current state of the kidney journey, using only stated medical timeline or context.",
+  "daily_impact": "Two to four sentences about how kidney disease or dialysis affects daily life, physically, emotionally, socially, or practically.",
+  "transplant_hope": "Two to four sentences about what receiving a transplant could make possible, using only stated hopes or life changes.",
+  "donor_message": "Two to four direct, respectful sentences to potential donors or supporters, grounded in what the patient said."
 }}
