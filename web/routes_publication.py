@@ -49,16 +49,10 @@ def delete_microsite():
     if not session_id or not ensure_session(session_id):
         return jsonify({'error': 'Invalid session'}), 400
 
-    s = get_session(session_id)
-    info_state = s['info_state']
     result = takedown.delete_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not result:
         return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
 
-    info_state.user.update('publication_status', 'deleted')
-    info_state.user.update('microsite_draft_status', 'deleted')
-    info_state.user.update('photos', [])
-    persist_session_state(session_id, s)
     log_event(
         logger,
         'microsite_deleted',

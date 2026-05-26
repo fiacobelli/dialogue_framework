@@ -38,6 +38,9 @@ def can_rehydrate_session(session_id: str) -> bool:
     """Return whether a persisted user model exists for a session."""
     if not session_id:
         return False
+    if db.is_session_deleted(session_id):
+        _sessions.pop(session_id, None)
+        return False
     return os.path.exists(_user_model_path(session_id)) or db.load_session_state(session_id) is not None
 
 
@@ -74,6 +77,9 @@ def ensure_session(session_id: str) -> dict | None:
     """Return an active session, rehydrating from disk when possible."""
     if not session_id:
         return None
+    if db.is_session_deleted(session_id):
+        _sessions.pop(session_id, None)
+        return None
     session = get_session(session_id)
     if session:
         return session
@@ -93,6 +99,23 @@ def ensure_session(session_id: str) -> dict | None:
 def clear_sessions() -> None:
     """Clear in-memory sessions. Intended for tests and controlled maintenance."""
     _sessions.clear()
+
+
+def purge_session_artifacts(session_id: str) -> dict[str, bool]:
+    """Remove in-memory and pickle session artifacts after deletion."""
+    removed_memory = _sessions.pop(session_id, None) is not None
+    path = _user_model_path(session_id)
+    removed_pickle = False
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            removed_pickle = True
+        except OSError:
+            removed_pickle = False
+    return {
+        'removed_memory_session': removed_memory,
+        'removed_user_model': removed_pickle,
+    }
 
 
 def all_sessions() -> dict:

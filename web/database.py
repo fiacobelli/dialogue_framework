@@ -546,6 +546,42 @@ def load_session_state(session_id: str | None) -> bytes | None:
     return bytes(row['user_model_blob']) if row else None
 
 
+def delete_session_state(session_id: str | None, visit_id: str | None = None) -> int:
+    """Remove persisted session snapshots for a deleted session."""
+    if not session_id and not visit_id:
+        return 0
+    clauses = []
+    params: list[Any] = []
+    if session_id:
+        clauses.append('session_id = ?')
+        params.append(session_id)
+    if visit_id:
+        clauses.append('visit_id = ?')
+        params.append(visit_id)
+    with _conn() as c:
+        result = c.execute(
+            f"DELETE FROM session_state WHERE {' OR '.join(clauses)}",
+            params,
+        )
+    return result.rowcount
+
+
+def is_session_deleted(session_id: str | None) -> bool:
+    """Return whether a visit has been deleted and must not be rehydrated."""
+    if not session_id:
+        return False
+    with _conn() as c:
+        row = c.execute(
+            """
+            SELECT deleted_at, publication_status
+            FROM visits
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+    return bool(row and (row['deleted_at'] is not None or row['publication_status'] == 'deleted'))
+
+
 def is_microsite_published(session_id: str) -> bool:
     """Return whether a session's public donor page should be served."""
     with _conn() as c:
@@ -668,6 +704,10 @@ def soft_delete_session(session_id: str, reason: str = 'user_request', actor: st
             """,
             (now, visit_id),
         )
+        snapshot_result = c.execute(
+            'DELETE FROM session_state WHERE session_id = ? OR visit_id = ?',
+            (session_id, visit_id),
+        )
         c.execute(
             """
             UPDATE visits
@@ -686,6 +726,7 @@ def soft_delete_session(session_id: str, reason: str = 'user_request', actor: st
             'previous_draft_status': row['draft_status'],
             'deleted_photos': photo_count,
             'revoked_upload_tokens': token_result.rowcount,
+            'deleted_session_snapshots': snapshot_result.rowcount,
         }
         c.execute(
             """

@@ -747,6 +747,8 @@ class PublicationControlTests(unittest.TestCase):
         self.db_path = os.path.join(self.tmp.name, 'test.db')
         db.configure(self.db_path)
         db.init_db()
+        session_store.clear_sessions()
+        self.addCleanup(session_store.clear_sessions)
 
     def _result(self):
         return {
@@ -865,6 +867,46 @@ class PublicationControlTests(unittest.TestCase):
 
             self.assertTrue(result['removed_html'])
             self.assertFalse(os.path.exists(html_path))
+
+    def test_takedown_removes_photo_log_and_session_artifacts(self):
+        session_id = 'delete-artifacts-session'
+        user_models_dir = os.path.join(self.tmp.name, 'user_models')
+        photos_dir = os.path.join(self.tmp.name, 'photos')
+        logs_dir = os.path.join(self.tmp.name, 'logs')
+        os.makedirs(photos_dir, exist_ok=True)
+        os.makedirs(logs_dir, exist_ok=True)
+
+        with patch.object(session_module, 'USER_MODELS_DIR', user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', user_models_dir):
+                session = session_module.create_session(session_id)
+                visit_id = db.create_visit(session_id, 'en', 'black_female', {'name': 'Ludi'})
+                session['info_state'].user.update('visit_id', visit_id)
+                session['info_state'].user.update('photos', [f'{session_id}_0.jpg'])
+                session_store.persist_session_state(session_id, session)
+                session_store.set_session(session_id, session)
+
+                photo_path = os.path.join(photos_dir, f'{session_id}_0.jpg')
+                with open(photo_path, 'wb') as f:
+                    f.write(b'photo')
+                log_path = os.path.join(logs_dir, f'interview_{session_id}.txt')
+                with open(log_path, 'w', encoding='utf-8') as f:
+                    f.write('raw transcript')
+                db.save_photo(visit_id, f'{session_id}_0.jpg', 0)
+
+                with patch.object(takedown, 'PHOTOS_DIR', photos_dir):
+                    with patch.object(takedown, 'LOGS_DIR', logs_dir):
+                        result = takedown.delete_session(session_id, reason='admin_delete', actor='admin')
+
+                self.assertEqual(result['removed_photo_files'], 1)
+                self.assertTrue(result['removed_log'])
+                self.assertTrue(result['removed_memory_session'])
+                self.assertTrue(result['removed_user_model'])
+                self.assertEqual(result['deleted_session_snapshots'], 1)
+                self.assertFalse(os.path.exists(photo_path))
+                self.assertFalse(os.path.exists(log_path))
+                self.assertFalse(os.path.exists(os.path.join(user_models_dir, f'{session_id}.pkl')))
+                self.assertIsNone(db.load_session_state(session_id))
+                self.assertFalse(session_store.has_session(session_id))
 
     def test_admin_visit_detail_includes_session_artifacts_and_audit_events(self):
         visit_id = db.create_visit('published-session', 'en', 'black_female', {'name': 'Ludi'})
@@ -1035,6 +1077,25 @@ class SessionRehydrationTests(unittest.TestCase):
                 self.assertIsNotNone(restored)
                 self.assertEqual(restored['info_state'].user.query('photos'), ['db-rehydrate-session_0.jpg'])
                 self.assertTrue(os.path.exists(os.path.join(self.user_models_dir, 'db-rehydrate-session.pkl')))
+
+    def test_deleted_session_does_not_rehydrate_from_pickle_or_database_snapshot(self):
+        session_id = 'deleted-rehydrate-session'
+        with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+            with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                session = session_module.create_session(session_id)
+                visit_id = db.create_visit(session_id, 'en', 'black_female', {'name': 'Ludi'})
+                session['info_state'].user.update('visit_id', visit_id)
+                session['info_state'].user.update('photos', [f'{session_id}_0.jpg'])
+                session_store.persist_session_state(session_id, session)
+                session_store.set_session(session_id, session)
+
+                db.soft_delete_session(session_id, reason='patient_request', actor='admin')
+                session_store.clear_sessions()
+
+                self.assertTrue(os.path.exists(os.path.join(self.user_models_dir, f'{session_id}.pkl')))
+                self.assertIsNone(db.load_session_state(session_id))
+                self.assertIsNone(session_store.ensure_session(session_id))
+                self.assertFalse(session_store.has_session(session_id))
 
     def test_photo_status_route_survives_in_memory_session_loss(self):
         with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
@@ -1248,6 +1309,26 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         self.assertEqual(data['photo_count'], 1)
         self.assertIn('db-photo-session_0.jpg', data['photos'][0])
         self.assertEqual(session['info_state'].user.query('photos'), ['db-photo-session_0.jpg'])
+
+    def test_deleted_session_private_preview_is_blocked_even_with_stale_user_model(self):
+        session_id = 'deleted-preview-session'
+        session, visit_id = self._create_photo_session(session_id)
+        filename = f'{session_id}_0.jpg'
+        session['info_state'].user.update('photos', [filename])
+        session_store.persist_session_state(session_id, session)
+        db.save_photo(visit_id, filename, 0, source='desktop')
+
+        with open(os.path.join(self.photos_dir, filename), 'wb') as f:
+            f.write(b'photo')
+        db.soft_delete_session(session_id, reason='patient_request', actor='admin')
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with patch.object(session_module, 'USER_MODELS_DIR', self.user_models_dir):
+                with patch.object(session_store, 'USER_MODELS_DIR', self.user_models_dir):
+                    with app.test_client() as client:
+                        response = client.get(f'/api/photo-preview/{session_id}/{filename}')
+
+        self.assertEqual(response.status_code, 404)
 
     def test_successful_upload_persists_photo_metadata(self):
         session_id = 'upload-photo-session'

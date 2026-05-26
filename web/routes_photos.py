@@ -254,6 +254,8 @@ def photo_preview(session_id, filename):
     """Serve uploaded photos for the active private review session."""
     if not ensure_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
+    if db.is_session_deleted(session_id):
+        return jsonify({'error': 'Session not found'}), 404
     s = get_session(session_id)
     info_state = s['info_state']
     photos = _current_photos(session_id, s)

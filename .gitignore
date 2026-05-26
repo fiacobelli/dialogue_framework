@@ -169,9 +169,14 @@ language_models/custom/resources/
 claude.md
 CLAUDE.md
 .claude/
-tests/
 run.sh
-docs/
+docs/*
+!docs/plans/
+docs/plans/*
+!docs/plans/MICROSITE_FOUNDATION_REVIEW_PLAN.md
+!docs/plans/MICROSITE_FOUNDATION_FINAL_PLAN.md
+tests/*
+!tests/test_interview_flow.py
 photos/
 user_models/
 static/microsites/
