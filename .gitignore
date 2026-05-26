@@ -175,6 +175,7 @@ docs/*
 docs/plans/*
 !docs/plans/MICROSITE_FOUNDATION_REVIEW_PLAN.md
 !docs/plans/MICROSITE_FOUNDATION_FINAL_PLAN.md
+!docs/plans/MICROSITE_CLEANUP_REPORT.md
 tests/*
 !tests/test_interview_flow.py
 !tests/test_turn_interpreter.py
