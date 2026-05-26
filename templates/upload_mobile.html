@@ -78,6 +78,9 @@
             formData.append('upload_token', uploadToken);
             formData.append('photo', file);
             formData.append('source', 'mobile');
+            if (currentSlot < uploadedCount) {
+                formData.append('replace_index', String(currentSlot));
+            }
 
             setStatus('Uploading...', '');
 
@@ -100,7 +103,8 @@
                 reader.readAsDataURL(file);
 
                 uploadedCount = data.photo_count;
-                setStatus(`${uploadedCount}/3 photos uploaded. The desktop page should update automatically.`, 'success');
+                const action = data.replaced ? 'Photo replaced' : `${uploadedCount}/3 photos uploaded`;
+                setStatus(`${action}. The desktop page should update automatically.`, 'success');
 
                 if (data.ready) {
                     document.getElementById('submitBtn').disabled = false;
@@ -118,7 +122,8 @@
             if (!files.length) return;
 
             try {
-                for (const file of files) {
+                const selectedFiles = currentSlot < uploadedCount ? files.slice(0, 1) : files;
+                for (const file of selectedFiles) {
                     if (uploadedCount >= 3) break;
                     const data = await uploadOnePhoto(file);
                     if (data.ready) break;

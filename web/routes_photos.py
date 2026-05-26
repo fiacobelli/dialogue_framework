@@ -100,6 +100,22 @@ def _mobile_upload_authorized(visit_id: str | None) -> bool:
     return db.validate_upload_token(visit_id, request.form.get('upload_token'))
 
 
+def _replacement_photo_id(visit_id: str | None) -> str | None:
+    """Return an existing photo filename requested for replacement."""
+    photos = db.list_visit_photos(visit_id)
+    filenames = {photo['stored_filename'] for photo in photos}
+    requested = (request.form.get('replace_filename') or '').strip()
+    if requested:
+        return requested if requested in filenames else None
+
+    replace_index = (request.form.get('replace_index') or '').strip()
+    if replace_index.isdigit():
+        index = int(replace_index)
+        if 0 <= index < len(photos):
+            return photos[index]['stored_filename']
+    return None
+
+
 @photos_bp.route('/upload', methods=['POST'])
 def upload_photo():
     """Handle photo upload from web or mobile."""
@@ -124,15 +140,20 @@ def upload_photo():
     if not _mobile_upload_authorized(visit_id):
         return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
 
+    replace_photo_id = _replacement_photo_id(visit_id)
+    wants_replacement = bool(request.form.get('replace_filename') or request.form.get('replace_index'))
+    if wants_replacement and not replace_photo_id:
+        return jsonify({'error': 'Photo to replace was not found for this session'}), 400
+
     existing_photos = _current_photos(session_id, s)
-    if len(existing_photos) >= MAX_PHOTOS:
+    if not replace_photo_id and len(existing_photos) >= MAX_PHOTOS:
         return jsonify({'error': f'Max {MAX_PHOTOS} photos already uploaded'}), 400
 
-    reservation = db.reserve_photo_slot(visit_id, session_id, MAX_PHOTOS)
-    if not reservation:
+    reservation = None if replace_photo_id else db.reserve_photo_slot(visit_id, session_id, MAX_PHOTOS)
+    if not replace_photo_id and not reservation:
         return jsonify({'error': f'Max {MAX_PHOTOS} photos already uploaded'}), 400
 
-    photo_id = reservation['stored_filename']
+    photo_id = replace_photo_id or reservation['stored_filename']
     photo_path = os.path.join(PHOTOS_DIR, photo_id)
     os.makedirs(PHOTOS_DIR, exist_ok=True)
     try:
@@ -141,10 +162,12 @@ def upload_photo():
         with open(photo_path, 'rb') as f:
             sha256 = hashlib.sha256(f.read()).hexdigest()
     except ValueError as exc:
-        db.release_photo_reservation(visit_id, photo_id)
+        if reservation:
+            db.release_photo_reservation(visit_id, photo_id)
         return jsonify({'error': str(exc)}), 400
     except OSError:
-        db.release_photo_reservation(visit_id, photo_id)
+        if reservation:
+            db.release_photo_reservation(visit_id, photo_id)
         return jsonify({'error': 'Unable to save uploaded photo'}), 500
 
     db.finalize_photo_upload(
@@ -173,6 +196,7 @@ def upload_photo():
         'max_photos': MAX_PHOTOS,
         'photos': _photo_urls(session_id, photos),
         'photo_items': _photo_items(session_id, visit_id),
+        'replaced': bool(replace_photo_id),
         'ready': len(photos) >= MAX_PHOTOS
     })
 

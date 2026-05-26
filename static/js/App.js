@@ -8,6 +8,7 @@ class App {
         this.photoPollingInterval = null;
         this.photoPollingErrors = 0;
         this.lastPhotoCount = 0;
+        this.pendingPhotoReplaceFilename = '';
         this.generationInProgress = false;
         this.conversationActive = false;
         this._lastSpokenText = '';
@@ -127,12 +128,14 @@ class App {
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
             slot.addEventListener('click', (e) => {
                 if (e.target.closest('.photo-role-controls')) return;
+                this.pendingPhotoReplaceFilename = slot.dataset.filename || '';
                 photoInput?.click();
             });
             slot.addEventListener('keydown', (e) => {
                 if (!['Enter', ' '].includes(e.key)) return;
                 if (e.target.closest('.photo-role-controls')) return;
                 e.preventDefault();
+                this.pendingPhotoReplaceFilename = slot.dataset.filename || '';
                 photoInput?.click();
             });
         });
@@ -587,12 +590,15 @@ class App {
         const fileInput = document.getElementById('photoInput');
         const files = Array.from(fileInput.files || []);
         if (!files.length) return;
+        const replaceFilename = this.pendingPhotoReplaceFilename;
+        const selectedFiles = replaceFilename ? files.slice(0, 1) : files;
 
         try {
             let latest = null;
-            for (const [index, file] of files.entries()) {
-                ui.setPhotoStatus(`Uploading photo ${index + 1} of ${files.length}...`, 'info');
-                latest = await conversationAPI.uploadPhoto(file, 'desktop');
+            for (const [index, file] of selectedFiles.entries()) {
+                const action = replaceFilename ? 'Replacing photo' : `Uploading photo ${index + 1} of ${selectedFiles.length}`;
+                ui.setPhotoStatus(`${action}...`, 'info');
+                latest = await conversationAPI.uploadPhoto(file, 'desktop', { replaceFilename });
                 if (latest.status === 'ok') {
                     const photoItems = latest.photo_items || [];
                     if (photoItems.length) {
@@ -609,6 +615,8 @@ class App {
                 ui.showGenerateSection();
                 ui.setPhotoStatus('All photos are received. Review the meaning and order before generating the donor page.', 'success');
                 ui.setStatus('Review the photo order and meaning, then generate your donor page.');
+            } else if (latest?.replaced) {
+                ui.setPhotoStatus('Photo replaced. Review the photo meaning and order before generating the donor page.', 'success');
             } else if (latest?.photo_count) {
                 ui.setPhotoStatus(`${latest.photo_count} photo${latest.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'success');
             }
@@ -618,6 +626,7 @@ class App {
             console.error(err);
         }
         fileInput.value = '';
+        this.pendingPhotoReplaceFilename = '';
     }
 
     collectPhotoMetadata() {

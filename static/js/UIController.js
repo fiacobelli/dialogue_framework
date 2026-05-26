@@ -100,6 +100,7 @@ class UIController {
 
     showMessage(text) {
         this.elements.messageBubble.classList.remove('pulsing');
+        this._setMessageLengthClass(text);
         this.elements.messageBubble.textContent = text;
     }
 
@@ -110,12 +111,15 @@ class UIController {
 
     appendMessage(text) {
         const current = this.elements.messageBubble.textContent;
-        this.elements.messageBubble.textContent = current ? `${current} ${text}` : text;
+        const next = current ? `${current} ${text}` : text;
+        this._setMessageLengthClass(next);
+        this.elements.messageBubble.textContent = next;
     }
 
     showMessageAnimated(text, wordsPerMinute = 185) {
         this.stopMessageAnimation();
         this.elements.messageBubble.classList.remove('pulsing');
+        this._setMessageLengthClass(text);
 
         this.pendingWords = text.split(/\s+/);
         this.currentWordIndex = 0;
@@ -145,6 +149,14 @@ class UIController {
             this.pendingWords = [];
             this.currentWordIndex = 0;
         }
+    }
+
+    _setMessageLengthClass(text) {
+        const bubble = this.elements.messageBubble;
+        if (!bubble) return;
+        const wordCount = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+        bubble.classList.toggle('long-message', wordCount > 55);
+        bubble.classList.toggle('very-long-message', wordCount > 95);
     }
 
     setStatus(msg) {
@@ -234,7 +246,9 @@ class UIController {
             const current = Number(progress.current_step || 0);
             const total = Number(progress.total_steps || 0);
             const stepText = current > 0 && total > 0 ? `Step ${current} of ${total}` : progress.label;
-            this.elements.progressText.textContent = `${progress.label || 'Interview'} · ${stepText}`;
+            this.elements.progressText.textContent = stepText === progress.label
+                ? (progress.label || 'Interview')
+                : `${progress.label || 'Interview'} · ${stepText}`;
             this.elements.progressText.classList.remove('hidden');
         }
 
@@ -327,6 +341,7 @@ class UIController {
             ['general', 'General']
         ];
         slot.classList.add('filled');
+        slot.dataset.filename = item.stored_filename || '';
         slot.title = 'Photo uploaded. Click controls below to adjust meaning or order.';
         slot.innerHTML = `
             <img src="${url}" alt="Uploaded photo">

@@ -1254,6 +1254,50 @@ class PhotoUploadPersistenceTests(unittest.TestCase):
         self.assertEqual(session['info_state'].user.query('photos'), ['upload-photo-session_0.jpg'])
         self.assertTrue(os.path.exists(os.path.join(self.photos_dir, 'upload-photo-session_0.jpg')))
 
+    def test_upload_can_replace_existing_photo_after_max_reached(self):
+        session_id = 'replace-photo-session'
+        session, visit_id = self._create_photo_session(session_id)
+
+        with patch.object(routes_photos, 'PHOTOS_DIR', self.photos_dir):
+            with app.test_client() as client:
+                for _ in range(3):
+                    response = client.post(
+                        '/api/upload',
+                        data={
+                            'session_id': session_id,
+                            'source': 'desktop',
+                            'photo': self._jpeg_upload(),
+                        },
+                        content_type='multipart/form-data',
+                    )
+                    self.assertEqual(response.status_code, 200)
+
+                response = client.post(
+                    '/api/upload',
+                    data={
+                        'session_id': session_id,
+                        'source': 'desktop',
+                        'replace_filename': 'replace-photo-session_0.jpg',
+                        'photo': self._jpeg_upload('replacement.jpg'),
+                    },
+                    content_type='multipart/form-data',
+                )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data['replaced'])
+        self.assertEqual(data['photo_count'], 3)
+        self.assertEqual(db.list_visit_photo_filenames(visit_id), [
+            'replace-photo-session_0.jpg',
+            'replace-photo-session_1.jpg',
+            'replace-photo-session_2.jpg',
+        ])
+        self.assertEqual(session['info_state'].user.query('photos'), [
+            'replace-photo-session_0.jpg',
+            'replace-photo-session_1.jpg',
+            'replace-photo-session_2.jpg',
+        ])
+
     def test_photo_metadata_route_updates_roles_and_session_order(self):
         session_id = 'metadata-photo-session'
         session, visit_id = self._create_photo_session(session_id)

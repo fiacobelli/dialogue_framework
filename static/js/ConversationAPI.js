@@ -73,7 +73,7 @@ class ConversationAPI {
     }
 
     /** Upload photo file to server. */
-    async uploadPhoto(file, source = 'desktop') {
+    async uploadPhoto(file, source = 'desktop', options = {}) {
         if (!this.sessionId) throw new Error('No active session');
 
         const formData = new FormData();
@@ -83,6 +83,9 @@ class ConversationAPI {
         }
         formData.append('photo', file);
         formData.append('source', source);
+        if (options.replaceFilename) {
+            formData.append('replace_filename', options.replaceFilename);
+        }
 
         const res = await fetch(this._url('/api/upload'), {
             method: 'POST',
