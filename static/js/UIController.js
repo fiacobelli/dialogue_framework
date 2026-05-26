@@ -188,6 +188,16 @@ class UIController {
         this.setStatus('');
     }
 
+    showTranscribing() {
+        this.elements.micBtn.classList.remove('listening', 'paused');
+        this.elements.micBtn.classList.add('disabled');
+        this.elements.micHint.textContent = 'Processing what you said...';
+        this.elements.avatarFrame?.classList.remove('speaking');
+        this.elements.waveform?.classList.add('hidden');
+        this.elements.messageBubble?.classList.add('pulsing');
+        this.setStatus('Processing what you said...');
+    }
+
     showSpeaking() {
         this.elements.micBtn.classList.remove('listening', 'disabled', 'paused');
         this.elements.micHint.textContent = 'Tap to pause';

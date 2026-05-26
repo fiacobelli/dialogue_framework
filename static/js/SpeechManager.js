@@ -268,6 +268,7 @@ class SpeechManager {
 
         const transcribeStartedAt = performance.now();
         this.recordEvent('transcribe_started');
+        this._emit('transcribing', {});
         try {
             const wav = float32ToWav(merged);
             const form = new FormData();

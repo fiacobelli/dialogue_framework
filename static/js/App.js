@@ -70,6 +70,10 @@ class App {
 
         speechManager.on('silence', () => ui.setStatus('Got it!'));
 
+        speechManager.on('transcribing', () => {
+            ui.showTranscribing();
+        });
+
         speechManager.on('speakStart', ({ text }) => {
             ui.showSpeaking();
             if (text) ui.showMessageAnimated(text);
