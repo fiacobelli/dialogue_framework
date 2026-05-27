@@ -1114,7 +1114,7 @@ class ClientDiagnosticsTests(unittest.TestCase):
                     {
                         'type': 'post_speech_pause',
                         'ts': 450,
-                        'metadata': {'vad_segment_count': 2, 'post_speech_pause_ms': 4500},
+                        'metadata': {'vad_segment_count': 2, 'post_speech_pause_ms': 3800, 'extended_pause_count': 1},
                     },
                     {
                         'type': 'transcribe_started',
@@ -1156,7 +1156,8 @@ class ClientDiagnosticsTests(unittest.TestCase):
                 'transcribe_error',
             ],
         )
-        self.assertIn('"post_speech_pause_ms": 4500', rows[1]['metadata_json'])
+        self.assertIn('"post_speech_pause_ms": 3800', rows[1]['metadata_json'])
+        self.assertIn('"extended_pause_count": 1', rows[1]['metadata_json'])
         self.assertIn('"finalization_reason": "pause_elapsed"', rows[2]['metadata_json'])
         self.assertIn('"duration_ms": 400', rows[3]['metadata_json'])
         self.assertIn('"audio_bytes": 64044', rows[3]['metadata_json'])

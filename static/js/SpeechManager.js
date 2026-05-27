@@ -53,7 +53,6 @@ class SpeechManager {
         this._finalizer = new TurnFinalizer({
             onIdlePrompt: (snapshot) => this._onTurnIdlePrompt(snapshot),
             onPostSpeechPrompt: (snapshot) => this._onPostSpeechPrompt(snapshot),
-            onThinkingExtended: (snapshot) => this._onThinkingExtended(snapshot),
             onCommit: (snapshot) => this._commitFinalizedAudio(snapshot),
             onAbort: (snapshot) => this._abortListening(snapshot),
         });
@@ -260,11 +259,6 @@ class SpeechManager {
         this._emit('postSpeechPause', snapshot);
     }
 
-    _onThinkingExtended(snapshot) {
-        this.recordEvent('thinking_extended', snapshot);
-        this._emit('thinkingExtended', snapshot);
-    }
-
     _commitFinalizedAudio(snapshot = {}) {
         this._finalizationSnapshot = snapshot;
         if (this._vadReady && this._vad) this._vad.pause();
@@ -413,14 +407,6 @@ class SpeechManager {
         } else {
             this._finalizer.abort('user_cancel');
         }
-    }
-
-    finishSpeaking() {
-        this.stopListening();
-    }
-
-    extendThinking() {
-        return this._finalizer.extendThinking();
     }
 
     speak(text) {

@@ -1,9 +1,7 @@
-// Turn-finalization thresholds. These are deliberately conservative for
-// reflective patient storytelling rather than quick command-and-control input.
+// Turn-finalization thresholds for automatic, low-burden patient speech input.
 const TURN_IDLE_PROMPT_MS = 8000;
-const TURN_POST_SPEECH_GRACE_MS = 4500;
-const TURN_MAX_POST_SPEECH_PAUSE_MS = 10000;
-const TURN_STILL_THINKING_EXTENSION_MS = 8000;
+const TURN_POST_SPEECH_GRACE_MS = 3800;
+const TURN_EXTENDED_POST_SPEECH_GRACE_MS = 6500;
 const TURN_MAX_SPEECH_AUDIO_MS = 28000;
 const TURN_MAX_TURN_MS = 65000;
 

@@ -71,7 +71,7 @@ class App {
                 this._emptyCount = 0;
                 const message = reason === 'audio_too_large'
                     ? 'That answer was longer than this recorder can send at once. Please try again in a shorter response, or type your answer.'
-                    : "I didn't catch that clearly. Please try speaking again, tap Try again, or type your answer.";
+                    : "I didn't catch that clearly. Please try speaking again, or type your answer.";
                 ui.setStatus(message);
                 ui.showIdle();
             }
@@ -84,12 +84,7 @@ class App {
 
         speechManager.on('postSpeechPause', () => {
             ui.showPostSpeechPause();
-            ui.setStatus('Keep going if you need a moment, or tap Done speaking.');
-        });
-
-        speechManager.on('thinkingExtended', () => {
-            ui.showThinkingExtended();
-            ui.setStatus('No rush. I will keep listening for a little longer.');
+            ui.setStatus('I am listening in case you want to add more.');
         });
 
         speechManager.on('listeningAborted', ({ reason } = {}) => {
@@ -150,26 +145,6 @@ class App {
 
         const skipQuestionBtn = document.getElementById('skipQuestionBtn');
         if (skipQuestionBtn) skipQuestionBtn.addEventListener('click', () => this.skipCurrentQuestion());
-
-        const doneSpeakingBtn = document.getElementById('doneSpeakingBtn');
-        if (doneSpeakingBtn) doneSpeakingBtn.addEventListener('click', () => {
-            speechManager.recordEvent('manual_done_clicked');
-            speechManager.finishSpeaking();
-        });
-
-        const stillThinkingBtn = document.getElementById('stillThinkingBtn');
-        if (stillThinkingBtn) stillThinkingBtn.addEventListener('click', () => {
-            speechManager.recordEvent('still_thinking_clicked');
-            speechManager.extendThinking();
-        });
-
-        const retrySpeechBtn = document.getElementById('retrySpeechBtn');
-        if (retrySpeechBtn) retrySpeechBtn.addEventListener('click', () => {
-            speechManager.recordEvent('try_again_clicked');
-            speechManager.pauseListening();
-            ui.setStatus('');
-            if (this.conversationActive && !this._paused) speechManager.startListening();
-        });
 
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());

@@ -19,8 +19,7 @@ class TurnFinalizer {
         this.config = {
             idlePromptMs: config.idlePromptMs ?? TURN_IDLE_PROMPT_MS,
             postSpeechGraceMs: config.postSpeechGraceMs ?? TURN_POST_SPEECH_GRACE_MS,
-            maxPostSpeechPauseMs: config.maxPostSpeechPauseMs ?? TURN_MAX_POST_SPEECH_PAUSE_MS,
-            stillThinkingExtensionMs: config.stillThinkingExtensionMs ?? TURN_STILL_THINKING_EXTENSION_MS,
+            extendedPostSpeechGraceMs: config.extendedPostSpeechGraceMs ?? TURN_EXTENDED_POST_SPEECH_GRACE_MS,
             maxSpeechAudioMs: config.maxSpeechAudioMs ?? TURN_MAX_SPEECH_AUDIO_MS,
             maxTurnMs: config.maxTurnMs ?? TURN_MAX_TURN_MS,
             now: config.now || (() => performance.now()),
@@ -40,6 +39,7 @@ class TurnFinalizer {
         this.segmentCount = 0;
         this.speechDurationMs = 0;
         this.idlePromptCount = 0;
+        this.extendedPauseCount = 0;
     }
 
     start() {
@@ -71,21 +71,16 @@ class TurnFinalizer {
             return;
         }
 
-        this._schedule(this.config.postSpeechGraceMs, () => this._postSpeechPrompt());
-        this._schedule(this.config.maxPostSpeechPauseMs, () => this.commit('pause_elapsed'));
+        const delay = this._postSpeechDelayMs();
+        if (delay > this.config.postSpeechGraceMs) {
+            this.extendedPauseCount += 1;
+        }
+        this._schedule(Math.min(this.config.postSpeechGraceMs, delay), () => this._postSpeechPrompt());
+        this._schedule(delay, () => this.commit(delay > this.config.postSpeechGraceMs ? 'extended_pause_elapsed' : 'pause_elapsed'));
         this._scheduleTurnDeadline(() => this.commit('max_turn'));
     }
 
-    extendThinking() {
-        if (this.state !== TurnFinalizerState.POST_SPEECH_PAUSE) return false;
-        this._clearTimers();
-        this._schedule(this.config.stillThinkingExtensionMs, () => this.commit('pause_elapsed'));
-        this._scheduleTurnDeadline(() => this.commit('max_turn'));
-        this.callbacks.onThinkingExtended?.(this.snapshot('still_thinking'));
-        return true;
-    }
-
-    commit(reason = 'manual_done') {
+    commit(reason = 'pause_elapsed') {
         if (!this._active()) return false;
         this.state = TurnFinalizerState.COMMITTED;
         this._clearTimers();
@@ -116,6 +111,7 @@ class TurnFinalizer {
                 : Math.max(0, Math.round(now - this.lastSpeechEndAt)),
             turn_elapsed_ms: this.startedAt === null ? null : Math.max(0, Math.round(now - this.startedAt)),
             idle_prompt_count: this.idlePromptCount,
+            extended_pause_count: this.extendedPauseCount,
         };
     }
 
@@ -129,6 +125,11 @@ class TurnFinalizer {
     _postSpeechPrompt() {
         if (this.state !== TurnFinalizerState.POST_SPEECH_PAUSE) return;
         this.callbacks.onPostSpeechPrompt?.(this.snapshot('post_speech_grace_elapsed'));
+    }
+
+    _postSpeechDelayMs() {
+        const shouldExtend = this.segmentCount >= 2 || this.speechDurationMs < 1800;
+        return shouldExtend ? this.config.extendedPostSpeechGraceMs : this.config.postSpeechGraceMs;
     }
 
     _active() {
