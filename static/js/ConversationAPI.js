@@ -30,9 +30,23 @@ class ConversationAPI {
     }
 
     /** Start new session and get opening prompt. */
-    async startSession(lang, avatarId) {
+    async startSession(lang, avatarId, timeoutMs = 20000) {
         const params = new URLSearchParams({ lang, avatar: avatarId });
-        const res = await fetch(this._url(`/api/session?${params.toString()}`));
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+        let res;
+        try {
+            res = await fetch(this._url(`/api/session?${params.toString()}`), {
+                signal: controller?.signal
+            });
+        } catch (err) {
+            if (err?.name === 'AbortError') {
+                throw new Error('Session loading timed out.');
+            }
+            throw err;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
         if (!res.ok) throw new Error('Failed to start session');
 
         const data = await res.json();

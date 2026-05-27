@@ -5,7 +5,7 @@
     min-height: 100vh; /* mobile: stacks, page scrolls naturally */
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     #conversation-screen {
         display: grid;
         grid-template-columns: 55fr 45fr;
@@ -69,7 +69,7 @@
     position: relative; /* anchors restart button */
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .avatar-panel {
         height: 100%;   /* fill grid cell exactly */
         min-height: unset;
@@ -139,7 +139,7 @@
     position: relative; /* enables absolute positioning of restart button */
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .interaction-panel {
         height: 100%;       /* fill grid cell exactly */
         min-height: unset;
@@ -188,7 +188,7 @@
     width: 100%;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .message-bubble {
         max-height: none;
     }
@@ -357,7 +357,7 @@
     width: 100%;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     /* Panel itself must not scroll — convo-top handles overflow internally */
     .interaction-panel {
         overflow: hidden;
@@ -1012,7 +1012,7 @@
 .share-btn.view { background: #E86F2C; }
 .share-btn.danger { background: #B91C1C; }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .photo-section,
     .generate-section,
     .review-section,

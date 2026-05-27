@@ -19,6 +19,10 @@ class App {
         this._retryCount = 0;
         this._typedStartedAt = null;
         this._typedEvents = [];
+        this._startupReady = false;
+        this._startupInProgress = false;
+        this._startupStartedAt = null;
+        this._startupTimeoutHandle = null;
     }
 
     async init() {
@@ -185,7 +189,13 @@ class App {
         });
 
         const beginBtn = document.getElementById('beginBtn');
-        if (beginBtn) beginBtn.addEventListener('click', () => this.beginInterview());
+        if (beginBtn) beginBtn.addEventListener('click', () => {
+            if (!this._startupReady) {
+                this.startConversation();
+                return;
+            }
+            this.beginInterview();
+        });
     }
 
     _waitForSitePal(timeoutMs = 15000) {
@@ -204,6 +214,9 @@ class App {
     }
 
     async startConversation() {
+        if (this._startupInProgress) return;
+        this._startupInProgress = true;
+        this._startupReady = false;
         const avatarProfile = window.AVATAR_PROFILE || {};
         speechManager.setLanguage('en-US');
         speechManager.setVoiceConfig({
@@ -213,24 +226,30 @@ class App {
 
         ui.hideConversation();
         ui.showBeginOverlay();
-        ui.setBeginLoading(true);
+        ui.setBeginLoading(true, 'Loading Ludi...');
+        ui.showMicPreflight('checking', 'Getting Ludi ready...', 'Connecting to your interview session and avatar.');
         ui.setStatus('Loading...');
+        this._startupStartedAt = performance.now();
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const avatarId = window.AVATAR_ID || urlParams.get('avatar') || 'black_female';
+            const startupTimeoutMs = 25000;
             const [data] = await Promise.all([
-                conversationAPI.startSession('en', avatarId),
+                conversationAPI.startSession('en', avatarId, startupTimeoutMs),
                 this._waitForSitePal()
             ]);
+            const elapsedMs = this._startupStartedAt === null ? null : Math.max(0, Math.round(performance.now() - this._startupStartedAt));
+            console.info('[microsite] startup ready', { elapsedMs, avatarId });
 
             this.conversationActive = false;
             this._paused = false;
             this._lastSpokenText = data.prompt;
+            this._startupReady = true;
             ui.updateProgress(data.progress);
             ui.clearMessage();
-            ui.clearMicPreflight();
-            ui.setBeginLoading(false);
+            ui.showMicPreflight('ready', 'Ludi is ready.', 'Tap begin interview when you are ready.');
+            ui.setBeginLoading(false, 'Begin interview');
             ui.showBeginOverlay();
             ui.setStatus('');
 
@@ -240,16 +259,37 @@ class App {
                 setTimeout(() => { preview.style.display = 'none'; }, 400);
             }
         } catch (err) {
-            ui.setBeginLoading(false);
-            ui.setStatus('Connection failed. Please refresh.');
+            const elapsedMs = this._startupStartedAt === null ? null : Math.max(0, Math.round(performance.now() - this._startupStartedAt));
+            console.warn('[microsite] startup failed', { elapsedMs, error: err?.message || String(err) });
+            this._startupReady = false;
+            ui.setBeginLoading(false, 'Retry loading Ludi');
+            ui.showMicPreflight(
+                'error',
+                'Could not load Ludi.',
+                err?.message === 'Session loading timed out.'
+                    ? 'The server took too long to respond. Check the connection and tap retry.'
+                    : 'Check the connection and tap retry.'
+            );
+            ui.setStatus('');
             console.error(err);
+        } finally {
+            this._startupInProgress = false;
+            this._startupStartedAt = null;
+            if (this._startupTimeoutHandle) {
+                clearTimeout(this._startupTimeoutHandle);
+                this._startupTimeoutHandle = null;
+            }
         }
     }
 
     async beginInterview() {
+        if (!this._startupReady) {
+            await this.startConversation();
+            return;
+        }
         if (this._speechActivated) return;
         this._speechActivated = true;
-        ui.setBeginLoading(true);
+        ui.setBeginLoading(true, 'Checking microphone...');
         ui.clearMessage();
         ui.setStatus('');
         ui.showMicPreflight('checking', 'Checking microphone...', 'Please allow microphone access if your browser asks.');

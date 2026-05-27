@@ -53,10 +53,14 @@ class UIController {
         }
     }
 
-    setBeginLoading(isLoading) {
+    setBeginLoading(isLoading, label = null) {
         const btn = this.elements.beginBtn;
         if (!btn) return;
         btn.disabled = Boolean(isLoading);
+        if (label) {
+            btn.textContent = label;
+            return;
+        }
         btn.textContent = isLoading ? 'Getting Ludi ready...' : 'Begin interview';
     }
 

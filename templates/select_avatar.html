@@ -40,7 +40,7 @@
 
         .avatar-options {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: clamp(14px, 2.5vw, 22px);
             margin-bottom: clamp(28px, 4vw, 44px);
             width: 100%;
@@ -49,7 +49,7 @@
 
         @media (min-width: 600px) {
             .avatar-options {
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }
         }
 
@@ -60,7 +60,9 @@
             padding: 16px;
             cursor: pointer;
             transition: all 0.2s ease-out;
-            width: clamp(140px, 20vw, 200px);
+            width: 100%;
+            max-width: 200px;
+            justify-self: center;
             text-align: center;
             box-shadow: 0 2px 12px rgba(28, 25, 23, 0.07);
         }
