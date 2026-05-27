@@ -1057,10 +1057,13 @@ class ClientDiagnosticsTests(unittest.TestCase):
         with app.test_client() as client:
             session_response = client.get('/api/session?lang=en&avatar=black_female')
             self.assertEqual(session_response.status_code, 200)
-            session_id = session_response.get_json()['session_id']
+            session_data = session_response.get_json()
+            session_id = session_data['session_id']
+            patient_token = session_data['patient_token']
 
             event_response = client.post('/api/client-events', json={
                 'session_id': session_id,
+                'patient_token': patient_token,
                 'events': [{
                     'type': 'mic_preflight_result',
                     'ts': 1234,
@@ -1087,29 +1090,47 @@ class ClientDiagnosticsTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row['client_ts_ms'], 1234)
         self.assertIn('"status": "ready"', row['metadata_json'])
-        self.assertIn('"active_track_label": "Bluetooth Headset"', row['metadata_json'])
+        self.assertNotIn('active_track_label', row['metadata_json'])
         self.assertNotIn('unapproved_field', row['metadata_json'])
 
         detail = db.get_admin_visit(session_id)
         self.assertEqual(detail['turn_events'][0]['event_type'], 'mic_preflight_result')
-        self.assertIn('Bluetooth Headset', detail['turn_events'][0]['metadata_json'])
+        self.assertNotIn('Bluetooth Headset', detail['turn_events'][0]['metadata_json'])
 
     def test_client_events_endpoint_saves_transcription_diagnostics(self):
         with app.test_client() as client:
             session_response = client.get('/api/session?lang=en&avatar=black_female')
             self.assertEqual(session_response.status_code, 200)
-            session_id = session_response.get_json()['session_id']
+            session_data = session_response.get_json()
+            session_id = session_data['session_id']
+            patient_token = session_data['patient_token']
 
             event_response = client.post('/api/client-events', json={
                 'session_id': session_id,
+                'patient_token': patient_token,
                 'turn_number': 1,
                 'events': [
                     {'type': 'listening_started', 'ts': 100},
-                    {'type': 'transcribe_started', 'ts': 500},
+                    {
+                        'type': 'post_speech_pause',
+                        'ts': 450,
+                        'metadata': {'vad_segment_count': 2, 'post_speech_pause_ms': 4500},
+                    },
+                    {
+                        'type': 'transcribe_started',
+                        'ts': 500,
+                        'metadata': {'finalization_reason': 'pause_elapsed', 'audio_duration_ms': 2000},
+                    },
                     {
                         'type': 'transcribe_ended',
                         'ts': 900,
-                        'metadata': {'status': 'ok', 'duration_ms': 400, 'transcript_words': 3},
+                        'metadata': {
+                            'status': 'ok',
+                            'duration_ms': 400,
+                            'transcript_words': 3,
+                            'audio_bytes': 64044,
+                            'transcribe_result': 'transcript',
+                        },
                     },
                     {'type': 'listening_ended', 'ts': 950, 'metadata': {'transcript_words': 3}},
                     {'type': 'transcribe_error', 'ts': 1200, 'metadata': {'status': 'failed', 'error_message': 'bad'}},
@@ -1126,10 +1147,48 @@ class ClientDiagnosticsTests(unittest.TestCase):
 
         self.assertEqual(
             [row['event_type'] for row in rows],
-            ['listening_started', 'transcribe_started', 'transcribe_ended', 'listening_ended', 'transcribe_error'],
+            [
+                'listening_started',
+                'post_speech_pause',
+                'transcribe_started',
+                'transcribe_ended',
+                'listening_ended',
+                'transcribe_error',
+            ],
         )
-        self.assertIn('"duration_ms": 400', rows[2]['metadata_json'])
-        self.assertIn('"error_message": "bad"', rows[4]['metadata_json'])
+        self.assertIn('"post_speech_pause_ms": 4500', rows[1]['metadata_json'])
+        self.assertIn('"finalization_reason": "pause_elapsed"', rows[2]['metadata_json'])
+        self.assertIn('"duration_ms": 400', rows[3]['metadata_json'])
+        self.assertIn('"audio_bytes": 64044', rows[3]['metadata_json'])
+        self.assertIn('"error_message": "bad"', rows[5]['metadata_json'])
+
+    def test_client_events_requires_patient_token(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+
+            event_response = client.post('/api/client-events', json={
+                'session_id': session_id,
+                'events': [{'type': 'listening_started', 'ts': 100}],
+            })
+
+        self.assertEqual(event_response.status_code, 403)
+        self.assertEqual(event_response.get_json()['error'], 'unauthorized_session')
+
+    def test_chat_requires_patient_token(self):
+        with app.test_client() as client:
+            session_response = client.get('/api/session?lang=en&avatar=black_female')
+            self.assertEqual(session_response.status_code, 200)
+            session_id = session_response.get_json()['session_id']
+
+            response = client.post('/api/chat', json={
+                'session_id': session_id,
+                'input': 'Sophia',
+            })
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['error'], 'unauthorized_session')
 
 
 class TranscriptionEndpointTests(unittest.TestCase):

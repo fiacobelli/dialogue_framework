@@ -57,18 +57,47 @@ class App {
             await this._processUserInput(transcript, 'voice');
         });
 
-        speechManager.on('empty', async () => {
+        speechManager.on('empty', async ({ reason } = {}) => {
             this._emptyCount++;
             this._retryCount++;
-            if (this.conversationActive && !this._paused && this._emptyCount < 2) {
+            if (reason === 'user_cancel') {
+                ui.showPaused();
+                return;
+            }
+            if (this.conversationActive && !this._paused && this._emptyCount < 2 && reason !== 'audio_too_large') {
+                ui.setStatus("I didn't catch that clearly. I'll keep listening; you can also type your answer.");
                 speechManager.startListening();
             } else {
                 this._emptyCount = 0;
-                await this._processNoResponse();
+                const message = reason === 'audio_too_large'
+                    ? 'That answer was longer than this recorder can send at once. Please try again in a shorter response, or type your answer.'
+                    : "I didn't catch that clearly. Please try speaking again, tap Try again, or type your answer.";
+                ui.setStatus(message);
+                ui.showIdle();
             }
         });
 
-        speechManager.on('silence', () => ui.setStatus('Got it!'));
+        speechManager.on('listeningIdle', () => {
+            ui.showListeningIdle();
+            ui.setStatus('Still listening. Take your time.');
+        });
+
+        speechManager.on('postSpeechPause', () => {
+            ui.showPostSpeechPause();
+            ui.setStatus('Keep going if you need a moment, or tap Done speaking.');
+        });
+
+        speechManager.on('thinkingExtended', () => {
+            ui.showThinkingExtended();
+            ui.setStatus('No rush. I will keep listening for a little longer.');
+        });
+
+        speechManager.on('listeningAborted', ({ reason } = {}) => {
+            if (reason === 'max_turn') {
+                ui.setStatus('I paused listening so the microphone would not stay open too long. Tap the mic or type below when ready.');
+            }
+            ui.showIdle();
+        });
 
         speechManager.on('transcribing', () => {
             ui.showTranscribing();
@@ -121,6 +150,26 @@ class App {
 
         const skipQuestionBtn = document.getElementById('skipQuestionBtn');
         if (skipQuestionBtn) skipQuestionBtn.addEventListener('click', () => this.skipCurrentQuestion());
+
+        const doneSpeakingBtn = document.getElementById('doneSpeakingBtn');
+        if (doneSpeakingBtn) doneSpeakingBtn.addEventListener('click', () => {
+            speechManager.recordEvent('manual_done_clicked');
+            speechManager.finishSpeaking();
+        });
+
+        const stillThinkingBtn = document.getElementById('stillThinkingBtn');
+        if (stillThinkingBtn) stillThinkingBtn.addEventListener('click', () => {
+            speechManager.recordEvent('still_thinking_clicked');
+            speechManager.extendThinking();
+        });
+
+        const retrySpeechBtn = document.getElementById('retrySpeechBtn');
+        if (retrySpeechBtn) retrySpeechBtn.addEventListener('click', () => {
+            speechManager.recordEvent('try_again_clicked');
+            speechManager.pauseListening();
+            ui.setStatus('');
+            if (this.conversationActive && !this._paused) speechManager.startListening();
+        });
 
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
@@ -480,31 +529,6 @@ class App {
         } catch (err) {
             ui.setStatus('Failed to send. Please try again.');
             console.error(err);
-            ui.showIdle();
-            turnManager.reset();
-        }
-    }
-
-    async _processNoResponse() {
-        if (!conversationAPI.getSessionId()) {
-            ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
-            ui.showIdle();
-            return;
-        }
-
-        try {
-            ui.hideRepeatButton();
-            ui.showProcessing();
-            const metadata = this._buildTurnMetadata('voice');
-            const data = await conversationAPI.sendNoResponse(metadata);
-            this._lastSpokenText = data.prompt;
-            ui.updateProgress(data.progress);
-            ui.showMessage(data.prompt);
-            ui.setStatus('');
-            await speechManager.speak(data.prompt);
-        } catch (err) {
-            console.error('Failed to send no-response turn:', err);
-            ui.setStatus("I didn't hear anything. You can try speaking again or type your answer.");
             ui.showIdle();
             turnManager.reset();
         }

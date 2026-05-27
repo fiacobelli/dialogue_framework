@@ -64,11 +64,6 @@ class ConversationAPI {
         return await res.json();
     }
 
-    /** Tell the backend the browser could not capture speech for this turn. */
-    async sendNoResponse(metadata = {}) {
-        return this.sendMessage('', { ...metadata, no_response: true });
-    }
-
     /** Persist client-side diagnostics that are not part of a user answer turn. */
     async sendClientEvents(events = []) {
         if (!this.sessionId) throw new Error('No active session');

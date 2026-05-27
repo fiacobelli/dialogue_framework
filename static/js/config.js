@@ -1,6 +1,11 @@
-// Silence thresholds for two-tier VAD timer.
-const SILENCE_DELAY_MS = 3500;
-const EXTENDED_SILENCE_DELAY_MS = 6000;
+// Turn-finalization thresholds. These are deliberately conservative for
+// reflective patient storytelling rather than quick command-and-control input.
+const TURN_IDLE_PROMPT_MS = 8000;
+const TURN_POST_SPEECH_GRACE_MS = 4500;
+const TURN_MAX_POST_SPEECH_PAUSE_MS = 10000;
+const TURN_STILL_THINKING_EXTENSION_MS = 8000;
+const TURN_MAX_SPEECH_AUDIO_MS = 28000;
+const TURN_MAX_TURN_MS = 65000;
 
 // Language config for speech recognition
 const LANG_CONFIG = {

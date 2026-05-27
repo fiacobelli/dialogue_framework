@@ -45,12 +45,18 @@ class SpeechManager {
         this._vad = null;
         this._vadReady = false;
         this._micStream = null;
-        this.silenceTimeout = null;
 
         this._audioChunks = [];
-        this._commitTimer = null;
         this._transcribing = false;
         this._speechDetectedCount = 0;
+        this._finalizationSnapshot = {};
+        this._finalizer = new TurnFinalizer({
+            onIdlePrompt: (snapshot) => this._onTurnIdlePrompt(snapshot),
+            onPostSpeechPrompt: (snapshot) => this._onPostSpeechPrompt(snapshot),
+            onThinkingExtended: (snapshot) => this._onThinkingExtended(snapshot),
+            onCommit: (snapshot) => this._commitFinalizedAudio(snapshot),
+            onAbort: (snapshot) => this._abortListening(snapshot),
+        });
 
         this._turnEvents = [];
         this._speakStartTime = null;
@@ -229,11 +235,7 @@ class SpeechManager {
             this._vadFireTime = performance.now();
         }
         this.recordEvent('vad_fired', { count: this._speechDetectedCount });
-        this._clearSilenceTimer();
-        if (!this._transcribing) {
-            clearTimeout(this._commitTimer);
-            this._commitTimer = null;
-        }
+        if (!this._transcribing) this._finalizer.speechStart();
     }
 
     _onVADSpeechEnd(audio) {
@@ -241,20 +243,47 @@ class SpeechManager {
         if (this._transcribing) return;
         if (!audio || !audio.length) return;
         this._audioChunks.push(audio);
-        clearTimeout(this._commitTimer);
-        this._commitTimer = setTimeout(() => this._transcribeAndFinish(), 3000);
+        this._finalizer.speechEnd(Math.round(audio.length / 16));
     }
 
     _onVADMisfire() {
         this.recordEvent('vad_misfire');
     }
 
-    async _transcribeAndFinish() {
-        this._commitTimer = null;
+    _onTurnIdlePrompt(snapshot) {
+        this.recordEvent('listening_idle_prompt', snapshot);
+        this._emit('listeningIdle', snapshot);
+    }
+
+    _onPostSpeechPrompt(snapshot) {
+        this.recordEvent('post_speech_pause', snapshot);
+        this._emit('postSpeechPause', snapshot);
+    }
+
+    _onThinkingExtended(snapshot) {
+        this.recordEvent('thinking_extended', snapshot);
+        this._emit('thinkingExtended', snapshot);
+    }
+
+    _commitFinalizedAudio(snapshot = {}) {
+        this._finalizationSnapshot = snapshot;
+        if (this._vadReady && this._vad) this._vad.pause();
+        this._transcribeAndFinish(snapshot);
+    }
+
+    _abortListening(snapshot = {}) {
+        if (this._vadReady && this._vad) this._vad.pause();
+        this._audioChunks = [];
+        this.turnManager.reset();
+        this.recordEvent('listening_aborted', snapshot);
+        this._emit('listeningAborted', snapshot);
+    }
+
+    async _transcribeAndFinish(finalization = {}) {
         if (this.turnManager.getState() !== TurnState.USER_SPEAKING) return;
         if (this._audioChunks.length === 0) {
             this.turnManager.reset();
-            this._emit('empty', {});
+            this._emit('empty', { reason: 'no_audio', finalization });
             return;
         }
         this._transcribing = true;
@@ -265,12 +294,28 @@ class SpeechManager {
         let off = 0;
         for (const chunk of this._audioChunks) { merged.set(chunk, off); off += chunk.length; }
         this._audioChunks = [];
+        const audioDurationMs = Math.round(totalLength / 16);
 
         const transcribeStartedAt = performance.now();
-        this.recordEvent('transcribe_started');
+        const baseMetadata = {
+            finalization_reason: finalization.reason || 'unknown',
+            finalized_by: finalization.reason || 'unknown',
+            vad_segment_count: finalization.vad_segment_count,
+            speech_duration_ms: finalization.speech_duration_ms,
+            time_to_first_speech_ms: finalization.time_to_first_speech_ms,
+            post_speech_pause_ms: finalization.post_speech_pause_ms,
+            turn_elapsed_ms: finalization.turn_elapsed_ms,
+            idle_prompt_count: finalization.idle_prompt_count,
+            audio_duration_ms: audioDurationMs,
+        };
+        this.recordEvent('transcribe_started', baseMetadata);
         this._emit('transcribing', {});
         try {
             const wav = float32ToWav(merged);
+            const audioBytes = wav.size || 0;
+            if (audioBytes > 1024 * 1024) {
+                throw new Error('audio_too_large');
+            }
             const form = new FormData();
             form.append('audio', wav, 'audio.wav');
             form.append('language', this.lang.split('-')[0]);
@@ -287,48 +332,39 @@ class SpeechManager {
             const text = (transcript || '').trim();
 
             this.recordEvent('transcribe_ended', {
+                ...baseMetadata,
                 status: 'ok',
                 duration_ms: Math.round(performance.now() - transcribeStartedAt),
-                transcript_words: text ? text.split(/\s+/).length : 0
+                transcript_words: text ? text.split(/\s+/).length : 0,
+                audio_bytes: audioBytes,
+                transcribe_result: text ? 'transcript' : 'empty_transcript'
             });
-            this.recordEvent('listening_ended', { transcript_words: text ? text.split(/\s+/).length : 0 });
+            this.recordEvent('listening_ended', {
+                ...baseMetadata,
+                transcript_words: text ? text.split(/\s+/).length : 0,
+                audio_bytes: audioBytes,
+                transcribe_result: text ? 'transcript' : 'empty_transcript'
+            });
             if (text && this.turnManager.getState() === TurnState.USER_SPEAKING) {
                 this.turnManager.endUserTurn();
                 this._emit('complete', { transcript: text });
             } else {
                 this.turnManager.reset();
-                this._emit('empty', {});
+                this._emit('empty', { reason: 'empty_transcript', finalization });
             }
         } catch (err) {
             this.recordEvent('transcribe_error', {
+                ...baseMetadata,
                 status: 'failed',
                 duration_ms: Math.round(performance.now() - transcribeStartedAt),
-                error_message: err?.message || 'Transcription failed'
+                error_message: err?.message || 'Transcription failed',
+                transcribe_result: 'failed'
             });
             this.turnManager.reset();
-            this._emit('empty', {});
+            this._emit('empty', { reason: err?.message || 'transcribe_failed', finalization });
         } finally {
             this._transcribing = false;
-        }
-    }
-
-    _resetSilenceTimer(delay) {
-        this._clearSilenceTimer();
-        this.silenceTimeout = setTimeout(() => {
-            this.recordEvent('silence_timeout', { duration_ms: delay });
-            this._emit('silence', { duration: delay });
-            clearTimeout(this._commitTimer);
-            this._commitTimer = null;
-            this._audioChunks = [];
-            this.turnManager.reset();
-            this._emit('empty', {});
-        }, delay);
-    }
-
-    _clearSilenceTimer() {
-        if (this.silenceTimeout) {
-            clearTimeout(this.silenceTimeout);
-            this.silenceTimeout = null;
+            this._finalizer.reset();
         }
     }
 
@@ -358,33 +394,33 @@ class SpeechManager {
         }
 
         this._audioChunks = [];
-        clearTimeout(this._commitTimer);
-        this._commitTimer = null;
         this._transcribing = false;
         this._speechDetectedCount = 0;
         this._vadFireTime = null;
 
-        this._vad.start();
         if (!this.turnManager.startUserTurn()) return false;
+        this._vad.start();
 
         this.recordEvent('listening_started');
-        this._resetSilenceTimer(SILENCE_DELAY_MS);
+        this._finalizer.start();
         this._emit('listening', {});
         return true;
     }
 
     stopListening() {
-        this._clearSilenceTimer();
-        clearTimeout(this._commitTimer);
-        this._commitTimer = null;
-        if (this._vadReady && this._vad) this._vad.pause();
         if (this._audioChunks.length > 0 && !this._transcribing) {
-            this._transcribeAndFinish();
+            this._finalizer.commit('manual_done');
         } else {
-            this._audioChunks = [];
-            this.turnManager.reset();
-            this._emit('empty', {});
+            this._finalizer.abort('user_cancel');
         }
+    }
+
+    finishSpeaking() {
+        this.stopListening();
+    }
+
+    extendThinking() {
+        return this._finalizer.extendThinking();
     }
 
     speak(text) {
@@ -444,9 +480,7 @@ class SpeechManager {
     }
 
     pauseListening() {
-        this._clearSilenceTimer();
-        clearTimeout(this._commitTimer);
-        this._commitTimer = null;
+        this._finalizer.abort('user_cancel');
         this._audioChunks = [];
         if (this._vadReady && this._vad) {
             this._vad.pause();
@@ -464,9 +498,7 @@ class SpeechManager {
     }
 
     destroy() {
-        this._clearSilenceTimer();
-        clearTimeout(this._commitTimer);
-        this._commitTimer = null;
+        this._finalizer.abort('destroy');
         if (this._vad) {
             try { this._vad.pause(); } catch (_) {}
             try { this._vad.destroy(); } catch (_) {}

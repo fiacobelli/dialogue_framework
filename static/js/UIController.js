@@ -23,6 +23,7 @@ class UIController {
             messageBubble: document.getElementById('messageBubble'),
             micBtn: document.getElementById('micBtn'),
             micHint: document.getElementById('micHint'),
+            speechActionRow: document.getElementById('speechActionRow'),
             input: document.getElementById('input'),
             status: document.getElementById('status'),
             photoSection: document.getElementById('photoSection'),
@@ -168,14 +169,37 @@ class UIController {
         this.elements.micHint.textContent = 'Speak when ready';
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
+        this.hideSpeechActions();
     }
 
     showListening() {
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled', 'paused');
-        this.elements.micHint.textContent = 'Listening...';
+        this.elements.micHint.textContent = 'Listening. Take your time.';
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
+        this.showSpeechActions({ done: false, stillThinking: false, retry: true });
+    }
+
+    showListeningIdle() {
+        this.elements.micBtn.classList.add('listening');
+        this.elements.micBtn.classList.remove('disabled', 'paused');
+        this.elements.micHint.textContent = 'Still listening. Take your time, or type your answer below.';
+        this.elements.waveform?.classList.add('hidden');
+        this.showSpeechActions({ done: false, stillThinking: false, retry: true });
+    }
+
+    showPostSpeechPause() {
+        this.elements.micBtn.classList.add('listening');
+        this.elements.micBtn.classList.remove('disabled', 'paused');
+        this.elements.micHint.textContent = 'I heard you. Keep going if you need a moment, or tap Done speaking.';
+        this.elements.waveform?.classList.add('hidden');
+        this.showSpeechActions({ done: true, stillThinking: true, retry: true });
+    }
+
+    showThinkingExtended() {
+        this.elements.micHint.textContent = 'No rush. I will keep listening for a little longer.';
+        this.showSpeechActions({ done: true, stillThinking: false, retry: true });
     }
 
     showProcessing() {
@@ -186,6 +210,7 @@ class UIController {
         this.elements.waveform?.classList.add('hidden');
         this.elements.messageBubble?.classList.add('pulsing');
         this.setStatus('');
+        this.hideSpeechActions();
     }
 
     showTranscribing() {
@@ -196,6 +221,7 @@ class UIController {
         this.elements.waveform?.classList.add('hidden');
         this.elements.messageBubble?.classList.add('pulsing');
         this.setStatus('Processing what you said...');
+        this.hideSpeechActions();
     }
 
     showSpeaking() {
@@ -203,6 +229,7 @@ class UIController {
         this.elements.micHint.textContent = 'Tap to pause';
         this.elements.avatarFrame?.classList.add('speaking');
         this.elements.waveform?.classList.remove('hidden');
+        this.hideSpeechActions();
     }
 
     showPaused() {
@@ -210,11 +237,32 @@ class UIController {
         this.elements.micBtn.classList.remove('listening', 'disabled');
         this.elements.micHint.textContent = 'Tap mic to resume';
         this.elements.waveform?.classList.add('hidden');
+        this.hideSpeechActions();
     }
 
     showResumed() {
         this.elements.micBtn.classList.remove('paused');
         this.elements.micHint.textContent = 'Speak when ready';
+    }
+
+    showSpeechActions(options = {}) {
+        const row = this.elements.speechActionRow;
+        if (!row) return;
+        const buttons = {
+            doneSpeakingBtn: Boolean(options.done),
+            stillThinkingBtn: Boolean(options.stillThinking),
+            retrySpeechBtn: Boolean(options.retry),
+        };
+        Object.entries(buttons).forEach(([id, visible]) => {
+            const button = document.getElementById(id);
+            if (button) button.style.display = visible ? 'inline-flex' : 'none';
+        });
+        row.style.display = Object.values(buttons).some(Boolean) ? 'flex' : 'none';
+    }
+
+    hideSpeechActions() {
+        const row = this.elements.speechActionRow;
+        if (row) row.style.display = 'none';
     }
 
     showTranscript(text, isInterim = false) {

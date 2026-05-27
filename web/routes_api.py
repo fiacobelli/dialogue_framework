@@ -276,6 +276,8 @@ def chat():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
     dialogue_mgr = s['dialogue_mgr']
     nlu = s['nlu']
     nlg = s['nlg']
@@ -369,6 +371,8 @@ def client_events():
 
     s = get_session(session_id)
     info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
     visit_id = info_state.user.query('visit_id')
     db.save_turn_events(visit_id, None, data.get('turn_number'), events)
     db.update_visit_from_info_state(visit_id, info_state)
