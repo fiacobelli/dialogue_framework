@@ -233,52 +233,43 @@
             font-size: 19px;
         }
 
-        .photo-story {
+        .photo-inset {
+            position: relative;
             margin: 54px 0;
-        }
-
-        .photo-story h2 {
-            margin: 0 0 20px;
-            color: var(--sage-dark);
-            font-size: 44px;
-            line-height: 1.05;
-        }
-
-        .photo-story-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 18px;
-        }
-
-        .timeline-photo {
-            margin: 0;
-            border: 1px solid var(--line);
-            border-radius: 28px;
+            border-radius: 34px;
             overflow: hidden;
-            background: rgba(255, 255, 255, 0.72);
-            box-shadow: 0 14px 34px rgba(55, 40, 25, 0.11);
+            box-shadow: var(--shadow);
         }
 
-        .timeline-photo img {
+        .photo-inset img {
             width: 100%;
-            aspect-ratio: 4 / 5;
+            aspect-ratio: 16 / 7;
             object-fit: cover;
             display: block;
         }
 
-        .timeline-photo figcaption {
-            padding: 18px;
-            color: #3f4b43;
-            font-size: 16px;
+        .photo-inset figcaption {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 32px 34px 28px;
+            background: linear-gradient(transparent, rgba(31, 42, 36, 0.72));
+            color: white;
         }
 
-        .timeline-photo strong {
+        .photo-inset figcaption strong {
             display: block;
             margin-bottom: 6px;
-            color: var(--sage-dark);
-            font: 800 13px/1.2 Verdana, sans-serif;
-            letter-spacing: 0.1em;
+            font: 800 12px/1.2 Verdana, sans-serif;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
+            opacity: 0.85;
+        }
+
+        .photo-inset figcaption p {
+            margin: 0;
+            font: 700 16px/1.45 Verdana, sans-serif;
         }
 
         .help-panel {
@@ -368,10 +359,9 @@
             .section-label { position: static; }
             .story-card { padding: 24px; }
             .story-card h2 { font-size: 28px; }
-            .photo-story h2 { font-size: 32px; }
             .help-panel { padding: 28px; }
             .help-panel h2 { font-size: 34px; }
-            .photo-story-grid { grid-template-columns: 1fr; }
+            .photo-inset img { aspect-ratio: 4 / 3; }
         }
 
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
@@ -414,6 +404,22 @@
                     <h2>My kidney journey</h2>
                     <p>{{ content.kidney_journey }}</p>
                 </article>
+            </div>
+        </section>
+
+        {% if photo_items|length > 1 %}
+        <figure class="photo-inset">
+            <img src="{{ photo_items[1].url }}" alt="{{ photo_items[1].role_label }} photo of {{ name }}">
+            <figcaption>
+                <strong>{{ photo_items[1].role_label }}</strong>
+                <p>{{ photo_items[1].caption }}</p>
+            </figcaption>
+        </figure>
+        {% endif %}
+
+        <section class="story-grid" aria-label="{{ name }}'s life today">
+            <aside class="section-label">Life today &amp; the road ahead</aside>
+            <div>
                 <article class="story-card">
                     <h2>What daily life is like</h2>
                     <p>{{ content.daily_impact }}</p>
@@ -429,21 +435,14 @@
             </div>
         </section>
 
-        {% if photo_items and photo_items|length > 1 %}
-        <section class="photo-story" aria-label="Story photos chosen by {{ name }}">
-            <h2>Photos {{ name }} chose for this story</h2>
-            <div class="photo-story-grid">
-                {% for photo in photo_items[:3] %}
-                <figure class="timeline-photo">
-                    <img src="{{ photo.url }}" alt="{{ photo.role_label }} photo of {{ name }}">
-                    <figcaption>
-                        <strong>{{ photo.role_label }}</strong>
-                        {{ photo.caption }}
-                    </figcaption>
-                </figure>
-                {% endfor %}
-            </div>
-        </section>
+        {% if photo_items|length > 2 %}
+        <figure class="photo-inset">
+            <img src="{{ photo_items[2].url }}" alt="{{ photo_items[2].role_label }} photo of {{ name }}">
+            <figcaption>
+                <strong>{{ photo_items[2].role_label }}</strong>
+                <p>{{ photo_items[2].caption }}</p>
+            </figcaption>
+        </figure>
         {% endif %}
 
         <section class="help-panel" id="share">
