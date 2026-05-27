@@ -5,6 +5,7 @@ import json
 import hashlib
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
+from .interview_flow_config import GENERATION_REQUIRED_EVIDENCE_GROUPS
 from . import database as db
 from .content_moderation import validate_public_content
 from .patient_auth import patient_token
@@ -26,12 +27,7 @@ LEGACY_FIELD_MAP = {
     'my_struggle': 'daily_impact',
     'my_hope': 'transplant_hope',
 }
-REQUIRED_EVIDENCE_GROUPS = {
-    'identity': ('personal_background',),
-    'kidney_experience': ('medical_history', 'daily_life'),
-    'hope': ('transplant_hope',),
-    'donor_message': ('donor_message',),
-}
+REQUIRED_EVIDENCE_GROUPS = GENERATION_REQUIRED_EVIDENCE_GROUPS
 
 
 class MicrositeGenerationError(ValueError):
@@ -266,9 +262,9 @@ def _legacy_fields(content: dict) -> dict:
 
 
 PHOTO_ROLE_LABELS = {
-    'before': ('Before', 'The life, people, and identity that matter beyond kidney disease.'),
-    'during': ('During treatment', 'The kidney journey and the daily impact of treatment.'),
-    'hope': ('Hope after transplant', 'The hope of returning to more of what matters.'),
+    'before': ('Who I am', 'The life, people, and identity that matter beyond kidney disease.'),
+    'during': ('My kidney journey', 'The kidney journey and the daily impact of treatment.'),
+    'hope': ('My hope after transplant', 'The hope of returning to more of what matters.'),
     'general': ('Story photo', 'A photo chosen to help tell this story.'),
 }
 

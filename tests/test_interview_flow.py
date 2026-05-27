@@ -40,6 +40,14 @@ from web.structured_logging import log_event
 
 
 class InterviewFlowTests(unittest.TestCase):
+    def _generation_ready_evidence(self):
+        return {
+            'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
+            'daily_life': [{'answer': 'Dialysis makes me tired and limits my schedule.', 'accepted': True}],
+            'transplant_hope': [{'answer': 'A transplant would help me have more energy.', 'accepted': True}],
+            'donor_message': [{'answer': 'I want donors to know their help would matter.', 'accepted': True}],
+        }
+
     def test_incomplete_name_is_not_captured(self):
         result = extract_patient_name('hi my name is')
         self.assertIsNone(result['name'])
@@ -218,11 +226,39 @@ class InterviewFlowTests(unittest.TestCase):
         task = decide_next_task(state, 'I try to be present for my kids and support them every day')
 
         self.assertEqual(task['type'], 'ack_then_next')
-        self.assertEqual(task['step']['id'], 'medical_history')
+
+    def test_missing_required_identity_recovery_happens_before_photos(self):
+        state = build_interview_state()
+        decide_next_task(state, 'John')
+        decide_next_task(state, 'yes')
+
+        decide_next_task(state, "I'm a student and doing my PhD right now.")
+        decide_next_task(state, "Yeah, I'm a student.")
+        decide_next_task(state, "It's good. It's quite good.")
+        decide_next_task(state, 'around a year ago.')
+        decide_next_task(state, 'Physically not being able to perform as a healthy person')
+        decide_next_task(state, 'Yeah, I cannot work as normal as I had to.')
+        decide_next_task(state, 'Yeah, it is.')
+        decide_next_task(state, 'Yeah, it will help me to return back to my normal life.')
+        decide_next_task(
+            state,
+            'I would appreciate them if they could help me with this process and returning someone back to normal life.',
+        )
+        decide_next_task(state, 'I hope someone do that.')
+        decide_next_task(state, 'No one is supporting me, just I am by myself.')
+        decide_next_task(state, "Yeah, it's quite hard.")
+        task = decide_next_task(state, 'That was all.')
+
+        self.assertEqual(task['type'], 'recover_generation_evidence')
+        self.assertEqual(task['step']['id'], 'personal_background')
+        self.assertFalse(state['complete'])
         self.assertEqual(state['awaiting'], 'main_answer')
-        evidence = state['story_evidence']['personal_background']
-        self.assertEqual(evidence[-1]['answer_kind'], 'followup_answer')
-        self.assertEqual(evidence[-1]['followup_kind'], 'deepening')
+
+        close_task = decide_next_task(state, 'I am a PhD student and my family, school, and community matter to me.')
+
+        self.assertEqual(close_task['type'], 'close_to_photos')
+        self.assertTrue(state['complete'])
+        self.assertEqual(state['phase'], 'PHOTOS')
 
     def test_transition_after_followup_uses_llm_not_canned_depth_phrase(self):
         state = build_interview_state()
@@ -282,6 +318,7 @@ class InterviewFlowTests(unittest.TestCase):
             'awaiting': 'main_answer',
             'patient_name': 'Sophia',
             'patient_name_status': 'confirmed',
+            'story_evidence': self._generation_ready_evidence(),
         })
 
         task = decide_next_task(state, 'No, nothing really.')
@@ -297,6 +334,7 @@ class InterviewFlowTests(unittest.TestCase):
             'awaiting': 'main_answer',
             'patient_name': 'Sophia',
             'patient_name_status': 'confirmed',
+            'story_evidence': self._generation_ready_evidence(),
         })
 
         task = decide_next_task(state, 'No, thank you.')
@@ -326,6 +364,7 @@ class InterviewFlowTests(unittest.TestCase):
             'awaiting': 'main_answer',
             'patient_name': 'Sophia',
             'patient_name_status': 'confirmed',
+            'story_evidence': self._generation_ready_evidence(),
         })
 
         task = decide_next_task(state, 'skip this question')
@@ -466,6 +505,14 @@ class FakeDeepeningPlannerLLM:
 
 
 class InterviewGoalTests(unittest.TestCase):
+    def _generation_ready_evidence(self):
+        return {
+            'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
+            'daily_life': [{'answer': 'Dialysis makes me tired and limits my schedule.', 'accepted': True}],
+            'transplant_hope': [{'answer': 'A transplant would help me have more energy.', 'accepted': True}],
+            'donor_message': [{'answer': 'I want donors to know their help would matter.', 'accepted': True}],
+        }
+
     def test_active_story_question_is_deterministic_and_does_not_call_llm(self):
         with tempfile.TemporaryDirectory() as tmp:
             user_file = os.path.join(tmp, 'user.pkl')
@@ -524,7 +571,7 @@ class InterviewGoalTests(unittest.TestCase):
                 'last_task': 'ask_final',
                 'last_step_id': 'final_details',
                 'complete': False,
-                'story_evidence': {},
+                'story_evidence': self._generation_ready_evidence(),
                 'thin_evidence': {},
                 'patient_name': 'Sophia',
                 'patient_name_status': 'confirmed',

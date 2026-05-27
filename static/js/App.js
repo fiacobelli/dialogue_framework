@@ -126,31 +126,16 @@ class App {
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
             slot.addEventListener('click', (e) => {
-                if (e.target.closest('.photo-role-controls')) return;
                 this.pendingPhotoReplaceFilename = slot.dataset.filename || '';
                 photoInput?.click();
             });
             slot.addEventListener('keydown', (e) => {
                 if (!['Enter', ' '].includes(e.key)) return;
-                if (e.target.closest('.photo-role-controls')) return;
                 e.preventDefault();
                 this.pendingPhotoReplaceFilename = slot.dataset.filename || '';
                 photoInput?.click();
             });
         });
-        const photoSection = document.getElementById('photoSection');
-        if (photoSection) {
-            photoSection.addEventListener('change', (e) => {
-                if (e.target?.classList.contains('photo-role-select')) this.savePhotoMetadata();
-            });
-            photoSection.addEventListener('click', (e) => {
-                const btn = e.target?.closest?.('.photo-move-btn');
-                if (btn) {
-                    e.preventDefault();
-                    this.movePhoto(btn.dataset.filename, btn.dataset.direction);
-                }
-            });
-        }
 
         const generateBtn = document.getElementById('generateBtn');
         if (generateBtn) generateBtn.addEventListener('click', () => this.generate());
@@ -556,8 +541,8 @@ class App {
                 if (status.ready) {
                     this.stopPhotoPolling();
                     ui.showGenerateSection();
-                    ui.setPhotoStatus('All photos are received. Review the meaning and order before generating the donor page.', 'success');
-                    ui.setStatus('Review the photo order and meaning, then generate your donor page.');
+                    ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
+                    ui.setStatus('Review the photo slots, then draft your donor page.');
                 } else if ((status.photo_count || 0) > this.lastPhotoCount) {
                     ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. You can add more or continue with fewer.`, 'success');
                 } else if ((status.photo_count || 0) === 0) {
@@ -612,10 +597,10 @@ class App {
             if (latest?.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
-                ui.setPhotoStatus('All photos are received. Review the meaning and order before generating the donor page.', 'success');
-                ui.setStatus('Review the photo order and meaning, then generate your donor page.');
+                ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
+                ui.setStatus('Review the photo slots, then draft your donor page.');
             } else if (latest?.replaced) {
-                ui.setPhotoStatus('Photo replaced. Review the photo meaning and order before generating the donor page.', 'success');
+                ui.setPhotoStatus('Photo replaced. Review the photo slots before drafting the donor page.', 'success');
             } else if (latest?.photo_count) {
                 ui.setPhotoStatus(`${latest.photo_count} photo${latest.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'success');
             }
@@ -629,10 +614,10 @@ class App {
     }
 
     collectPhotoMetadata() {
-        return Array.from(document.querySelectorAll('.photo-section .photo-role-select'))
-            .map((select, index) => ({
-                stored_filename: select.dataset.filename,
-                photo_role: select.value,
+        return Array.from(document.querySelectorAll('.photo-section .photo-slot.filled'))
+            .map((slot, index) => ({
+                stored_filename: slot.dataset.filename,
+                photo_role: slot.dataset.role || ['before', 'during', 'hope'][index] || 'general',
                 display_order: index
             }))
             .filter(item => item.stored_filename);
@@ -648,29 +633,6 @@ class App {
             return data;
         } catch (err) {
             ui.setStatus(`Could not save photo details: ${err.message}`);
-            console.error(err);
-            return null;
-        }
-    }
-
-    async movePhoto(filename, direction) {
-        const photos = this.collectPhotoMetadata();
-        const index = photos.findIndex(item => item.stored_filename === filename);
-        if (index < 0) return;
-        const target = direction === 'up' ? index - 1 : index + 1;
-        if (target < 0 || target >= photos.length) return;
-        [photos[index], photos[target]] = [photos[target], photos[index]];
-        await this.savePhotoMetadataFromItems(photos);
-    }
-
-    async savePhotoMetadataFromItems(photos) {
-        try {
-            const data = await conversationAPI.updatePhotoMetadata(photos);
-            const photoItems = data.photo_items || [];
-            photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
-            return data;
-        } catch (err) {
-            ui.setStatus(`Could not reorder photos: ${err.message}`);
             console.error(err);
             return null;
         }
@@ -718,7 +680,10 @@ class App {
     }
 
     async generate(allowPartialPhotos = false) {
+        if (this.generationInProgress) return;
+        this.generationInProgress = true;
         const name = document.getElementById('patientName').value || 'Patient';
+        ui.showGenerating();
         ui.setStatus(allowPartialPhotos
             ? 'Generating your donor page with the photos uploaded so far...'
             : 'Generating your donor page...');
@@ -729,8 +694,13 @@ class App {
             ui.showDraftReview(data);
             ui.setStatus('Review your draft, then publish when it looks right.');
         } catch (err) {
-            ui.setStatus(this._generationErrorMessage(err));
+            const message = this._generationErrorMessage(err);
+            ui.showGenerateSection();
+            ui.setStatus(message);
+            ui.setPhotoStatus(message, 'error');
             console.error(err);
+        } finally {
+            this.generationInProgress = false;
         }
     }
 
@@ -766,7 +736,7 @@ class App {
         if (detail.error === 'generation_not_ready' && Array.isArray(detail.missing_story_sections)) {
             const sections = detail.missing_story_sections.join(', ');
             return sections
-                ? `The story needs more detail before drafting: ${sections}.`
+                ? `I need one more detail before I can draft the page. Missing section: ${sections}.`
                 : detail.message || 'The donor page is not ready to generate yet.';
         }
         if (detail.error === 'invalid_draft_json' || detail.error === 'draft_content_incomplete') {

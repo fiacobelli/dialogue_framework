@@ -52,6 +52,13 @@ INTERVIEW_STEPS: list[dict[str, str]] = [
     },
 ]
 
+GENERATION_REQUIRED_EVIDENCE_GROUPS = {
+    'identity': ('personal_background',),
+    'kidney_experience': ('medical_history', 'daily_life'),
+    'hope': ('transplant_hope',),
+    'donor_message': ('donor_message',),
+}
+
 PROGRESS_LABELS = {
     'INTRO': 'Getting started',
     'WELCOME': 'Getting started',

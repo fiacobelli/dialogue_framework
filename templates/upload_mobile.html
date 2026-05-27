@@ -20,11 +20,15 @@
         .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; width: 100%; }
         .photo-slot {
             aspect-ratio: 1; border: 2px dashed #ccc; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2em; color: #ccc; cursor: pointer; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            font-size: 1em; color: #777; cursor: pointer; overflow: hidden;
+            padding: 8px; text-align: center; box-sizing: border-box;
         }
         .photo-slot.filled { border-style: solid; border-color: #4CAF50; }
         .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-slot .plus { color: #E86F2C; font-size: 1.6em; font-weight: 800; line-height: 1; }
+        .photo-slot strong { color: #222; font-size: 0.78em; line-height: 1.15; margin-top: 4px; }
+        .photo-slot small { color: #777; font-size: 0.68em; line-height: 1.2; margin-top: 4px; }
         .status { text-align: center; margin: 15px 0; font-weight: bold; }
         .status.success { color: #4CAF50; }
         .status.error { color: #f44336; }
@@ -42,20 +46,32 @@
         <div class="card">
             <h2>Upload Your Photos</h2>
             <p class="upload-prompt">
-                Upload three pictures that represent what a new kidney could do for you.
-                These could be photos of family, hobbies, or dreams you want to pursue.
+                Choose photos for each part of the donor page story.
+                You can select multiple photos from your library or tap a slot to replace it.
             </p>
 
             <div class="photo-grid">
-                <div class="photo-slot" id="photo0">+</div>
-                <div class="photo-slot" id="photo1">+</div>
-                <div class="photo-slot" id="photo2">+</div>
+                <div class="photo-slot" id="photo0">
+                    <span class="plus">+</span>
+                    <strong>Who I am</strong>
+                    <small>Life, family, work, school, or community.</small>
+                </div>
+                <div class="photo-slot" id="photo1">
+                    <span class="plus">+</span>
+                    <strong>My kidney journey</strong>
+                    <small>Treatment or daily life with kidney disease.</small>
+                </div>
+                <div class="photo-slot" id="photo2">
+                    <span class="plus">+</span>
+                    <strong>My hope after transplant</strong>
+                    <small>What you hope to return to or do again.</small>
+                </div>
             </div>
 
             <input type="file" id="libraryInput" accept="image/*" multiple>
             <input type="file" id="cameraInput" accept="image/*" capture="environment">
             <button class="submit-btn" type="button" onclick="selectPhoto('library')">
-                Choose from Photo Library
+                Choose Photos From Library
             </button>
             <button class="submit-btn" type="button" onclick="selectPhoto('camera')">
                 Take a New Photo
@@ -64,7 +80,7 @@
             <div class="status" id="status"></div>
 
             <button class="submit-btn" id="submitBtn" disabled>
-                Upload Complete - Close This Page
+                Done - Return to Main Page
             </button>
         </div>
     </div>
@@ -107,7 +123,7 @@
                 const slot = document.getElementById(`photo${slotIndex}`);
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    slot.innerHTML = `<img src="${e.target.result}">`;
+                    slot.innerHTML = `<img src="${e.target.result}" alt="Uploaded photo">`;
                     slot.classList.add('filled');
                 };
                 reader.readAsDataURL(file);

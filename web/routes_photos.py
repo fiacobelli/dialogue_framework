@@ -21,10 +21,10 @@ MAX_IMAGE_EDGE = 1600
 JPEG_QUALITY = 88
 ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP'}
 PHOTO_ROLE_LABELS = {
-    'before': 'Before',
-    'during': 'During treatment',
-    'hope': 'Hope after transplant',
-    'general': 'General',
+    'before': 'Who I am',
+    'during': 'My kidney journey',
+    'hope': 'My hope after transplant',
+    'general': 'Story photo',
 }
 
 

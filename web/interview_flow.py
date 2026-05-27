@@ -22,6 +22,7 @@ from .interview_answer_analysis import (
 from .interview_flow_config import (
     FINAL_PHOTOS_PROMPT,
     FOLLOWUP_QUESTIONS,
+    GENERATION_REQUIRED_EVIDENCE_GROUPS,
     INTERVIEW_STEPS,
     PROGRESS_LABELS,
     SECTION_TRANSITIONS,
@@ -129,6 +130,58 @@ def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     return current_step(state)
 
 
+def _clean_text(value: Any) -> str:
+    return str(value or '').strip()
+
+
+def _step_index_for_id(step_id: str) -> int | None:
+    for index, step in enumerate(INTERVIEW_STEPS):
+        if step.get('id') == step_id:
+            return index
+    return None
+
+
+def _generation_evidence_ready(state: dict[str, Any]) -> dict[str, Any]:
+    evidence = state.get('story_evidence') or {}
+    if not isinstance(evidence, dict):
+        evidence = {}
+    skipped = state.get('skipped_steps') or {}
+    if not isinstance(skipped, dict):
+        skipped = {}
+
+    missing = []
+    for label, step_ids in GENERATION_REQUIRED_EVIDENCE_GROUPS.items():
+        has_accepted = False
+        for step_id in step_ids:
+            entries = evidence.get(step_id) or []
+            if isinstance(entries, dict):
+                entries = [entries]
+            if any(
+                isinstance(entry, dict)
+                and entry.get('accepted')
+                and _clean_text(entry.get('answer'))
+                for entry in entries
+            ):
+                has_accepted = True
+                break
+        has_skip = any(step_id in skipped for step_id in step_ids)
+        if not has_accepted and not has_skip:
+            missing.append(label)
+    return {'ready': not missing, 'missing': missing}
+
+
+def _missing_recovery_step(state: dict[str, Any]) -> tuple[str | None, dict[str, str] | None]:
+    readiness = _generation_evidence_ready(state)
+    if readiness['ready']:
+        return None, None
+    for label in readiness['missing']:
+        for step_id in GENERATION_REQUIRED_EVIDENCE_GROUPS.get(label, ()):
+            index = _step_index_for_id(step_id)
+            if index is not None:
+                return label, INTERVIEW_STEPS[index]
+    return None, None
+
+
 def _record_story_evidence(
     state: dict[str, Any],
     step: dict[str, str] | None,
@@ -170,15 +223,50 @@ def _record_skipped_step(state: dict[str, Any], step: dict[str, str] | None, use
 def _advance_or_close(state: dict[str, Any], decision: dict[str, Any], *, default_task_type: str = 'ack_then_next',
                       close_task_type: str = 'close_to_photos', answered_followup_kind: str | None = None,
                       **extra: Any) -> dict[str, Any]:
+    if state.get('recovery_to_photos'):
+        return _recover_or_close_to_photos(state, decision, close_task_type=close_task_type, **extra)
+
     next_step = _advance_step(state)
     if next_step:
         state['awaiting'] = 'main_answer'
         state['phase'] = next_step['phase']
         task_type = 'ask_final' if default_task_type == 'ack_then_next' and next_step['id'] == 'final_details' else default_task_type
         return _task(task_type, state, phase=next_step['phase'], step=next_step, decision=decision, answered_followup_kind=answered_followup_kind, **extra)
+    return _recover_or_close_to_photos(state, decision, close_task_type=close_task_type, **extra)
+
+
+def _recover_or_close_to_photos(
+    state: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    close_task_type: str = 'close_to_photos',
+    **extra: Any,
+) -> dict[str, Any]:
+    missing_label, recovery_step = _missing_recovery_step(state)
+    if recovery_step:
+        index = _step_index_for_id(recovery_step['id'])
+        if index is not None:
+            state['step_index'] = index
+        state['awaiting'] = 'main_answer'
+        state['phase'] = recovery_step['phase']
+        state['complete'] = False
+        state['followup_count'] = 0
+        state['repair_count'] = 0
+        state['last_followup_kind'] = None
+        state['recovery_to_photos'] = True
+        return _task(
+            'recover_generation_evidence',
+            state,
+            phase=recovery_step['phase'],
+            step=recovery_step,
+            decision=decision,
+            missing_story_section=missing_label,
+            **extra,
+        )
     state['awaiting'] = 'photos'
     state['phase'] = 'PHOTOS'
     state['complete'] = True
+    state.pop('recovery_to_photos', None)
     return _task(close_task_type, state, phase='PHOTOS', step=None, decision=decision, **extra)
 
 
@@ -338,6 +426,16 @@ def decide_next_task(
     return _task('repair_name', state, phase='INTRO', step=None, decision={'reason': 'unknown_state'})
 
 
+def _recovery_question_text(task: dict[str, Any]) -> str | None:
+    step = task.get('step') or {}
+    if step.get('id') == 'personal_background':
+        return (
+            "Can you share something about yourself outside of kidney disease, such as family, work, school, "
+            "community, or something you enjoy?"
+        )
+    return step.get('question')
+
+
 def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str | None:
     task_type = task.get('type')
     name = state.get('patient_name') or ''
@@ -370,6 +468,14 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
         )
     if task_type == 'ask_main' and question:
         return f"{SECTION_TRANSITIONS.get(step_id, 'Let us continue with your story')} {question}"
+    if task_type == 'recover_generation_evidence':
+        recovery_question = _recovery_question_text(task)
+        if not recovery_question:
+            return None
+        return (
+            "Before we move to photos, I need one more detail so the donor page can reflect your story. "
+            f"{recovery_question}"
+        )
     if task_type == 'ask_followup' and step_id:
         followup = (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
         return followup
@@ -399,6 +505,8 @@ def expected_question_text(task: dict[str, Any]) -> str | None:
     """Return the exact question the backend expects this task to deliver."""
     task_type = task.get('type')
     step = task.get('step') or {}
+    if task_type == 'recover_generation_evidence':
+        return _recovery_question_text(task)
     if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
         return step.get('question')
     if task_type == 'ask_followup':
@@ -418,7 +526,7 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
         return 'name'
     if task_type in {'ask_readiness', 'answer_readiness_question'}:
         return 'readiness'
-    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
+    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next', 'recover_generation_evidence'}:
         return state.get('awaiting') or 'main_answer'
     if task_type in {'ask_followup', 'ask_deepening', 'ask_emotional_support'}:
         return 'followup_answer'
@@ -456,6 +564,15 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
             f'- Ask this donor-story question in natural conversational wording: "{question}"\n'
             f'- Listen for: {focus}.\n'
             '- Ask only one question.'
+        )
+    if task_type == 'recover_generation_evidence':
+        return (
+            'RUNTIME TURN DIRECTIVE:\n'
+            '- The interview is almost complete, but the donor-page draft needs one missing story detail before photos.\n'
+            '- Briefly explain that one more detail is needed before moving to photos.\n'
+            f'- Ask this recovery question in natural conversational wording: "{question}"\n'
+            f'- Listen for: {focus}.\n'
+            '- Ask only one question. Do not move to photos yet.'
         )
     if task_type == 'ask_followup':
         return (

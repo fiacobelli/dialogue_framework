@@ -344,30 +344,34 @@ class UIController {
         const filename = escapeHtml(item.stored_filename || '');
         const url = escapeHtml(item.url || '');
         const role = escapeHtml(item.photo_role || 'general');
-        const roles = [
-            ['before', 'Before'],
-            ['during', 'During treatment'],
-            ['hope', 'Hope after transplant'],
-            ['general', 'General']
-        ];
+        const guidance = {
+            before: {
+                label: 'Who I am',
+                description: 'Your life, personality, family, work, school, community, or something meaningful.'
+            },
+            during: {
+                label: 'My kidney journey',
+                description: 'Treatment, dialysis, appointments, or daily life with kidney disease.'
+            },
+            hope: {
+                label: 'My hope after transplant',
+                description: 'What you hope to return to, do again, or experience with a transplant.'
+            },
+            general: {
+                label: 'Story photo',
+                description: 'A photo chosen to help tell this story.'
+            }
+        };
+        const details = guidance[item.photo_role || 'general'] || guidance.general;
         slot.classList.add('filled');
         slot.dataset.filename = item.stored_filename || '';
-        slot.title = 'Photo uploaded. Click controls below to adjust meaning or order.';
+        slot.dataset.role = item.photo_role || 'general';
+        slot.title = 'Photo uploaded. Click to replace this photo.';
         slot.innerHTML = `
             <img src="${url}" alt="Uploaded photo">
-            <div class="photo-role-controls">
-                <label>
-                    Photo meaning
-                    <select class="photo-role-select" data-filename="${filename}">
-                        ${roles.map(([value, label]) => `
-                            <option value="${value}" ${value === role ? 'selected' : ''}>${label}</option>
-                        `).join('')}
-                    </select>
-                </label>
-                <div class="photo-order-controls">
-                    <button type="button" class="photo-move-btn" data-direction="up" data-filename="${filename}" ${index === 0 ? 'disabled' : ''}>Move left</button>
-                    <button type="button" class="photo-move-btn" data-direction="down" data-filename="${filename}">Move right</button>
-                </div>
+            <div class="photo-slot-caption" data-filename="${filename}" data-role="${role}">
+                <strong>${escapeHtml(details.label)}</strong>
+                <small>${escapeHtml(details.description)}</small>
             </div>
         `;
     }
@@ -378,7 +382,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Generate My Donor Page';
+            btn.textContent = 'Review and Draft My Donor Page';
         }
     }
 
@@ -386,10 +390,11 @@ class UIController {
         const btn = document.getElementById('continueWithPhotosBtn');
         if (!btn) return;
         const hasPartialPhotos = count > 0 && count < max;
+        btn.style.display = hasPartialPhotos ? 'block' : 'none';
         btn.disabled = !hasPartialPhotos;
         btn.textContent = hasPartialPhotos
             ? `Continue with ${count} uploaded photo${count === 1 ? '' : 's'}`
-            : 'Continue with uploaded photos';
+            : 'Continue with these photos';
     }
 
     showGenerating() {
