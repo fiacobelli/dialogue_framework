@@ -297,6 +297,7 @@ class App {
         try {
             await this._recordClientEvents([{ type: 'mic_preflight_started', ts: Math.round(performance.now()) }]);
             const preflight = await speechManager.preflightMicrophone();
+            console.info('[microsite] mic preflight result', preflight.metadata);
             await this._recordClientEvents([{
                 type: 'mic_preflight_result',
                 ts: Math.round(performance.now()),
@@ -308,6 +309,11 @@ class App {
             }
 
             ui.showMicPreflight('ready', 'Microphone ready.', this._microphoneReadyDetail(preflight.metadata));
+            console.info('[microsite] initializing VAD', {
+                preflight_status: preflight.metadata?.status,
+                track_state: preflight.metadata?.active_track_state,
+                audioinput_count: preflight.metadata?.audioinput_count,
+            });
             await speechManager.initVAD(preflight.stream);
             this.conversationActive = true;
             this._paused = false;
@@ -315,7 +321,10 @@ class App {
             ui.setStatus('');
             await speechManager.speak(this._lastSpokenText);
         } catch (err) {
-            console.error('Failed to begin interview:', err);
+            console.error('Failed to begin interview:', err, {
+                userMessage: err?.userMessage,
+                userDetail: err?.userDetail,
+            });
             this._speechActivated = false;
             this.conversationActive = false;
             ui.showBeginOverlay();
@@ -369,7 +378,7 @@ class App {
                 name === 'NotAllowedError' ? 'Microphone permission is blocked.' : 'Microphone check failed.',
                 name === 'NotAllowedError'
                     ? 'Allow microphone access for this site in the browser settings, then try again.'
-                    : (metadata.error_message || 'Check the microphone connection and try again.')
+                    : `${metadata.error_message || 'Check the microphone connection and try again.'}${metadata.error_name ? ` (${metadata.error_name})` : ''}`
             ]
         };
         const [userMessage, userDetail] = messages[metadata.status] || messages.failed;

@@ -65,6 +65,10 @@ class SpeechManager {
         this._loadVoices();
     }
 
+    _log(step, details = {}) {
+        console.info('[SpeechManager]', step, details);
+    }
+
     _loadVoices() {
         if (!this.synthesis || typeof this.synthesis.getVoices !== 'function') {
             this.voices = [];
@@ -110,10 +114,19 @@ class SpeechManager {
             bluetooth_input_detected: false,
         };
 
+        this._log('preflight:start', {
+            secure_context: metadata.secure_context,
+            speech_recognition_supported: metadata.speech_recognition_supported,
+            media_devices_supported: metadata.media_devices_supported,
+            vad_available: metadata.vad_available,
+        });
+
         if (!isSecure) {
+            this._log('preflight:blocked', { reason: 'insecure_context' });
             return { ok: false, metadata: { ...metadata, status: 'insecure_context' } };
         }
         if (!navigator.mediaDevices?.getUserMedia) {
+            this._log('preflight:blocked', { reason: 'get_user_media_unsupported' });
             return { ok: false, metadata: { ...metadata, status: 'get_user_media_unsupported' } };
         }
 
@@ -122,12 +135,15 @@ class SpeechManager {
                 try {
                     const permission = await navigator.permissions.query({ name: 'microphone' });
                     metadata.permission_state = permission.state || 'unknown';
+                    this._log('preflight:permission-state', { state: metadata.permission_state });
                 } catch (_) {
                     metadata.permission_state = 'unsupported';
+                    this._log('preflight:permission-state', { state: 'unsupported' });
                 }
             }
 
             this._stopMicStream();
+            this._log('preflight:getUserMedia:start');
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     channelCount: 1,
@@ -137,11 +153,22 @@ class SpeechManager {
                 }
             });
             this._micStream = stream;
+            this._log('preflight:getUserMedia:success', {
+                track_count: stream.getAudioTracks().length,
+            });
 
             const tracks = stream.getAudioTracks();
             const activeTrack = tracks[0];
             metadata.active_track_label = activeTrack?.label || '';
             metadata.active_track_state = activeTrack?.readyState || '';
+            metadata.active_track_enabled = Boolean(activeTrack?.enabled);
+            metadata.active_track_muted = Boolean(activeTrack?.muted);
+            this._log('preflight:track', {
+                label: metadata.active_track_label,
+                state: metadata.active_track_state,
+                enabled: metadata.active_track_enabled,
+                muted: metadata.active_track_muted,
+            });
 
             let audioInputs = [];
             if (navigator.mediaDevices?.enumerateDevices) {
@@ -154,8 +181,18 @@ class SpeechManager {
             metadata.device_labels_available = labels.length > 0;
             metadata.device_labels = labelText.slice(0, 500);
             metadata.bluetooth_input_detected = /bluetooth|headset|hands-free|handsfree|airpods|galaxy buds|jabra|poly|plantronics|sony|bose/i.test(labelText);
+            this._log('preflight:devices', {
+                audioinput_count: metadata.audioinput_count,
+                labels_available: metadata.device_labels_available,
+                bluetooth_input_detected: metadata.bluetooth_input_detected,
+                labels: metadata.device_labels,
+            });
 
             const ok = tracks.some(track => track.readyState === 'live');
+            this._log('preflight:result', {
+                ok,
+                status: ok ? 'ready' : 'no_live_audio_track',
+            });
             return {
                 ok,
                 stream,
@@ -166,6 +203,10 @@ class SpeechManager {
                 }
             };
         } catch (err) {
+            this._log('preflight:error', {
+                error_name: err?.name || 'unknown',
+                error_message: err?.message || 'Microphone request failed',
+            });
             this._stopMicStream();
             return {
                 ok: false,
@@ -183,20 +224,24 @@ class SpeechManager {
         if (this._vadReady && this._vad) return;
         if (!window.vad || !window.vad.MicVAD) {
             console.warn('[SpeechManager] VAD library not loaded');
+            this._log('vad:init:blocked', { reason: 'library_not_loaded' });
             return;
         }
 
         const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
         if (!isSecure) {
             console.warn('[SpeechManager] VAD requires HTTPS');
+            this._log('vad:init:blocked', { reason: 'insecure_context' });
             return;
         }
         if (!navigator.mediaDevices?.getUserMedia) {
             console.warn('[SpeechManager] getUserMedia unavailable');
+            this._log('vad:init:blocked', { reason: 'get_user_media_unavailable' });
             return;
         }
 
         try {
+            this._log('vad:init:start', { has_preflight_stream: Boolean(preflightStream) });
             const vadAssetPath = typeof appUrl === 'function' ? appUrl('/static/js/vad/') : '/static/js/vad/';
             let restoreGetUserMedia = null;
             const options = {
@@ -232,9 +277,14 @@ class SpeechManager {
             }
             this._vadReady = true;
             this.recordEvent('vad_init', { state: 'ready' });
+            this._log('vad:init:ready');
             console.log('[SpeechManager] VAD ready');
         } catch (err) {
             console.warn('[SpeechManager] VAD init failed:', err);
+            this._log('vad:init:error', {
+                error_name: err?.name || 'unknown',
+                error_message: err?.message || 'VAD init failed',
+            });
             this._vad = null;
             this._vadReady = false;
             this.recordEvent('vad_init', { state: 'failed', reason: err?.message || 'unknown' });
