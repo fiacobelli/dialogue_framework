@@ -66,7 +66,13 @@ class SpeechManager {
     }
 
     _log(step, details = {}) {
-        console.info('[SpeechManager]', step, details);
+        let payload = '';
+        try {
+            payload = JSON.stringify(details);
+        } catch (_) {
+            payload = String(details || '');
+        }
+        console.info(`[SpeechManager] ${step} ${payload}`);
     }
 
     _loadVoices() {
@@ -143,17 +149,41 @@ class SpeechManager {
             }
 
             this._stopMicStream();
-            this._log('preflight:getUserMedia:start');
-            const stream = await navigator.mediaDevices.getUserMedia({
+            const preferredConstraints = {
                 audio: {
                     channelCount: 1,
                     echoCancellation: true,
                     autoGainControl: true,
                     noiseSuppression: true,
                 }
-            });
+            };
+            const fallbackConstraints = { audio: true };
+            let stream;
+            try {
+                this._log('preflight:getUserMedia:start', { mode: 'preferred', constraints: preferredConstraints });
+                stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+                metadata.capture_mode = 'preferred';
+            } catch (firstErr) {
+                this._log('preflight:getUserMedia:error', {
+                    mode: 'preferred',
+                    error_name: firstErr?.name || 'unknown',
+                    error_message: firstErr?.message || 'Microphone request failed',
+                });
+                const shouldRetry = ['NotReadableError', 'OverconstrainedError', 'AbortError'].includes(firstErr?.name);
+                if (!shouldRetry) throw firstErr;
+                try {
+                    this._log('preflight:getUserMedia:start', { mode: 'fallback', constraints: fallbackConstraints });
+                    stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    metadata.capture_mode = 'fallback';
+                } catch (fallbackErr) {
+                    fallbackErr.first_error_name = firstErr?.name || 'unknown';
+                    fallbackErr.first_error_message = firstErr?.message || 'Microphone request failed';
+                    throw fallbackErr;
+                }
+            }
             this._micStream = stream;
             this._log('preflight:getUserMedia:success', {
+                mode: metadata.capture_mode || 'unknown',
                 track_count: stream.getAudioTracks().length,
             });
 
@@ -206,6 +236,8 @@ class SpeechManager {
             this._log('preflight:error', {
                 error_name: err?.name || 'unknown',
                 error_message: err?.message || 'Microphone request failed',
+                first_error_name: err?.first_error_name || '',
+                first_error_message: err?.first_error_message || '',
             });
             this._stopMicStream();
             return {
@@ -215,6 +247,8 @@ class SpeechManager {
                     status: 'failed',
                     error_name: err?.name || 'unknown',
                     error_message: err?.message || 'Microphone request failed',
+                    first_error_name: err?.first_error_name || '',
+                    first_error_message: err?.first_error_message || '',
                 }
             };
         }
