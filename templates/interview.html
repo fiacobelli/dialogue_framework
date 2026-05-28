@@ -50,7 +50,11 @@
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.rate = 1.05;
                 utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
-                speechSynthesis.speak(utterance);
+                if (window.speechSynthesis && typeof window.speechSynthesis.speak === 'function') {
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    setTimeout(() => document.dispatchEvent(new Event('sitePalTalkEnded')), 200);
+                }
             }
         }
 
@@ -67,9 +71,11 @@
                 } catch (_) {}
             });
             window._playingAudioEls.clear();
-            if (!window.sitePalReady) {
-                window.speechSynthesis.pause();
-                window.speechSynthesis.cancel();
+            if (!window.sitePalReady && window.speechSynthesis) {
+                try {
+                    window.speechSynthesis.pause();
+                    window.speechSynthesis.cancel();
+                } catch (_) {}
             }
         }
     </script>

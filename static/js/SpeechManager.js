@@ -36,7 +36,7 @@ function float32ToWav(samples) {
 class SpeechManager {
     constructor(turnManager) {
         this.turnManager = turnManager;
-        this.synthesis = window.speechSynthesis;
+        this.synthesis = window.speechSynthesis || null;
         this.voices = [];
         this.listeners = {};
         this.lang = 'en-US';
@@ -66,8 +66,21 @@ class SpeechManager {
     }
 
     _loadVoices() {
+        if (!this.synthesis || typeof this.synthesis.getVoices !== 'function') {
+            this.voices = [];
+            console.warn('[SpeechManager] speechSynthesis unavailable; using fallback voice handling');
+            return;
+        }
         this.voices = this.synthesis.getVoices();
-        this.synthesis.onvoiceschanged = () => { this.voices = this.synthesis.getVoices(); };
+        if ('onvoiceschanged' in this.synthesis) {
+            this.synthesis.onvoiceschanged = () => {
+                try {
+                    this.voices = this.synthesis.getVoices();
+                } catch (_) {
+                    this.voices = [];
+                }
+            };
+        }
     }
 
     _stopMicStream() {
