@@ -184,16 +184,37 @@ class EvidenceInterpreter:
             ][-2:]
             for key, value in evidence.items()
         }
+        awaiting = str((turn_meta or {}).get('awaiting') or '')
+
+        if awaiting == 'name':
+            primary = (
+                'The patient is giving their public display name for their donor page.\n'
+                'PRIMARY TASK: extract the name into slots.public_name with high confidence.\n'
+                'If any name is present in the text, extract it. Set public_name_confidence to 0.9.\n'
+                'Story step classification is not relevant for this turn — leave current_step empty.\n'
+            )
+        elif awaiting == 'readiness':
+            primary = (
+                'The patient is being asked if they are ready to begin the interview.\n'
+                'PRIMARY TASK: determine readiness and set slots.readiness to ready, not_ready, question, or unclear.\n'
+                'Any affirmative (yes, sure, of course, duh, obviously, ready, let\'s go) → ready.\n'
+                'Story step classification is not relevant for this turn — leave current_step empty.\n'
+            )
+        else:
+            primary = (
+                'Classify the latest user answer into evidence for the current step and any future steps.\n'
+                'Also extract slots.public_name when the user provides a public display name.\n'
+                'Also extract slots.readiness as ready, not_ready, question, unclear, or empty when applicable.\n'
+            )
+
         return (
             'You are a bounded NLU evidence classifier for a kidney donor-story interview.\n'
             'Return JSON only. Do not choose app actions. Do not decide whether to advance, skip, publish, or close.\n'
             f'Use schema_version {SCHEMA_VERSION} and prompt_version "{EVIDENCE_INTERPRETER_PROMPT_VERSION}".\n'
             'Allowed input_quality values: answer, clarification, operational_issue, non_answer, unclear.\n'
             'Allowed status values: sufficient, thin, not_addressed, explicit_none.\n\n'
-            'Classify the latest user answer into evidence for the current step and any future steps.\n'
+            f'{primary}'
             'Set input_quality_confidence from 0 to 1.\n'
-            'Also extract slots.public_name when the user provides a public display name.\n'
-            'Also extract slots.readiness as ready, not_ready, question, unclear, or empty when applicable.\n'
             'Use per-field confidence from 0 to 1. Keep summaries short and grounded only in the patient text.\n\n'
             f'Current step: {json.dumps(step or {})}\n'
             f'All steps: {json.dumps(steps)}\n'

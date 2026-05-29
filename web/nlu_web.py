@@ -44,11 +44,13 @@ class NLUWeb:
         # For name/readiness, pass no step so the LLM focuses on slot extraction
         # rather than story evidence classification.
         step = None if awaiting in {'name', 'readiness'} else current_step(state)
+        turn_meta = dict(msg.get('turn_meta') or {})
+        turn_meta['awaiting'] = awaiting
         frame = EvidenceInterpreter(self.llm_provider).interpret(
             text,
             step,
             state,
-            msg.get('turn_meta') or {},
+            turn_meta,
             self.info_state.user.query('conversation_history') or [],
         )
         msg['evidence_interpretation_shadow'] = frame
