@@ -61,6 +61,10 @@ FALLBACK_PROMPT = 'You are a helpful assistant.'
 # Database
 DB_PATH = config('DB_PATH', default='db/sdoh.db')
 
+# Groq Whisper transcription
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_WHISPER_URL = config('GROQ_WHISPER_URL', default='https://api.groq.com/openai/v1/audio/transcriptions')
+
 # Email report (sent after each classify)
 EMAIL_ENABLED    = config('EMAIL_ENABLED',    default=False, cast=bool)
 SMTP_HOST        = config('SMTP_HOST',        default='smtp.office365.com')

@@ -331,6 +331,7 @@ class ScreeningGoal(Goal):
         prompt = self._build_prompt(info_state, avatar_name, language)
         prompt += "\n\nRUNTIME TURN DIRECTIVE:\n"
         prompt += self._task_directive(task, user_input)
+        prompt += "\n\nIMPORTANT: Do not include the text 'RUNTIME TURN DIRECTIVE' or any directive labels in your response. Output only patient-facing speech."
         return prompt
 
     def _task_directive(self, task: dict, user_input: str) -> str:
@@ -430,6 +431,7 @@ class ScreeningGoal(Goal):
                 continue
             lines.append(stripped)
         cleaned = ' '.join(lines)
+        cleaned = re.sub(r'\s*RUNTIME TURN DIRECTIVE[^\n]*', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(
             r"\s*\([^)]*(?:note|rule|instruction|move on|response|topic|follow)[^)]*\)\s*",
             " ",

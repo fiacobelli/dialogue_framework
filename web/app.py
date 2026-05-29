@@ -11,12 +11,14 @@ logging.basicConfig(
 
 from .config import FLASK_PORT, FLASK_DEBUG, AVATAR_PROFILES, DB_PATH
 from .routes_api import api_bp
+from .routes_transcribe import transcribe_bp
 from .database import configure as db_configure, init_db, migrate_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
 
 app.register_blueprint(api_bp)
+app.register_blueprint(transcribe_bp)
 
 # Ensure storage directories exist
 import os
@@ -35,7 +37,7 @@ def index():
 @app.route('/screening')
 def screening():
     """Render screening page with selected avatar."""
-    scene_id = request.args.get('a', '2756814')
+    scene_id = request.args.get('a') or '2756814'
     # Find avatar_id by scene_id for session tracking
     avatar_id = next((k for k, v in AVATAR_PROFILES.items() if str(v['scene_id']) == scene_id), 'black_female')
     avatar_profile = AVATAR_PROFILES[avatar_id]

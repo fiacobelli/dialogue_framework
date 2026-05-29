@@ -1,12 +1,31 @@
 /**
  * SpeechManager - Handles speech recognition and synthesis.
  *
- * Noise strategy: Silero VAD (ricky0123/vad-web) gates the Web Speech API.
- * Recognition only starts when the VAD detects the patient is actually speaking,
- * preventing ambient room chatter from being transcribed between turns.
- *
- * Fallback: if VAD fails to init, reverts to continuous recognition (original behaviour).
+ * Primary: Silero VAD captures audio → Groq Whisper transcription.
+ * Fallback: if VAD fails to init, reverts to continuous Web Speech API.
  */
+
+function float32ToWav(samples) {
+    const sampleRate = 16000, numChannels = 1, bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = samples.length * bytesPerSample;
+    const buf = new ArrayBuffer(44 + dataSize);
+    const v = new DataView(buf);
+    const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true);
+    str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, numChannels, true); v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * blockAlign, true); v.setUint16(32, blockAlign, true);
+    v.setUint16(34, bytesPerSample * 8, true);
+    str(36, 'data'); v.setUint32(40, dataSize, true);
+    let off = 44;
+    for (let i = 0; i < samples.length; i++, off += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+}
 
 class SpeechManager {
     constructor(turnManager) {
@@ -91,7 +110,7 @@ class SpeechManager {
                 onnxWASMBasePath: '/static/js/vad/',
                 model: 'legacy',
                 onSpeechStart: () => this._onVADSpeechStart(),
-                onSpeechEnd:   () => this.recordEvent('vad_speech_end'),
+                onSpeechEnd:   (audio) => this._onVADSpeechEnd(audio),
                 onVADMisfire:  () => this._onVADMisfire(),
             });
             this._vadReady = true;
@@ -109,44 +128,62 @@ class SpeechManager {
     // ── VAD callbacks ─────────────────────────────────────────────────────────
 
     _onVADSpeechStart() {
-        this._speechDetectedCount++;           // MUST be first — no guards before this
+        this._speechDetectedCount++;
         if (this._vadFireTime === null) {
             this._vadFireTime = performance.now();
             this._latencySource = 'vad';
         }
         this.recordEvent('vad_fired', { count: this._speechDetectedCount });
-
-        if (this._recognitionActive) {
-            // Mid-sentence re-fire: extend the silence window so the patient isn't cut off
-            this._resetSilenceTimer(EXTENDED_SILENCE_DELAY_MS);
-            return;
-        }
         if (this.turnManager.getState() !== TurnState.IDLE) return;
         if (!this.turnManager.startUserTurn()) return;
-
         this.transcript = '';
-        this._recognitionActive = true;
-        this.recognition.lang = this.lang;
+        this.recordEvent('recognition_started');
+    }
+
+    async _onVADSpeechEnd(audio) {
+        this.recordEvent('vad_speech_end');
+        if (this.turnManager.getState() !== TurnState.USER_SPEAKING) return;
+        this._emit('silence', {});
+        const wavBlob = float32ToWav(audio);
+        this.recordEvent('transcribe_start');
         try {
-            this.recognition.start();
-            this.recordEvent('recognition_started');
-            this._resetSilenceTimer(SILENCE_DELAY_MS);
-        } catch (e) {
-            console.warn('[SpeechManager] recognition.start() failed in VAD callback:', e);
-            this._recognitionActive = false;
+            const sessionId = conversationAPI.getSessionId();
+            const transcript = await this._transcribeWithGroq(wavBlob, sessionId);
+            this.recordEvent('transcribe_done');
+            this._speechDetectedCount = 0;
+            if (transcript && transcript.trim()) {
+                this.turnManager.endUserTurn();
+                this._emit('complete', { transcript: transcript.trim() });
+            } else {
+                this.turnManager.reset();
+                this._emit('empty', {});
+            }
+        } catch (err) {
+            this.recordEvent('transcribe_error', { message: String(err.message || err) });
             this.turnManager.reset();
+            this._emit('error', { type: 'transcribe_failed', message: String(err.message || err) });
         }
+    }
+
+    async _transcribeWithGroq(wavBlob, sessionId) {
+        const form = new FormData();
+        form.append('audio', wavBlob, 'audio.wav');
+        if (sessionId) form.append('session_id', sessionId);
+        form.append('language', this.lang.split('-')[0]);
+        const resp = await fetch('/api/transcribe', { method: 'POST', body: form });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        return data.transcript || '';
     }
 
     _onVADMisfire() {
         this.recordEvent('vad_misfire');
-        if (!this._recognitionActive) return;
-        this._clearSilenceTimer();
-        this._recognitionActive = false;
-        if (this.recognition) { try { this.recognition.stop(); } catch (_) {} }
         this.transcript = '';
         this._speechDetectedCount = 0;
-        this.turnManager.reset();
+        if (this.turnManager.getState() === TurnState.USER_SPEAKING) {
+            this.turnManager.reset();
+        }
     }
 
     // ── Recognition event handlers ────────────────────────────────────────────
@@ -275,8 +312,11 @@ class SpeechManager {
 
     /** Stop listening immediately and submit whatever was captured. */
     stopListening() {
-        if (this._vadReady && this._vad) this._vad.pause();
-        this._finishListening();
+        if (this._vadReady && this._vad) {
+            this._vad.pause(); // triggers onSpeechEnd with captured audio
+        } else {
+            this._finishListening(); // fallback Web Speech API mode
+        }
     }
 
     /** Speak text via SitePal / Web Speech fallback. Pauses VAD during TTS. */
