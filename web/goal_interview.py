@@ -9,12 +9,15 @@ from .config import INTERVIEW_EVIDENCE_SHADOW, INTERVIEW_SEMANTIC_RESPONSE_PLAN,
 from .evidence_interpreter import EvidenceInterpreter
 from .interview_flow import (
     build_interview_state,
-    build_outgoing_turn_contract,
-    build_runtime_directive,
     current_step,
     decide_next_task,
-    deterministic_response,
     normalize_state,
+)
+from .interview_prompts import (
+    build_outgoing_turn_contract,
+    build_runtime_directive,
+    deterministic_response,
+    ensure_expected_question,
 )
 
 LOGS_DIR = 'logs'
@@ -89,6 +92,7 @@ class InterviewGoal(Goal):
             llm_latency_ms = int((time.perf_counter() - t0) * 1000)
         else:
             llm_latency_ms = 0
+        response = ensure_expected_question(response, task)
         outgoing_turn = build_outgoing_turn_contract(
             task,
             state,

@@ -15,6 +15,8 @@ from web.nlu_web import NLUWeb
 class JsonLLM:
     def __init__(self, payload=None):
         self.calls = 0
+        self.messages = []
+        self.system_prompts = []
         self.payload = payload or {
             'schema_version': 1,
             'prompt_version': 'evidence-interpreter-v1',
@@ -33,6 +35,8 @@ class JsonLLM:
 
     def generate(self, messages, system_prompt=None):
         self.calls += 1
+        self.messages.append(messages)
+        self.system_prompts.append(system_prompt)
         return json.dumps(self.payload)
 
 
@@ -42,7 +46,8 @@ class EvidenceThenResponseLLM:
 
     def generate(self, messages, system_prompt=None):
         prompt = system_prompt or ''
-        if 'bounded NLU evidence classifier' in prompt:
+        user_prompt = messages[-1].get('content', '') if messages else ''
+        if 'bounded NLU evidence classifier' in prompt or 'bounded NLU evidence classifier' in user_prompt:
             return json.dumps({
                 'schema_version': 1,
                 'prompt_version': 'evidence-interpreter-v1',
@@ -63,6 +68,28 @@ class EvidenceThenResponseLLM:
             'I hear that your children and family are central to your story. '
             'When were you first diagnosed with kidney disease or kidney failure?'
         )
+
+
+class MissingQuestionLLM:
+    def generate(self, messages, system_prompt=None):
+        user_prompt = messages[-1].get('content', '') if messages else ''
+        if 'bounded NLU evidence classifier' in user_prompt:
+            return json.dumps({
+                'schema_version': 1,
+                'prompt_version': 'evidence-interpreter-v1',
+                'input_quality': 'answer',
+                'safety': {'crisis': False, 'confidence': 0.0},
+                'current_step': {
+                    'step_id': 'donor_message',
+                    'status': 'sufficient',
+                    'summary': 'Patient said they are a hopeful person.',
+                    'confidence': 0.88,
+                },
+                'future_evidence': [],
+                'final_nothing_else': False,
+                'already_answered_current': False,
+            })
+        return 'Your optimism is really shining through.'
 
 
 class EvidenceInterpreterTests(unittest.TestCase):
@@ -95,7 +122,8 @@ class EvidenceInterpreterTests(unittest.TestCase):
         self.assertEqual(frame['fallback_reason'], 'unit')
 
     def test_interpreter_returns_valid_frame_from_llm_json(self):
-        interpreter = EvidenceInterpreter(JsonLLM())
+        llm = JsonLLM()
+        interpreter = EvidenceInterpreter(llm)
         frame = interpreter.interpret(
             'My family matters most.',
             {'id': 'personal_background'},
@@ -105,6 +133,8 @@ class EvidenceInterpreterTests(unittest.TestCase):
         self.assertTrue(frame['valid'])
         self.assertEqual(frame['mode'], 'llm')
         self.assertEqual(frame['current_step']['status'], 'sufficient')
+        self.assertIn('bounded NLU evidence classifier', llm.messages[-1][-1]['content'])
+        self.assertIn('Return only valid JSON', llm.system_prompts[-1])
 
 
 class NLUWebFrameTests(unittest.TestCase):
@@ -193,6 +223,41 @@ class EvidenceShadowModeTests(unittest.TestCase):
             self.assertIn('Use this grounded understanding of the patient answer', llm.response_prompts[-1])
             self.assertIn('Patient said their children and family keep them going.', llm.response_prompts[-1])
             self.assertEqual(info_state.user.query('interview_state')['last_step_id'], 'medical_history')
+
+    def test_missing_required_question_is_appended_after_semantic_acknowledgement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            info_state = InformationState(os.path.join(tmp, 'user.pkl'), 'domains/interview.json')
+            info_state.user.update('session_id', 'unit-question-contract')
+            info_state.user.update('avatar_profile', {'name': 'Ludi'})
+            info_state.user.update('interview_state', {
+                **build_interview_state(),
+                'step_index': 4,
+                'phase': 'STORY',
+                'awaiting': 'main_answer',
+                'patient_name': 'Sophia',
+                'patient_name_status': 'confirmed',
+                'current_outgoing_turn': {
+                    'outgoing_turn_id': 'turn-1',
+                    'asked_step_id': 'donor_message',
+                    'asked_question_text': 'What would you want a potential donor to know about you as a person?',
+                    'expected_answer_kind': 'main_answer',
+                    'delivered_phase': 'STORY',
+                    'delivery_validated': True,
+                    'task_type': 'ask_main',
+                },
+            })
+            goal = InterviewGoal(MissingQuestionLLM(), 'You are {avatar_name}.')
+            msg = {MSG.ORIG_TEXT: 'I am a hopeful person.'}
+
+            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True), \
+                 patch('web.goal_interview.INTERVIEW_SEMANTIC_RESPONSE_PLAN', True):
+                goal.execute_goal(msg, info_state)
+
+            expected = 'Do you have family, friends, or a community supporting you through this?'
+            self.assertEqual(msg['interview_task']['type'], 'ack_then_next')
+            self.assertIn('Your optimism is really shining through.', msg[MSG.RESPONSE])
+            self.assertIn(expected, msg[MSG.RESPONSE])
+            self.assertTrue(msg['interview_context']['outgoing_turn']['delivery_validated'])
 
 
 if __name__ == '__main__':

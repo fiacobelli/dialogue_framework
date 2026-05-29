@@ -133,7 +133,10 @@ class EvidenceInterpreter:
         step_id = step.get('id') if step else None
         try:
             prompt = self._prompt(text, step, state, turn_meta)
-            raw = self.llm.generate((history or [])[-8:], prompt)
+            raw = self.llm.generate(
+                [{'role': 'user', 'content': prompt}],
+                'Return only valid JSON for the requested evidence schema.',
+            )
             frame = validate_evidence_frame(_extract_json(raw), current_step_id=step_id)
             frame['mode'] = 'llm'
             return frame

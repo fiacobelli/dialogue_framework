@@ -50,8 +50,10 @@ class DirectiveLLM:
     """Deterministic substitute for LLM wording during simulations."""
 
     def generate(self, history: list[dict[str, str]], prompt: str) -> str:
-        if 'bounded NLU evidence classifier' in prompt:
-            return evidence_json_for_prompt(prompt)
+        latest = history[-1].get('content', '') if history else ''
+        evidence_prompt = prompt if 'bounded NLU evidence classifier' in prompt else latest
+        if 'bounded NLU evidence classifier' in evidence_prompt:
+            return evidence_json_for_prompt(evidence_prompt)
         if match := re.search(r'at the end: "([^"]+)"', prompt):
             return f"I hear you. {match.group(1)}"
         if match := re.search(r'question in natural conversational wording: "([^"]+)"', prompt):

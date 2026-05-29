@@ -94,7 +94,7 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
             return f"I did not catch that clearly. Please try again: {question}"
         if decision.get('reason') == 'operational_issue':
             return f"I am sorry, it sounds like the microphone had trouble. Let's try the same question again: {question}"
-        return f"I only caught a little of that. {question}"
+        return f"I want to make sure I capture this part clearly. {question}"
     return None
 
 
@@ -129,6 +129,17 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
     if task_type in {'ask_followup', 'safety_response'}:
         return 'followup_answer'
     return None
+
+
+def ensure_expected_question(response: str, task: dict[str, Any]) -> str:
+    """Guarantee the patient hears the code-owned question for this turn."""
+    question = expected_question_text(task)
+    if not question or question in (response or ''):
+        return response
+    response = (response or '').strip()
+    if not response:
+        return question
+    return f"{response} {question}"
 
 
 def build_outgoing_turn_contract(task: dict[str, Any], state: dict[str, Any], response: str, turn_id: str) -> dict[str, Any]:
