@@ -134,10 +134,11 @@ class SpeechManager {
             this._latencySource = 'vad';
         }
         this.recordEvent('vad_fired', { count: this._speechDetectedCount });
-        if (this.turnManager.getState() !== TurnState.IDLE) return;
-        if (!this.turnManager.startUserTurn()) return;
-        this.transcript = '';
-        this.recordEvent('recognition_started');
+        if (this.turnManager.getState() === TurnState.IDLE) {
+            if (!this.turnManager.startUserTurn()) return;
+            this.transcript = '';
+            this.recordEvent('recognition_started');
+        }
     }
 
     async _onVADSpeechEnd(audio) {
@@ -292,7 +293,8 @@ class SpeechManager {
         this._latencySource = null;
 
         if (this._vadReady) {
-            // VAD mode: TurnManager stays IDLE until VAD fires onSpeechStart.
+            if (!this.turnManager.startUserTurn()) return false;
+            this.recordEvent('recognition_started', { mode: 'vad' });
             this._vad.start();
             this._emit('listening', {});
             return true;
