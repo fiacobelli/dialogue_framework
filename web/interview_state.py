@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .config import clean_text as _clean_text
 from .interview_flow_config import (
     GENERATION_REQUIRED_EVIDENCE_GROUPS,
     INTERVIEW_STEPS,
@@ -151,10 +152,6 @@ def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     state['step_index'] = int(state.get('step_index') or 0) + 1
     state['followup_count'] = 0
     return current_step(state)
-
-
-def _clean_text(value: Any) -> str:
-    return str(value or '').strip()
 
 
 def _step_index_for_id(step_id: str) -> int | None:

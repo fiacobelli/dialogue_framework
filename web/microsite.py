@@ -4,7 +4,7 @@ import re
 import json
 import hashlib
 from flask import render_template, url_for
-from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, FALLBACK_PROMPT
+from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, clean_text as _clean_text, load_prompt
 from .interview_flow_config import GENERATION_REQUIRED_EVIDENCE_GROUPS
 from . import database as db
 from .content_moderation import validate_public_content
@@ -46,14 +46,6 @@ class MicrositeGenerationError(ValueError):
             'message': self.message,
             'missing': self.missing,
         }
-
-
-def load_prompt(filepath: str) -> str:
-    try:
-        with open(filepath, 'r') as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return FALLBACK_PROMPT
 
 
 def parse_llm_json(text: str) -> dict:
@@ -193,12 +185,6 @@ def story_evidence_ready(state: dict) -> dict:
         missing.append('story_content')
 
     return {'ready': not missing, 'missing': missing}
-
-
-def _clean_text(value) -> str:
-    if value is None:
-        return ''
-    return str(value).strip()
 
 
 def _normalize_content(content: dict, name: str) -> dict:

@@ -10,16 +10,7 @@ from rules import RuleManager
 from .goal_interview import InterviewGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
-from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE
-
-
-def load_prompt(filepath: str) -> str:
-    """Load system prompt from file, with fallback."""
-    try:
-        with open(filepath, 'r') as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return 'You are a helpful assistant.'
+from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, load_prompt
 
 
 def create_session(session_id: str) -> dict:

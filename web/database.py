@@ -27,7 +27,6 @@ from .database_photos import (
     list_visit_photos,
     release_photo_reservation,
     reserve_photo_slot,
-    save_photo,
     update_visit_photo_metadata,
 )
 

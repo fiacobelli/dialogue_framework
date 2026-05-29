@@ -66,7 +66,18 @@ WELCOME_BACK = {
     'en': 'Welcome back!'
 }
 
-# Photo phase prompt (used when interview is done)
-PHOTOS_PROMPT = "Thank you for sharing your story with me. Now let's add some photos to your page."
-
 FALLBACK_PROMPT = 'You are a helpful assistant.'
+
+
+def load_prompt(filepath: str, fallback: str = FALLBACK_PROMPT) -> str:
+    """Read a prompt/text file, returning a fallback if it is missing."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return fallback
+
+
+def clean_text(value) -> str:
+    """Coerce a value to a stripped string (empty for None/falsy)."""
+    return str(value or '').strip()

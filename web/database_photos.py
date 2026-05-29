@@ -7,58 +7,6 @@ from typing import Any
 from .database_common import _conn, _now, _normalized_photo_role, _uuid
 
 
-def save_photo(
-    visit_id: str | None,
-    stored_filename: str,
-    display_order: int,
-    *,
-    source: str = 'unknown',
-    mime_type: str | None = None,
-    byte_size: int | None = None,
-    sha256: str | None = None,
-    width: int | None = None,
-    height: int | None = None,
-    photo_role: str | None = None,
-) -> None:
-    if not visit_id:
-        return
-    now = _now()
-    with _conn() as c:
-        c.execute(
-            """
-            INSERT OR IGNORE INTO photos(
-                id, visit_id, stored_filename, display_order, source, mime_type,
-                byte_size, sha256, width, height, photo_role, uploaded_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                _uuid(),
-                visit_id,
-                stored_filename,
-                display_order,
-                source,
-                mime_type,
-                byte_size,
-                sha256,
-                width,
-                height,
-                _normalized_photo_role(photo_role, display_order),
-                now,
-            ),
-        )
-        count = c.execute(
-            """
-            SELECT COUNT(*) AS n
-            FROM photos
-            WHERE visit_id = ?
-              AND deleted_at IS NULL
-              AND COALESCE(source, '') <> 'reserved'
-            """,
-            (visit_id,),
-        ).fetchone()['n']
-        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, now, visit_id))
-
-
 def reserve_photo_slot(visit_id: str | None, session_id: str, max_photos: int) -> dict[str, Any] | None:
     """Atomically reserve the next available photo display slot for a visit."""
     if not visit_id or not session_id:
