@@ -34,6 +34,7 @@ def empty_evidence_frame(reason: str = 'not_run') -> dict[str, Any]:
             'confidence': 0.0,
         },
         'future_evidence': [],
+        'slots': {},
         'final_nothing_else': False,
         'already_answered_current': False,
     }
@@ -84,6 +85,15 @@ def validate_evidence_frame(data: Any, current_step_id: str | None = None) -> di
         frame = _step_frame(item)
         if frame['step_id']:
             future.append(frame)
+    slots = data.get('slots') if isinstance(data.get('slots'), dict) else {}
+    public_name = _text(slots.get('public_name'), 80)
+    public_name = re.sub(r'\s+', ' ', public_name).strip()
+    if len(public_name.split()) > 5:
+        public_name = ''
+    try:
+        public_name_confidence = _confidence(slots.get('public_name_confidence'))
+    except (TypeError, ValueError):
+        public_name_confidence = 0.0
 
     return {
         'schema_version': SCHEMA_VERSION,
@@ -97,6 +107,10 @@ def validate_evidence_frame(data: Any, current_step_id: str | None = None) -> di
         },
         'current_step': _step_frame(data.get('current_step'), default_step_id=current_step_id),
         'future_evidence': future,
+        'slots': {
+            'public_name': public_name,
+            'public_name_confidence': public_name_confidence,
+        },
         'final_nothing_else': bool(data.get('final_nothing_else')),
         'already_answered_current': bool(data.get('already_answered_current')),
     }
@@ -173,6 +187,7 @@ class EvidenceInterpreter:
             'Allowed input_quality values: answer, clarification, operational_issue, non_answer, unclear.\n'
             'Allowed status values: sufficient, thin, not_addressed, explicit_none.\n\n'
             'Classify the latest user answer into evidence for the current step and any future steps.\n'
+            'Also extract slots.public_name when the user provides a public display name.\n'
             'Use per-field confidence from 0 to 1. Keep summaries short and grounded only in the patient text.\n\n'
             f'Current step: {json.dumps(step or {})}\n'
             f'All steps: {json.dumps(steps)}\n'

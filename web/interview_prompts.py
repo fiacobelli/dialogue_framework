@@ -150,12 +150,15 @@ def ensure_expected_question(response: str, task: dict[str, Any]) -> str:
     response = (response or '').strip()
     normalized_question = _normalize_question_text(question)
     normalized_response = _normalize_question_text(response)
-    if normalized_question and normalized_question in normalized_response:
-        return response
     if task.get('type') in {'ack_then_next', 'ask_final'}:
         parts = _sentence_parts(response)
-        acknowledgement = ' '.join(part for part in parts if '?' not in part).strip()
+        acknowledgement = ' '.join(
+            part for part in parts
+            if '?' not in part and _normalize_question_text(part) != normalized_question
+        ).strip()
         return f"{acknowledgement} {question}".strip() if acknowledgement else question
+    if normalized_question and normalized_question in normalized_response:
+        return response
     if not response:
         return question
     return f"{response} {question}"

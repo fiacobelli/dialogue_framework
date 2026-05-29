@@ -103,6 +103,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
             'safety': {'crisis': False, 'confidence': 2},
             'current_step': {'step_id': 'daily_life', 'status': 'sufficient', 'summary': 'x', 'confidence': 0.8},
             'future_evidence': [{'step_id': 'transplant_hope', 'status': 'thin', 'summary': 'hope', 'confidence': 0.5}],
+            'slots': {'public_name': 'John Snow', 'public_name_confidence': 0.92},
             'final_nothing_else': False,
             'already_answered_current': False,
             'forbidden_action': 'move_to_photos',
@@ -112,6 +113,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
         self.assertEqual(frame['safety']['confidence'], 1.0)
         self.assertNotIn('forbidden_action', frame)
         self.assertEqual(frame['future_evidence'][0]['step_id'], 'transplant_hope')
+        self.assertEqual(frame['slots']['public_name'], 'John Snow')
 
     def test_invalid_frame_raises(self):
         with self.assertRaises(ValueError):
@@ -261,6 +263,34 @@ class EvidenceShadowModeTests(unittest.TestCase):
             self.assertIn(expected, msg[MSG.RESPONSE])
             self.assertTrue(msg['interview_context']['outgoing_turn']['delivery_validated'])
 
+    def test_name_turn_uses_existing_nlu_slot(self):
+        payload = {
+            'schema_version': 1,
+            'prompt_version': 'evidence-interpreter-v1',
+            'input_quality': 'answer',
+            'safety': {'crisis': False, 'confidence': 0.0},
+            'current_step': {'step_id': None, 'status': 'not_addressed', 'summary': '', 'confidence': 0.0},
+            'future_evidence': [],
+            'slots': {'public_name': 'John Snow', 'public_name_confidence': 0.94},
+            'final_nothing_else': False,
+            'already_answered_current': False,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            info_state = InformationState(os.path.join(tmp, 'user.pkl'), 'domains/interview.json')
+            info_state.user.update('session_id', 'unit-name-slot')
+            info_state.user.update('avatar_profile', {'name': 'Ludi'})
+            info_state.user.update('interview_state', build_interview_state())
+            goal = InterviewGoal(JsonLLM(payload), 'You are {avatar_name}.')
+            msg = {MSG.ORIG_TEXT: 'John Snow is my name.'}
+
+            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True):
+                goal.execute_goal(msg, info_state)
+
+            state = info_state.user.query('interview_state')
+            self.assertEqual(msg['interview_task']['type'], 'ask_readiness')
+            self.assertEqual(state['patient_name'], 'John Snow')
+            self.assertEqual(state['last_decision']['name']['reason'], 'nlu_slot')
+
 
 class ResponseContractTests(unittest.TestCase):
     def test_extra_llm_question_is_removed_before_required_question(self):
@@ -289,6 +319,20 @@ class ResponseContractTests(unittest.TestCase):
 
         self.assertEqual(fixed.count('supporting you through this'), 1)
         self.assertTrue(contract['delivery_validated'])
+
+    def test_extra_question_is_removed_even_when_required_question_is_present(self):
+        task = {'type': 'ack_then_next', 'step': INTERVIEW_STEPS[1], 'phase': 'STORY'}
+        response = (
+            'Your family sounds close to you. '
+            'Are they supporting you through school as well? '
+            'When were you first diagnosed with kidney disease or kidney failure?'
+        )
+
+        fixed = ensure_expected_question(response, task)
+
+        self.assertNotIn('supporting you through school', fixed)
+        self.assertEqual(fixed.count('?'), 1)
+        self.assertTrue(fixed.endswith('When were you first diagnosed with kidney disease or kidney failure?'))
 
 
 if __name__ == '__main__':

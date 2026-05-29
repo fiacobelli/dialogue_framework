@@ -137,10 +137,10 @@ class InterviewGoal(Goal):
         msg[MSG.RESPONSE] = response
 
     def _attach_shadow_evidence_frame(self, msg, state: dict, history: list, session_id: str) -> None:
-        """Run semantic NLU in shadow mode without changing behavior."""
+        """Run semantic NLU before code-owned policy chooses the next task."""
         if not INTERVIEW_EVIDENCE_SHADOW:
             return
-        if state.get('awaiting') not in {'main_answer', 'followup_answer'}:
+        if state.get('awaiting') not in {'name', 'main_answer', 'followup_answer'}:
             return
         user_input = msg.get(MSG.ORIG_TEXT, '')
         if not user_input:

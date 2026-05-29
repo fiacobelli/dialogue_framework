@@ -275,6 +275,19 @@ def _task(task_type: str, state: dict[str, Any], **extra: Any) -> dict[str, Any]
     return {'type': task_type, 'phase': phase, 'step': step, **extra}
 
 
+def _name_from_nlu(turn_meta: dict[str, Any] | None) -> dict[str, Any] | None:
+    frame = (turn_meta or {}).get('evidence_interpretation_shadow') or {}
+    slots = frame.get('slots') if isinstance(frame.get('slots'), dict) else {}
+    name = _clean_text(slots.get('public_name'))
+    try:
+        confidence = float(slots.get('public_name_confidence') or 0)
+    except (TypeError, ValueError):
+        confidence = 0
+    if name and confidence >= 0.65:
+        return {'name': name, 'status': 'captured', 'reason': 'nlu_slot', 'confidence': confidence}
+    return None
+
+
 def decide_next_task(
     state: dict[str, Any],
     user_input: str = '',
@@ -290,7 +303,7 @@ def decide_next_task(
     awaiting = state.get('awaiting')
 
     if awaiting == 'name':
-        name_result = extract_patient_name(user_input)
+        name_result = _name_from_nlu(turn_meta) or extract_patient_name(user_input)
         state['last_decision'] = {'name': name_result}
         if not name_result['name']:
             state['phase'] = 'INTRO'
