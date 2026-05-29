@@ -335,6 +335,49 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
 
+    def test_final_details_casual_closure_phrases_close(self):
+        for answer in ('No, that is enough.', 'Nah I am good.', 'That covers it.'):
+            with self.subTest(answer=answer):
+                state = build_interview_state()
+                state.update({
+                    'step_index': 6,
+                    'phase': 'FINAL_DETAILS',
+                    'awaiting': 'main_answer',
+                    'patient_name': 'Sophia',
+                    'patient_name_status': 'confirmed',
+                    'story_evidence': self._generation_ready_evidence(),
+                })
+
+                task = decide_next_task(state, answer)
+
+                self.assertEqual(task['type'], 'close_to_photos')
+                self.assertTrue(state['complete'])
+
+    def test_short_section_specific_answers_are_accepted(self):
+        examples = (
+            (0, 'father', 'medical_history', 'ack_then_next'),
+            (1, '2021', 'daily_life', 'ack_then_next'),
+            (2, 'tired', 'transplant_hope', 'ack_then_next'),
+            (3, 'freedom', 'donor_message', 'ack_then_next'),
+            (5, 'my sister', 'final_details', 'ask_final'),
+        )
+        for step_index, answer, next_step_id, task_type in examples:
+            with self.subTest(answer=answer):
+                state = build_interview_state()
+                state.update({
+                    'step_index': step_index,
+                    'phase': 'FINAL_DETAILS' if step_index == 6 else 'STORY',
+                    'awaiting': 'main_answer',
+                    'patient_name': 'Sophia',
+                    'patient_name_status': 'confirmed',
+                    'story_evidence': self._generation_ready_evidence(),
+                })
+
+                task = decide_next_task(state, answer)
+
+                self.assertEqual(task['type'], task_type)
+                self.assertEqual(task['step']['id'], next_step_id)
+
     def test_skip_story_question_records_skip_and_advances(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')

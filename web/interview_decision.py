@@ -97,18 +97,52 @@ def readiness_decision(text: str) -> dict[str, Any]:
 
 def _has_explicit_none(text: str) -> bool:
     normalized = normalize_answer(text)
-    if normalized in {'no', 'nope', 'none', 'nothing', 'not really', 'nothing else', 'no thank you', 'no thanks'}:
+    if normalized in {
+        'no', 'nah', 'nope', 'none', 'nothing', 'not really', 'nothing else',
+        'no thank you', 'no thanks', 'no that is all', 'no that is enough',
+        'that is all', 'that is enough', 'that covers it', 'i am good',
+        "i'm good", 'im good', 'nah i am good', 'nah im good',
+    }:
         return True
     return any(re.search(pattern, normalized) for pattern in (
         r'\bno\b.*\bnothing\b',
         r'\bno\b.*\bthank\b',
         r'\bno\b.*\bthanks\b',
+        r'\bno\b.*\b(that is|thats|that\'s)\b.*\b(all|enough)\b',
         r'\bnothing\b.*\belse\b',
         r'\bnothing\b.*\breally\b',
         r'\bnot\b.*\breally\b',
         r'\bno\b.*\belse\b',
+        r'\b(that is|thats|that\'s)\b.*\b(all|enough|fine|good)\b',
+        r'\b(that|this)\b.*\bcovers\b.*\bit\b',
+        r'\bi\b.*\b(am|m)\b.*\bgood\b',
+        r'\bnah\b.*\bgood\b',
         r"\bi'?m done\b",
     ))
+
+
+def _is_short_section_evidence(step_id: str | None, normalized: str) -> bool:
+    """Allow concise but meaningful answers without treating them as mic failures."""
+    if not step_id or not normalized:
+        return False
+    if step_id == 'medical_history':
+        return bool(re.search(r'\b(19|20)\d{2}\b', normalized))
+    short_terms = {
+        'personal_background': {
+            'father', 'mother', 'mom', 'dad', 'grandmother', 'grandfather',
+            'grandma', 'grandpa', 'wife', 'husband', 'teacher', 'barber',
+            'veteran', 'driver', 'nurse', 'student',
+        },
+        'daily_life': {'tired', 'fatigue', 'exhausted', 'pain', 'sad', 'scared', 'drained'},
+        'transplant_hope': {'energy', 'freedom', 'independence', 'independent', 'travel', 'work'},
+        'donor_message': {'grateful', 'hopeful', 'family', 'chance', 'help'},
+        'support_network': {
+            'family', 'wife', 'husband', 'mother', 'father', 'mom', 'dad',
+            'daughter', 'son', 'sister', 'brother', 'church', 'friends',
+        },
+    }
+    terms = short_terms.get(step_id, set())
+    return any(re.search(rf'\b{re.escape(term)}\b', normalized) for term in terms)
 
 
 def _is_operational_issue(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
@@ -187,9 +221,10 @@ def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict
         return {'repair': True, 'reason': 'clarification_request', 'matched': normalized}
 
     explicit_none_allowed = step_id in {'support_network', 'final_details'} and _has_explicit_none(normalized)
+    short_section_evidence = _is_short_section_evidence(step_id, normalized)
     if normalized in ACKNOWLEDGEMENT_ONLY or (normalized in {'no', 'nah', 'nope'} and not explicit_none_allowed):
         return {'repair': True, 'reason': 'acknowledgement_only', 'matched': normalized}
-    if len(words) <= 2 and not explicit_none_allowed:
+    if len(words) <= 2 and not explicit_none_allowed and not short_section_evidence:
         return {'repair': True, 'reason': 'too_short_fragment', 'matched': normalized}
 
     try:
@@ -213,6 +248,8 @@ def sufficiency_decision(step: dict[str, str] | None, text: str) -> dict[str, An
         return {'sufficient': False, 'reason': 'empty', 'matched': None}
     if step_id in {'support_network', 'final_details'} and _has_explicit_none(normalized):
         return {'sufficient': True, 'reason': 'explicit_none', 'matched': normalized}
+    if _is_short_section_evidence(step_id, normalized):
+        return {'sufficient': True, 'reason': 'short_section_evidence', 'matched': normalized}
     if normalized in SHORT_ANSWERS:
         return {'sufficient': False, 'reason': 'short_answer', 'matched': normalized}
 

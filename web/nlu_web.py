@@ -15,4 +15,12 @@ class NLUWeb:
         msg[MSG.ORIG_TEXT] = text
         msg[MSG.ORIG_TEXT_LOWER] = text.lower()
         msg[MSG.TOKENS] = text.lower().split()
+        msg['nlu_frame'] = {
+            'schema_version': 1,
+            'source': 'web_nlu',
+            'raw_text': text,
+            'normalized_text': msg[MSG.ORIG_TEXT_LOWER],
+            'tokens': msg[MSG.TOKENS],
+            'turn_meta': msg.get('turn_meta') or {},
+        }
         return True

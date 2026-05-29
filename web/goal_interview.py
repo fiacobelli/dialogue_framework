@@ -5,11 +5,13 @@ import uuid
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import LANGUAGE_NAMES
+from .config import INTERVIEW_EVIDENCE_SHADOW, LANGUAGE_NAMES
+from .evidence_interpreter import EvidenceInterpreter
 from .interview_flow import (
     build_interview_state,
     build_outgoing_turn_contract,
     build_runtime_directive,
+    current_step,
     decide_next_task,
     deterministic_response,
     normalize_state,
@@ -48,6 +50,7 @@ class InterviewGoal(Goal):
 
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
+        self._attach_shadow_evidence_frame(msg, state, history, session_id)
         task = decide_next_task(
             state,
             user_input,
@@ -127,6 +130,28 @@ class InterviewGoal(Goal):
         }
         msg['llm_latency_ms'] = llm_latency_ms
         msg[MSG.RESPONSE] = response
+
+    def _attach_shadow_evidence_frame(self, msg, state: dict, history: list, session_id: str) -> None:
+        """Run semantic NLU in shadow mode without changing behavior."""
+        if not INTERVIEW_EVIDENCE_SHADOW:
+            return
+        if state.get('awaiting') not in {'main_answer', 'followup_answer'}:
+            return
+        user_input = msg.get(MSG.ORIG_TEXT, '')
+        if not user_input:
+            return
+        frame = EvidenceInterpreter(self.llm).interpret(
+            user_input,
+            current_step(state),
+            state,
+            msg.get('turn_meta') or {},
+            history,
+        )
+        msg['evidence_interpretation_shadow'] = frame
+        turn_meta = dict(msg.get('turn_meta') or {})
+        turn_meta['evidence_interpretation_shadow'] = frame
+        msg['turn_meta'] = turn_meta
+        log_interview(session_id, f"EVIDENCE_SHADOW: {frame}")
 
     def _is_goodbye(self, text: str) -> bool:
         """Check if the response signals end of interview."""
