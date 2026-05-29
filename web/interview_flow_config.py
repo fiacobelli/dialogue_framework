@@ -74,25 +74,3 @@ FINAL_PHOTOS_PROMPT = (
 )
 
 NO_RESPONSE_SENTINEL = '[no speech detected]'
-
-SECTION_TRANSITIONS: dict[str, str] = {
-    'personal_background': "Let's start with who you are as a person.",
-    'medical_history': "Now I want to understand the beginning of your kidney journey.",
-    'daily_life': "Next, let's talk about what day-to-day life has been like.",
-    'transplant_hope': "Now let's talk about what a transplant could make possible for you.",
-    'donor_message': "Next, let's focus on what you would want a potential donor to understand.",
-    'support_network': "I also want to understand who has been walking through this with you.",
-    'final_details': "Before we move to photos, let's make sure we have not missed anything important.",
-}
-
-FOLLOWUP_QUESTIONS: dict[str, str] = {
-    'personal_background': 'Could you tell me a little more about who you are outside of your illness?',
-    'medical_history': 'Could you share a little more about when this kidney journey started for you?',
-    'daily_life': 'Could you tell me more about how kidney failure affects your normal day?',
-    'transplant_hope': 'Could you say more about what a transplant would help you do or feel again?',
-    'donor_message': 'Could you tell me more about what you would want a potential donor to understand about you?',
-    'support_network': 'Could you tell me a little more about who supports you, or whether support has been limited?',
-    'final_details': 'Could you tell me what else you would like included, or say that there is nothing else?',
-}
-
-DEEPENING_MAX_PER_STEP = 1

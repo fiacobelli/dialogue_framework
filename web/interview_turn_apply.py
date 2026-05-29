@@ -2,7 +2,7 @@
 
 Code drives section order; the LLM only voices each turn. `deepen` is an advisory
 follow-up hint, capped at one per section and defaulting to advance, so the flow
-can never stall. Reuses interview_flow recorders so story_evidence shape cannot
+can never stall. Reuses interview_state recorders so story_evidence shape cannot
 drift from what microsite.py consumes.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 
 from strings import MSG
-from .interview_flow import (
+from .interview_state import (
     _advance_step,
     _missing_recovery_step,
     _record_story_evidence,

@@ -10,7 +10,7 @@ from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
 from .session import create_session
 from .session_store import ensure_session, get_session, persist_session_state, set_session
-from .interview_flow import progress_snapshot
+from .interview_state import progress_snapshot
 from . import microsite
 from . import database as db
 from .patient_auth import issue_patient_token, is_patient_authorized

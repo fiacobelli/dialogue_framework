@@ -1,19 +1,15 @@
 from strings import MSG
 
-from .config import INTERVIEW_EVIDENCE_SHADOW, INTERVIEW_LLM_TURN
-from .evidence_interpreter import EvidenceInterpreter
-from .interview_flow import build_interview_state, current_step, normalize_state
-
 
 class NLUWeb:
-    """Simplified NLU for web/text chat."""
+    """Minimal NLU for web/text chat: extract the user's text. The LLM does the understanding."""
 
     def __init__(self, info_state=None, llm_provider=None):
         self.info_state = info_state
         self.llm_provider = llm_provider
 
     def check(self, msg: dict) -> bool:
-        """Parse user input and populate message dict with tokens."""
+        """Parse user input and populate the message dict with the raw text."""
         possible = msg.get(MSG.POSSIBLE_RESPONSES, [])
         if not possible:
             return False
@@ -23,41 +19,4 @@ class NLUWeb:
         msg[MSG.ORIG_TEXT] = text
         msg[MSG.ORIG_TEXT_LOWER] = text.lower()
         msg[MSG.TOKENS] = text.lower().split()
-        msg['nlu_frame'] = {
-            'schema_version': 1,
-            'source': 'web_nlu',
-            'raw_text': text,
-            'normalized_text': msg[MSG.ORIG_TEXT_LOWER],
-            'tokens': msg[MSG.TOKENS],
-            'turn_meta': msg.get('turn_meta') or {},
-        }
-        self._attach_semantic_frame(msg, text)
         return True
-
-    def _attach_semantic_frame(self, msg: dict, text: str) -> None:
-        # The LLM-centered turn does its own single call; skip the shadow classifier.
-        if INTERVIEW_LLM_TURN:
-            return
-        if not (INTERVIEW_EVIDENCE_SHADOW and self.info_state and self.llm_provider):
-            return
-        state = normalize_state(self.info_state.user.query('interview_state') or build_interview_state())
-        awaiting = state.get('awaiting')
-        if awaiting not in {'name', 'readiness', 'main_answer', 'followup_answer'}:
-            return
-        # For name/readiness, pass no step so the LLM focuses on slot extraction
-        # rather than story evidence classification.
-        step = None if awaiting in {'name', 'readiness'} else current_step(state)
-        turn_meta = dict(msg.get('turn_meta') or {})
-        turn_meta['awaiting'] = awaiting
-        frame = EvidenceInterpreter(self.llm_provider).interpret(
-            text,
-            step,
-            state,
-            turn_meta,
-            self.info_state.user.query('conversation_history') or [],
-        )
-        msg['evidence_interpretation_shadow'] = frame
-        turn_meta = dict(msg.get('turn_meta') or {})
-        turn_meta['evidence_interpretation_shadow'] = frame
-        msg['turn_meta'] = turn_meta
-        msg['nlu_frame']['semantic'] = frame
