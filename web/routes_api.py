@@ -43,11 +43,6 @@ PUBLICATION_CONSENT_TEXT = (
 )
 
 
-def _message_turn_number(info_state) -> int:
-    history = info_state.user.query('conversation_history') or []
-    return max(1, sum(1 for msg in history if msg.get('role') == 'user'))
-
-
 def _sufficiency_meta(task: dict) -> tuple[str | None, dict | None]:
     decision = task.get('decision') or {}
     if isinstance(decision, dict) and 'sufficient' in decision:

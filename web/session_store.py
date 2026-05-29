@@ -29,11 +29,6 @@ def set_session(session_id: str, session: dict) -> None:
     _sessions[session_id] = session
 
 
-def has_session(session_id: str) -> bool:
-    """Check if a session exists."""
-    return session_id in _sessions
-
-
 def can_rehydrate_session(session_id: str) -> bool:
     """Return whether a persisted user model exists for a session."""
     if not session_id:
@@ -96,11 +91,6 @@ def ensure_session(session_id: str) -> dict | None:
     return session
 
 
-def clear_sessions() -> None:
-    """Clear in-memory sessions. Intended for tests and controlled maintenance."""
-    _sessions.clear()
-
-
 def purge_session_artifacts(session_id: str) -> dict[str, bool]:
     """Remove in-memory and pickle session artifacts after deletion."""
     removed_memory = _sessions.pop(session_id, None) is not None
@@ -116,8 +106,3 @@ def purge_session_artifacts(session_id: str) -> dict[str, bool]:
         'removed_memory_session': removed_memory,
         'removed_user_model': removed_pickle,
     }
-
-
-def all_sessions() -> dict:
-    """Get all sessions (for debugging/admin)."""
-    return _sessions

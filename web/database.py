@@ -385,55 +385,6 @@ def save_consent(
     return consent_id
 
 
-def has_consent(visit_id: str | None, consent_type: str, consent_version: str | None = None) -> bool:
-    """Return whether a positive consent record exists for a visit."""
-    if not visit_id:
-        return False
-    query = """
-        SELECT 1 FROM consents
-        WHERE visit_id = ? AND consent_type = ? AND consented = 1
-    """
-    params: list[Any] = [visit_id, consent_type]
-    if consent_version:
-        query += ' AND consent_version = ?'
-        params.append(consent_version)
-    query += ' ORDER BY created_at DESC LIMIT 1'
-    with _conn() as c:
-        return c.execute(query, params).fetchone() is not None
-
-
-def save_audit_event(
-    *,
-    visit_id: str | None = None,
-    session_id: str | None = None,
-    actor: str = 'system',
-    action: str,
-    reason: str = '',
-    metadata: dict | None = None,
-) -> str:
-    """Record a staff/system action for operational traceability."""
-    audit_id = _uuid()
-    with _conn() as c:
-        c.execute(
-            """
-            INSERT INTO audit_events(
-                id, visit_id, session_id, actor, action, reason, metadata_json, created_at
-            ) VALUES (?,?,?,?,?,?,?,?)
-            """,
-            (
-                audit_id,
-                visit_id,
-                session_id,
-                actor,
-                action,
-                reason,
-                _json(metadata),
-                _now(),
-            ),
-        )
-    return audit_id
-
-
 def save_session_state(session_id: str | None, user_model_blob: bytes, visit_id: str | None = None) -> bool:
     """Persist a serialized user model snapshot for restart-safe rehydration."""
     if not session_id or not user_model_blob:
@@ -464,26 +415,6 @@ def load_session_state(session_id: str | None) -> bytes | None:
             (session_id,),
         ).fetchone()
     return bytes(row['user_model_blob']) if row else None
-
-
-def delete_session_state(session_id: str | None, visit_id: str | None = None) -> int:
-    """Remove persisted session snapshots for a deleted session."""
-    if not session_id and not visit_id:
-        return 0
-    clauses = []
-    params: list[Any] = []
-    if session_id:
-        clauses.append('session_id = ?')
-        params.append(session_id)
-    if visit_id:
-        clauses.append('visit_id = ?')
-        params.append(visit_id)
-    with _conn() as c:
-        result = c.execute(
-            f"DELETE FROM session_state WHERE {' OR '.join(clauses)}",
-            params,
-        )
-    return result.rowcount
 
 
 def is_session_deleted(session_id: str | None) -> bool:
