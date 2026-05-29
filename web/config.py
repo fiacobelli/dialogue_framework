@@ -61,6 +61,9 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)
 MAX_PHOTO_UPLOAD_BYTES = config('MAX_PHOTO_UPLOAD_BYTES', default=10 * 1024 * 1024, cast=int)
 INTERVIEW_EVIDENCE_SHADOW = config('INTERVIEW_EVIDENCE_SHADOW', default=True, cast=bool)
+# When True, use the single-call LLM interview turn (web/interview_turn.py) instead
+# of the legacy classifier/policy/flow pipeline. Default off until cutover (Phase 2).
+INTERVIEW_LLM_TURN = config('INTERVIEW_LLM_TURN', default=False, cast=bool)
 INTERVIEW_SEMANTIC_RESPONSE_PLAN = config('INTERVIEW_SEMANTIC_RESPONSE_PLAN', default=False, cast=bool)
 EVIDENCE_INTERPRETER_PROMPT_VERSION = 'evidence-interpreter-v1'
 

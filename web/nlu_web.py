@@ -1,6 +1,6 @@
 from strings import MSG
 
-from .config import INTERVIEW_EVIDENCE_SHADOW
+from .config import INTERVIEW_EVIDENCE_SHADOW, INTERVIEW_LLM_TURN
 from .evidence_interpreter import EvidenceInterpreter
 from .interview_flow import build_interview_state, current_step, normalize_state
 
@@ -35,6 +35,9 @@ class NLUWeb:
         return True
 
     def _attach_semantic_frame(self, msg: dict, text: str) -> None:
+        # The LLM-centered turn does its own single call; skip the shadow classifier.
+        if INTERVIEW_LLM_TURN:
+            return
         if not (INTERVIEW_EVIDENCE_SHADOW and self.info_state and self.llm_provider):
             return
         state = normalize_state(self.info_state.user.query('interview_state') or build_interview_state())

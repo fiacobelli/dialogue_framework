@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import INTERVIEW_SEMANTIC_RESPONSE_PLAN, LANGUAGE_NAMES
+from .config import INTERVIEW_LLM_TURN, INTERVIEW_SEMANTIC_RESPONSE_PLAN, LANGUAGE_NAMES
 from .interview_flow import (
     build_interview_state,
     decide_next_task,
@@ -39,6 +39,10 @@ class InterviewGoal(Goal):
         return info_state.user.query('interview_phase') == 'PHOTOS'
 
     def execute_goal(self, msg, info_state):
+        if INTERVIEW_LLM_TURN:
+            from .interview_turn import run_turn
+            run_turn(msg, info_state, self.llm, self.system_prompt)
+            return
         history = info_state.user.query('conversation_history') or []
         user_input = msg.get(MSG.ORIG_TEXT, '')
         language = info_state.user.query('language') or 'en'
