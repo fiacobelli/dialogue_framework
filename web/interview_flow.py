@@ -6,29 +6,29 @@ interview contract: intake, story order, follow-up depth, and completion.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
-from .emotional_support import emotional_support_decision
-from .interview_answer_analysis import (
-    can_request_deepening,
+from .interview_decision import (
+    classify_story_answer,
     extract_patient_name,
     input_guard_decision,
     is_skip_intent,
-    no_deepening_decider,
     readiness_decision,
     sufficiency_decision,
-    validate_deepening_decision,
+)
+from .interview_prompts import (
+    build_outgoing_turn_contract,
+    build_runtime_directive,
+    deterministic_response,
+    expected_answer_kind,
+    expected_question_text,
 )
 from .interview_flow_config import (
     FINAL_PHOTOS_PROMPT,
-    FOLLOWUP_QUESTIONS,
     GENERATION_REQUIRED_EVIDENCE_GROUPS,
     INTERVIEW_STEPS,
     PROGRESS_LABELS,
-    SECTION_TRANSITIONS,
 )
-from .story_evaluator import structured_answer_decision
-from .turn_interpreter import interpret_story_turn
 
 
 def build_interview_state() -> dict[str, Any]:
@@ -46,7 +46,6 @@ def build_interview_state() -> dict[str, Any]:
         'story_evidence': {},
         'skipped_steps': {},
         'thin_evidence': {},
-        'deepening_count_by_step': {},
         'last_followup_kind': None,
         'patient_name': None,
         'patient_name_status': 'missing',
@@ -72,8 +71,6 @@ def normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
     base.setdefault('story_evidence', {})
     base.setdefault('skipped_steps', {})
     base.setdefault('thin_evidence', {})
-    base.setdefault('deepening_count_by_step', {})
-    base.setdefault('emotional_support_count_by_step', {})
     base.setdefault('last_followup_kind', None)
     base.setdefault('patient_name_status', 'missing')
     return base
@@ -282,8 +279,6 @@ def decide_next_task(
     state: dict[str, Any],
     user_input: str = '',
     turn_meta: dict[str, Any] | None = None,
-    deepening_decider: Callable[[dict[str, str] | None, str, dict[str, Any]], dict[str, Any]] | None = None,
-    answer_evaluator: Callable[[dict[str, str] | None, str, dict[str, Any]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Update state and return the next code-owned task."""
     normalized = normalize_state(state)
@@ -335,63 +330,34 @@ def decide_next_task(
                 state, decision, default_task_type='skip_then_next', close_task_type='skip_to_photos', skipped_step=step
             )
 
-        interpretation = interpret_story_turn(step, state, user_input, awaiting)
-        if interpretation['category'] == 'prior_reference':
-            state['last_decision'] = {'turn_interpretation': interpretation}
-            if interpretation['current_step_has_accepted_evidence']:
-                decision = {
-                    'sufficient': True,
-                    'reason': 'prior_reference_existing_evidence',
-                    'matched': interpretation['matched'],
-                    'turn_interpretation': interpretation,
-                }
-                answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
-                return _advance_or_close(state, decision, answered_followup_kind=answered_followup_kind)
-
-            state['repair_count'] = int(state.get('repair_count') or 0) + 1
-            state['phase'] = step['phase'] if step else 'STORY'
-            state['awaiting'] = awaiting
-            return _task(
-                'repair_answer',
-                state,
-                phase=state['phase'],
-                step=step,
-                decision={
-                    'repair': True,
-                    'reason': 'prior_reference_without_evidence',
-                    'turn_interpretation': interpretation,
-                },
-            )
-
-        guard = input_guard_decision(step, user_input, turn_meta)
-        if guard['repair']:
-            state['last_decision'] = {'input_guard': guard}
-            state['repair_count'] = int(state.get('repair_count') or 0) + 1
-            state['phase'] = step['phase'] if step else 'STORY'
-            state['awaiting'] = awaiting
-            return _task('repair_answer', state, phase=state['phase'], step=step, decision=guard)
-
-        decision = structured_answer_decision(step, user_input, sufficiency_decision(step, user_input), answer_evaluator)
+        decision = classify_story_answer(step, user_input, state, turn_meta)
         state['last_decision'] = {'sufficiency': decision}
         answered_followup_kind = state.get('last_followup_kind') if awaiting == 'followup_answer' else None
-        _record_story_evidence(state, step, user_input, decision, awaiting)
 
-        if awaiting == 'main_answer' and step and int(state.get('followup_count') or 0) < 1:
-            emotional = emotional_support_decision(step, user_input, state)
-            if emotional.get('should_support'):
-                counts = state.setdefault('emotional_support_count_by_step', {})
-                counts[step['id']] = int(counts.get(step['id']) or 0) + 1
-                state['last_decision'] = {'sufficiency': decision, 'emotional_support': emotional}
-                state['followup_count'] = int(state.get('followup_count') or 0) + 1
-                state['last_followup_kind'] = 'emotional_support'
-                state['awaiting'] = 'followup_answer'
-                state['phase'] = step['phase']
-                return _task('ask_emotional_support', state, phase=step['phase'], step=step, decision=emotional, sufficiency=decision)
+        if decision['action'] == 'safety_response':
+            state['repair_count'] = int(state.get('repair_count') or 0) + 1
+            state['phase'] = step['phase'] if step else 'STORY'
+            state['awaiting'] = awaiting
+            return _task('safety_response', state, phase=state['phase'], step=step, decision=decision)
+
+        guard_reasons = {
+            'empty_or_no_response',
+            'operational_issue',
+            'clarification_request',
+            'acknowledgement_only',
+            'too_short_fragment',
+            'low_confidence_fragment',
+        }
+        if decision['action'] == 'ask_followup' and decision.get('reason') in guard_reasons:
+            state['repair_count'] = int(state.get('repair_count') or 0) + 1
+            state['phase'] = step['phase'] if step else 'STORY'
+            state['awaiting'] = awaiting
+            return _task('repair_answer', state, phase=state['phase'], step=step, decision=decision)
 
         if (
-            awaiting == 'main_answer'
+            decision['action'] == 'ask_followup'
             and step
-            and not decision['sufficient']
+            and awaiting == 'main_answer'
             and int(state.get('followup_count') or 0) < 1
         ):
             state['followup_count'] = int(state.get('followup_count') or 0) + 1
@@ -400,21 +366,8 @@ def decide_next_task(
             state['phase'] = step['phase']
             return _task('ask_followup', state, phase=step['phase'], step=step, decision=decision)
 
-        if awaiting == 'main_answer' and step and decision['sufficient'] and can_request_deepening(step, state):
-            planner = deepening_decider or no_deepening_decider
-            try:
-                candidate_deepening = planner(step, user_input, state)
-            except Exception as e:
-                candidate_deepening = {'should_deepen': False, 'reason': f'planner_error:{type(e).__name__}'}
-            deepening = validate_deepening_decision(step, user_input, state, candidate_deepening)
-            if deepening['should_deepen']:
-                counts = state.setdefault('deepening_count_by_step', {})
-                counts[step['id']] = int(counts.get(step['id']) or 0) + 1
-                state['last_decision'] = {'sufficiency': decision, 'deepening': deepening}
-                state['last_followup_kind'] = 'deepening'
-                state['awaiting'] = 'followup_answer'
-                state['phase'] = step['phase']
-                return _task('ask_deepening', state, phase=step['phase'], step=step, decision=deepening, sufficiency=decision)
+        if decision.get('record_current_answer'):
+            _record_story_evidence(state, step, user_input, decision, awaiting)
 
         if step and not decision['sufficient']:
             state.setdefault('thin_evidence', {})[step['id']] = decision
@@ -424,194 +377,3 @@ def decide_next_task(
     state['awaiting'] = 'name'
     state['phase'] = 'INTRO'
     return _task('repair_name', state, phase='INTRO', step=None, decision={'reason': 'unknown_state'})
-
-
-def _recovery_question_text(task: dict[str, Any]) -> str | None:
-    step = task.get('step') or {}
-    if step.get('id') == 'personal_background':
-        return (
-            "Can you share something about yourself outside of kidney disease, such as family, work, school, "
-            "community, or something you enjoy?"
-        )
-    return step.get('question')
-
-
-def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str | None:
-    task_type = task.get('type')
-    name = state.get('patient_name') or ''
-    step = task.get('step') or {}
-    step_id = step.get('id')
-    question = step.get('question')
-    if task_type == 'repair_name':
-        return "I want to make sure I show your name correctly. What name would you like shown publicly on your donor page?"
-    if task_type == 'close_to_photos':
-        return FINAL_PHOTOS_PROMPT
-    if task_type == 'already_complete':
-        return "The story interview is complete. You can continue with the photo step."
-    if task_type == 'skip_to_photos':
-        return f"No problem, we can skip that. {FINAL_PHOTOS_PROMPT}"
-    if task_type == 'skip_then_next' and question:
-        return f"No problem, we can skip that. {SECTION_TRANSITIONS.get(step_id, 'Let us continue with the next part of your story')} {question}"
-    if task_type == 'ask_readiness' and task.get('decision', {}).get('kind') == 'not_ready':
-        return "That's okay. Take your time, and when you're ready, tell me you want to begin."
-    if task_type == 'ask_readiness' and task.get('decision', {}).get('kind') == 'unclear':
-        return "Before we start the story questions, are you ready to begin?"
-    if task_type == 'answer_readiness_question':
-        return (
-            "This conversation helps create a donor page by collecting your story in your own words. "
-            "You can skip anything or correct me at any point. Are you ready to begin?"
-        )
-    if task_type == 'ask_readiness' and name:
-        return (
-            f"Thank you, {name}. I'll ask about your life, your kidney journey, and what a transplant could mean for you. "
-            "You can skip anything or correct me at any point. Are you ready to begin?"
-        )
-    if task_type == 'ask_main' and question:
-        return f"{SECTION_TRANSITIONS.get(step_id, 'Let us continue with your story')} {question}"
-    if task_type == 'recover_generation_evidence':
-        recovery_question = _recovery_question_text(task)
-        if not recovery_question:
-            return None
-        return (
-            "Before we move to photos, I need one more detail so the donor page can reflect your story. "
-            f"{recovery_question}"
-        )
-    if task_type == 'ask_followup' and step_id:
-        followup = (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
-        return followup
-    if task_type == 'ask_emotional_support':
-        support_response = (task.get('decision') or {}).get('response')
-        if support_response:
-            return support_response
-    if task_type == 'ask_deepening':
-        deepening_question = (task.get('decision') or {}).get('question')
-        if deepening_question:
-            return deepening_question
-    if task_type == 'repair_answer' and question:
-        decision = task.get('decision') or {}
-        if decision.get('reason') == 'clarification_request':
-            return f"Sure. I was asking about this part of your donor story: {question}"
-        if decision.get('reason') == 'empty_or_no_response':
-            return f"I did not catch that clearly. Please try again: {question}"
-        if decision.get('reason') == 'operational_issue':
-            return f"I am sorry, it sounds like the microphone had trouble. Let's try the same question again: {question}"
-        if decision.get('reason') == 'prior_reference_without_evidence':
-            return f"I may have missed that earlier. Could you share the part you want included for this question? {question}"
-        return f"I only caught a little of that. {question}"
-    return None
-
-
-def expected_question_text(task: dict[str, Any]) -> str | None:
-    """Return the exact question the backend expects this task to deliver."""
-    task_type = task.get('type')
-    step = task.get('step') or {}
-    if task_type == 'recover_generation_evidence':
-        return _recovery_question_text(task)
-    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next'}:
-        return step.get('question')
-    if task_type == 'ask_followup':
-        return FOLLOWUP_QUESTIONS.get(step.get('id')) or step.get('question')
-    if task_type in {'ask_deepening', 'ask_emotional_support'}:
-        return (task.get('decision') or {}).get('question')
-    if task_type == 'repair_name':
-        return 'What name would you like shown publicly on your donor page?'
-    if task_type in {'ask_readiness', 'answer_readiness_question'}:
-        return 'Are you ready to begin?'
-    return None
-
-
-def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | None:
-    task_type = task.get('type')
-    if task_type == 'repair_name':
-        return 'name'
-    if task_type in {'ask_readiness', 'answer_readiness_question'}:
-        return 'readiness'
-    if task_type in {'ask_main', 'ack_then_next', 'ask_final', 'repair_answer', 'skip_then_next', 'recover_generation_evidence'}:
-        return state.get('awaiting') or 'main_answer'
-    if task_type in {'ask_followup', 'ask_deepening', 'ask_emotional_support'}:
-        return 'followup_answer'
-    return None
-
-
-def build_outgoing_turn_contract(task: dict[str, Any], state: dict[str, Any], response: str, turn_id: str) -> dict[str, Any]:
-    """Record what the user actually received and what answer is expected next."""
-    question = expected_question_text(task)
-    step = task.get('step') or {}
-    delivery_validated = bool(question and question in response)
-    return {
-        'outgoing_turn_id': turn_id,
-        'asked_step_id': step.get('id'),
-        'asked_question_text': question,
-        'expected_answer_kind': expected_answer_kind(task, state),
-        'delivered_phase': task.get('phase'),
-        'delivery_validated': delivery_validated,
-        'task_type': task.get('type'),
-    }
-
-
-def build_runtime_directive(task: dict[str, Any]) -> str:
-    """Render a turn-specific instruction block for the LLM."""
-    task_type = task.get('type')
-    step = task.get('step') or {}
-    question = step.get('question', '')
-    focus = step.get('focus', '')
-    required = step.get('required', '')
-
-    if task_type == 'ask_main':
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- The patient is ready to begin the donor-story interview.\n'
-            f'- Ask this donor-story question in natural conversational wording: "{question}"\n'
-            f'- Listen for: {focus}.\n'
-            '- Ask only one question.'
-        )
-    if task_type == 'recover_generation_evidence':
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- The interview is almost complete, but the donor-page draft needs one missing story detail before photos.\n'
-            '- Briefly explain that one more detail is needed before moving to photos.\n'
-            f'- Ask this recovery question in natural conversational wording: "{question}"\n'
-            f'- Listen for: {focus}.\n'
-            '- Ask only one question. Do not move to photos yet.'
-        )
-    if task_type == 'ask_followup':
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- The previous answer was too short or missing important story detail.\n'
-            '- Briefly acknowledge what the patient said.\n'
-            f'- Ask one open follow-up for the same topic: {focus}.\n'
-            f'- The answer should help capture: {required}.\n'
-            '- Begin with What, How, or Tell me about.\n'
-            '- Do not move to a new topic. Ask only one question.'
-        )
-    if task_type == 'ask_deepening':
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- The previous answer was usable, but included an important story detail worth understanding more deeply.\n'
-            '- Stay on the same topic.\n'
-            '- Ask the provided story-deepening follow-up question exactly.\n'
-            '- Do not move to a new topic. Ask only one question.'
-        )
-    if task_type == 'ask_emotional_support':
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- The patient shared emotional distress.\n'
-            '- Validate briefly without counseling or medical advice.\n'
-            '- Ask the provided optional follow-up question exactly.\n'
-            '- Do not ask for unnecessary third-party private details. Ask only one question.'
-        )
-    if task_type in {'ack_then_next', 'ask_final'}:
-        return (
-            'RUNTIME TURN DIRECTIVE:\n'
-            '- Briefly acknowledge one concrete detail from what the patient just shared or previously clarified.\n'
-            '- If the patient says they already mentioned something, acknowledge that and use the earlier context; do not praise it as new detail.\n'
-            '- Do not use stock phrases like "That gives this part of your story more depth" or "Thank you for sharing that."\n'
-            f'- Then ask this next donor-story question exactly, verbatim, at the end: "{question}"\n'
-            f'- Listen for: {focus}.\n'
-            '- Ask only one question.'
-        )
-    return (
-        'RUNTIME TURN DIRECTIVE:\n'
-        '- Output only patient-facing speech.\n'
-        '- Ask only one question.'
-    )

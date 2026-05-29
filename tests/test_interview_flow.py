@@ -62,6 +62,15 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['patient_name_status'], 'confirmed')
         self.assertEqual(state['awaiting'], 'readiness')
 
+    def test_natural_name_phrase_moves_to_readiness(self):
+        state = build_interview_state()
+        task = decide_next_task(state, 'I would like to use Adam Johnson. Adam Johnson.')
+
+        self.assertEqual(task['type'], 'ask_readiness')
+        self.assertEqual(state['patient_name'], 'Adam Johnson')
+        self.assertEqual(state['patient_name_status'], 'confirmed')
+        self.assertEqual(state['awaiting'], 'readiness')
+
     def test_readiness_yes_starts_first_story_question(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
@@ -102,69 +111,45 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['step_index'], 0)
         self.assertEqual(state['awaiting'], 'followup_answer')
 
-    def test_structured_evaluator_can_accept_meaningful_answer_without_keywords(self):
+    def test_meaningful_answer_without_keywords_advances(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
 
-        def evaluator(step, answer, heuristic):
-            return {
-                'evidence_present': True,
-                'missing_detail': '',
-                'safe_to_advance': True,
-                'suggested_followup': '',
-            }
-
-        task = decide_next_task(
-            state,
-            'I restore old cars with my nephews every weekend',
-            answer_evaluator=evaluator,
-        )
+        task = decide_next_task(state, 'I restore old cars with my nephews every weekend')
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
         decision = state['story_evidence']['personal_background'][-1]['sufficiency']
-        self.assertEqual(decision['reason'], 'structured_evaluator')
+        self.assertTrue(decision['sufficient'])
 
-    def test_structured_evaluator_can_supply_grounded_followup(self):
+    def test_thin_answer_gets_one_followup(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
 
-        def evaluator(step, answer, heuristic):
-            return {
-                'evidence_present': False,
-                'missing_detail': 'needs concrete meaning',
-                'safe_to_advance': False,
-                'suggested_followup': 'When you say peace, what would feel different in your day?',
-            }
-
-        task = decide_next_task(state, 'I want peace', answer_evaluator=evaluator)
+        task = decide_next_task(state, 'I want peace')
         response = deterministic_response(task, state)
 
         self.assertEqual(task['type'], 'ask_followup')
-        self.assertIn('When you say peace', response)
+        self.assertIn('Could you tell me', response)
 
-    def test_emotional_disclosure_gets_bounded_optional_followup(self):
+    def test_emotional_disclosure_changes_no_state_branch_when_answer_is_usable(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
 
         task = decide_next_task(state, 'My kids matter most, but I am scared all the time')
-        response = deterministic_response(task, state)
 
-        self.assertEqual(task['type'], 'ask_emotional_support')
-        self.assertEqual(state['awaiting'], 'followup_answer')
-        self.assertEqual(state['last_followup_kind'], 'emotional_support')
-        self.assertIn('Thank you for trusting me with that', response)
-        self.assertIn('what do you wish people understood about that fear?', response)
-        self.assertNotIn('medical advice', response.lower())
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        self.assertEqual(state['awaiting'], 'main_answer')
 
-    def test_emotional_followup_answer_then_advances(self):
+    def test_followup_answer_then_advances(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
-        decide_next_task(state, 'My kids matter most, but I am scared all the time')
+        decide_next_task(state, 'I want peace')
 
         task = decide_next_task(state, 'I want people to understand I keep going for my kids')
 
@@ -172,7 +157,7 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['step']['id'], 'medical_history')
         evidence = state['story_evidence']['personal_background']
         self.assertEqual(evidence[-1]['answer_kind'], 'followup_answer')
-        self.assertEqual(evidence[-1]['followup_kind'], 'emotional_support')
+        self.assertEqual(evidence[-1]['followup_kind'], 'repair')
 
     def test_crisis_language_returns_resource_without_continuing_to_next_section(self):
         state = build_interview_state()
@@ -182,72 +167,52 @@ class InterviewFlowTests(unittest.TestCase):
         task = decide_next_task(state, 'My kids matter but sometimes I want to hurt myself')
         response = deterministic_response(task, state)
 
-        self.assertEqual(task['type'], 'ask_emotional_support')
-        self.assertEqual(task['decision']['category'], 'crisis')
+        self.assertEqual(task['type'], 'safety_response')
+        self.assertEqual(task['decision']['reason'], 'safety_crisis')
         self.assertIn('call or text 988', response)
         self.assertEqual(state['step_index'], 0)
 
-    def test_sufficient_answer_can_trigger_bounded_story_deepening(self):
+    def test_sufficient_answer_advances_without_story_deepening(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
 
-        def planner(step, answer, current_state):
-            return {
-                'should_deepen': True,
-                'reason': 'children are central to identity',
-                'evidence_quote': 'family friends kids',
-                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
-            }
-
-        task = decide_next_task(state, 'yes my family my friends my kids', deepening_decider=planner)
-        response = deterministic_response(task, state)
-
-        self.assertEqual(task['type'], 'ask_deepening')
-        self.assertEqual(state['awaiting'], 'followup_answer')
-        self.assertEqual(state['last_followup_kind'], 'deepening')
-        self.assertIn('your kids', response)
-
-    def test_deepening_followup_answer_then_advances_to_next_story_section(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        decide_next_task(
-            state,
-            'yes my family my friends my kids',
-            deepening_decider=lambda *_: {
-                'should_deepen': True,
-                'reason': 'children are central to identity',
-                'evidence_quote': 'kids',
-                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
-            },
-        )
-
-        task = decide_next_task(state, 'I try to be present for my kids and support them every day')
+        task = decide_next_task(state, 'yes my family my friends my kids')
 
         self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        self.assertEqual(state['awaiting'], 'main_answer')
+
+    def test_pushback_with_prior_evidence_advances_to_next_story_section(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        state['story_evidence']['personal_background'] = [{
+            'answer': 'yes my family my friends my kids',
+            'accepted': True,
+            'sufficiency': {'sufficient': True},
+        }]
+
+        task = decide_next_task(state, 'I already mentioned that')
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['decision']['reason'], 'prior_evidence_pushback')
 
     def test_missing_required_identity_recovery_happens_before_photos(self):
         state = build_interview_state()
-        decide_next_task(state, 'John')
-        decide_next_task(state, 'yes')
-
-        decide_next_task(state, "I'm a student and doing my PhD right now.")
-        decide_next_task(state, "Yeah, I'm a student.")
-        decide_next_task(state, "It's good. It's quite good.")
-        decide_next_task(state, 'around a year ago.')
-        decide_next_task(state, 'Physically not being able to perform as a healthy person')
-        decide_next_task(state, 'Yeah, I cannot work as normal as I had to.')
-        decide_next_task(state, 'Yeah, it is.')
-        decide_next_task(state, 'Yeah, it will help me to return back to my normal life.')
-        decide_next_task(
-            state,
-            'I would appreciate them if they could help me with this process and returning someone back to normal life.',
-        )
-        decide_next_task(state, 'I hope someone do that.')
-        decide_next_task(state, 'No one is supporting me, just I am by myself.')
-        decide_next_task(state, "Yeah, it's quite hard.")
-        task = decide_next_task(state, 'That was all.')
+        state.update({
+            'step_index': 6,
+            'phase': 'FINAL_DETAILS',
+            'awaiting': 'main_answer',
+            'patient_name': 'John',
+            'patient_name_status': 'confirmed',
+            'story_evidence': {
+                'daily_life': [{'answer': 'Dialysis limits my work and energy.', 'accepted': True}],
+                'transplant_hope': [{'answer': 'A transplant would help me return to normal life.', 'accepted': True}],
+                'donor_message': [{'answer': 'I hope someone can help me through this process.', 'accepted': True}],
+            },
+        })
+        task = decide_next_task(state, 'No, thank you.')
 
         self.assertEqual(task['type'], 'recover_generation_evidence')
         self.assertEqual(task['step']['id'], 'personal_background')
@@ -260,20 +225,15 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertTrue(state['complete'])
         self.assertEqual(state['phase'], 'PHOTOS')
 
-    def test_transition_after_followup_uses_llm_not_canned_depth_phrase(self):
+    def test_transition_after_pushback_uses_llm_not_canned_depth_phrase(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
-        decide_next_task(
-            state,
-            'yes my family my friends my kids',
-            deepening_decider=lambda *_: {
-                'should_deepen': True,
-                'reason': 'children are central to identity',
-                'evidence_quote': 'kids',
-                'followup_question': 'You mentioned your kids; what would you want people to understand about your kids?',
-            },
-        )
+        state['story_evidence']['personal_background'] = [{
+            'answer': 'yes my family my friends my kids',
+            'accepted': True,
+            'sufficiency': {'sufficient': True},
+        }]
 
         task = decide_next_task(state, 'I did mention it before')
         directive = build_runtime_directive(task)
@@ -283,25 +243,58 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertIn('If the patient says they already mentioned something', directive)
         self.assertIn('Do not use stock phrases', directive)
 
-    def test_invalid_deepening_planner_output_is_ignored(self):
+    def test_sufficient_answer_does_not_call_deepening_path(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
         decide_next_task(state, 'yes')
 
-        task = decide_next_task(
-            state,
-            'yes my family my friends my kids',
-            deepening_decider=lambda *_: {
-                'should_deepen': True,
-                'reason': 'invented',
-                'evidence_quote': 'marathon runner',
-                'followup_question': 'How did running marathons shape your life?',
-            },
-        )
+        task = decide_next_task(state, 'yes my family my friends my kids')
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
         self.assertNotEqual(state.get('last_followup_kind'), 'deepening')
+
+    def test_adam_transplant_hope_answer_advances_without_repeating(self):
+        state = build_interview_state()
+        state.update({
+            'step_index': 3,
+            'phase': 'STORY',
+            'awaiting': 'main_answer',
+            'patient_name': 'Adam Johnson',
+            'patient_name_status': 'confirmed',
+        })
+
+        answer = (
+            "It will change it greatly, it will change it for the better. I'll be back to my old self "
+            "doing the activities that I used to, like playing soccer and walking. I'll be back to my old "
+            "self as well, like helping out and also working as well. Because I work as a teacher."
+        )
+        task = decide_next_task(state, answer)
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'donor_message')
+        self.assertEqual(state['awaiting'], 'main_answer')
+
+    def test_donor_message_with_prior_reference_is_accepted_when_content_is_usable(self):
+        state = build_interview_state()
+        state.update({
+            'step_index': 4,
+            'phase': 'STORY',
+            'awaiting': 'main_answer',
+            'patient_name': 'Adam Johnson',
+            'patient_name_status': 'confirmed',
+        })
+
+        answer = (
+            "I mean, as a person, I'm a responsible citizen. I help out my neighbors when I can, "
+            "as I mentioned previously. And I love my parents. I'm a hopeful person as well. "
+            "Hope is important in this world."
+        )
+        task = decide_next_task(state, answer)
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'support_network')
+        self.assertTrue(state['story_evidence']['donor_message'][-1]['accepted'])
 
     def test_broad_dialysis_answer_is_not_sufficient_daily_life(self):
         step = {'id': 'daily_life'}
@@ -490,20 +483,6 @@ class FakeMicrositeLLM:
         }"""
 
 
-class FakeDeepeningPlannerLLM:
-    def __init__(self):
-        self.calls = 0
-
-    def generate(self, messages, system_prompt=None):
-        self.calls += 1
-        return """{
-            "should_deepen": true,
-            "reason": "children are central to identity",
-            "evidence_quote": "kids",
-            "followup_question": "You mentioned your kids; what would you want people to understand about your kids?"
-        }"""
-
-
 class InterviewGoalTests(unittest.TestCase):
     def _generation_ready_evidence(self):
         return {
@@ -589,11 +568,11 @@ class InterviewGoalTests(unittest.TestCase):
             self.assertEqual(msg[MSG.RESPONSE], FINAL_PHOTOS_PROMPT)
             self.assertEqual(info_state.user.query('interview_phase'), 'PHOTOS')
 
-    def test_interview_goal_uses_planner_for_story_deepening(self):
+    def test_interview_goal_advances_sufficient_story_answer_without_deepening(self):
         with tempfile.TemporaryDirectory() as tmp:
             user_file = os.path.join(tmp, 'user.pkl')
             info_state = InformationState(user_file, 'domains/interview.json')
-            info_state.user.update('session_id', 'unit-deepening')
+            info_state.user.update('session_id', 'unit-no-deepening')
             info_state.user.update('avatar_profile', {'name': 'Ludi'})
             info_state.user.update('interview_state', {
                 'version': 2,
@@ -622,7 +601,7 @@ class InterviewGoalTests(unittest.TestCase):
                 },
             })
 
-            fake = FakeDeepeningPlannerLLM()
+            fake = FakeLLM()
             goal = InterviewGoal(fake, 'You are {avatar_name}.')
             msg = {MSG.ORIG_TEXT: 'yes my family my friends my kids'}
 
@@ -630,9 +609,9 @@ class InterviewGoalTests(unittest.TestCase):
 
             state = info_state.user.query('interview_state')
             self.assertEqual(fake.calls, 1)
-            self.assertEqual(msg['interview_task']['type'], 'ask_deepening')
-            self.assertEqual(state['awaiting'], 'followup_answer')
-            self.assertIn('your kids', msg[MSG.RESPONSE])
+            self.assertEqual(msg['interview_task']['type'], 'ack_then_next')
+            self.assertEqual(state['awaiting'], 'main_answer')
+            self.assertEqual(state['last_step_id'], 'medical_history')
 
 
 class GenerationGateTests(unittest.TestCase):
