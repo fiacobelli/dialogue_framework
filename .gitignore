@@ -176,13 +176,10 @@ docs/plans/*
 !docs/plans/MICROSITE_FOUNDATION_REVIEW_PLAN.md
 !docs/plans/MICROSITE_FOUNDATION_FINAL_PLAN.md
 !docs/plans/MICROSITE_CLEANUP_REPORT.md
-tests/*
-!tests/test_interview_flow.py
-!tests/test_turn_interpreter.py
-!archive/
-!archive/legacy_framework/
-!archive/legacy_framework/prompts/
-!archive/legacy_framework/prompts/*.txt
+tests/
+archive/
+pytest.ini
+scripts/conversational_stress_test.py
 photos/
 user_models/
 static/microsites/
