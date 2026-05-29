@@ -282,6 +282,7 @@ class SpeechManager {
                 baseAssetPath: vadAssetPath,
                 onnxWASMBasePath: vadAssetPath,
                 model: 'legacy',
+                redemptionFrames: 16,
                 onSpeechStart: () => this._onVADSpeechStart(),
                 onSpeechEnd: (audio) => this._onVADSpeechEnd(audio),
                 onVADMisfire: () => this._onVADMisfire(),
