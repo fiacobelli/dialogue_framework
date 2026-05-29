@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import INTERVIEW_EVIDENCE_SHADOW, LANGUAGE_NAMES
+from .config import INTERVIEW_EVIDENCE_SHADOW, INTERVIEW_SEMANTIC_RESPONSE_PLAN, LANGUAGE_NAMES
 from .evidence_interpreter import EvidenceInterpreter
 from .interview_flow import (
     build_interview_state,
@@ -56,6 +56,7 @@ class InterviewGoal(Goal):
             user_input,
             msg.get('turn_meta'),
         )
+        self._attach_semantic_response_plan(task, msg)
         decision = task.get('decision') or {}
         should_store_user = bool(user_input) and not msg.get('turn_meta', {}).get('no_response')
         if task.get('type') == 'repair_answer' and decision.get('reason') in {
@@ -152,6 +153,32 @@ class InterviewGoal(Goal):
         turn_meta['evidence_interpretation_shadow'] = frame
         msg['turn_meta'] = turn_meta
         log_interview(session_id, f"EVIDENCE_SHADOW: {frame}")
+
+    def _attach_semantic_response_plan(self, task: dict, msg: dict) -> None:
+        """Attach grounded current-step evidence for NLG, without changing flow state."""
+        if not INTERVIEW_SEMANTIC_RESPONSE_PLAN:
+            return
+        if task.get('type') not in {'ack_then_next', 'ask_final', 'ask_followup'}:
+            return
+        frame = msg.get('evidence_interpretation_shadow') or {}
+        if not frame.get('valid'):
+            return
+        current = frame.get('current_step') or {}
+        summary = (current.get('summary') or '').strip()
+        if not summary:
+            return
+        try:
+            confidence = float(current.get('confidence') or 0)
+        except (TypeError, ValueError):
+            confidence = 0
+        if confidence < 0.55:
+            return
+        task['semantic_response_plan'] = {
+            'current_step_status': current.get('status'),
+            'current_step_summary': summary,
+            'already_answered_current': bool(frame.get('already_answered_current')),
+            'input_quality': frame.get('input_quality'),
+        }
 
     def _is_goodbye(self, text: str) -> bool:
         """Check if the response signals end of interview."""

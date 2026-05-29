@@ -7,6 +7,23 @@ from typing import Any
 from .interview_flow_config import FINAL_PHOTOS_PROMPT, FOLLOWUP_QUESTIONS, SECTION_TRANSITIONS
 
 
+def _semantic_response_lines(task: dict[str, Any]) -> list[str]:
+    plan = task.get('semantic_response_plan') or {}
+    summary = str(plan.get('current_step_summary') or '').strip()
+    if not summary:
+        return []
+    lines = [
+        '- Use this grounded understanding of the patient answer for your acknowledgement:',
+        f'  "{summary}"',
+        '- Do not invent details beyond that summary.',
+    ]
+    if plan.get('already_answered_current'):
+        lines.append('- The patient indicated they already answered this; acknowledge that without sounding defensive.')
+    if plan.get('current_step_status') == 'thin':
+        lines.append('- If asking a follow-up, ask only for the missing detail needed for this same topic.')
+    return lines
+
+
 def _recovery_question_text(task: dict[str, Any]) -> str | None:
     step = task.get('step') or {}
     if step.get('id') == 'personal_background':
@@ -59,6 +76,8 @@ def deterministic_response(task: dict[str, Any], state: dict[str, Any]) -> str |
             f"{recovery_question}"
         )
     if task_type == 'ask_followup' and step_id:
+        if task.get('semantic_response_plan'):
+            return None
         return (task.get('decision') or {}).get('suggested_followup') or FOLLOWUP_QUESTIONS.get(step_id, question)
     if task_type == 'safety_response':
         question = (task.get('decision') or {}).get('question') or 'Would you like to pause here?'
@@ -154,19 +173,23 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
             '- Ask only one question. Do not move to photos yet.'
         )
     if task_type == 'ask_followup':
+        semantic_lines = '\n'.join(_semantic_response_lines(task))
         return (
             'RUNTIME TURN DIRECTIVE:\n'
             '- The previous answer was too short or missing important story detail.\n'
             '- Briefly acknowledge what the patient said.\n'
+            f'{semantic_lines}\n'
             f'- Ask one open follow-up for the same topic: {focus}.\n'
             f'- The answer should help capture: {required}.\n'
             '- Begin with What, How, or Tell me about.\n'
             '- Do not move to a new topic. Ask only one question.'
         )
     if task_type in {'ack_then_next', 'ask_final'}:
+        semantic_lines = '\n'.join(_semantic_response_lines(task))
         return (
             'RUNTIME TURN DIRECTIVE:\n'
             '- Briefly acknowledge one concrete detail from what the patient just shared or previously clarified.\n'
+            f'{semantic_lines}\n'
             '- If the patient says they already mentioned something, acknowledge that and use the earlier context; do not praise it as new detail.\n'
             '- Do not use stock phrases like "That gives this part of your story more depth" or "Thank you for sharing that."\n'
             f'- Then ask this next donor-story question exactly, verbatim, at the end: "{question}"\n'
