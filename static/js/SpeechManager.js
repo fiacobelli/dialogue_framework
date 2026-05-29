@@ -109,6 +109,7 @@ class SpeechManager {
                 baseAssetPath: '/static/js/vad/',
                 onnxWASMBasePath: '/static/js/vad/',
                 model: 'legacy',
+                redemptionFrames: 16,
                 onSpeechStart: () => this._onVADSpeechStart(),
                 onSpeechEnd:   (audio) => this._onVADSpeechEnd(audio),
                 onVADMisfire:  () => this._onVADMisfire(),
