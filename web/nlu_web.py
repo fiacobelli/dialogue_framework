@@ -38,11 +38,15 @@ class NLUWeb:
         if not (INTERVIEW_EVIDENCE_SHADOW and self.info_state and self.llm_provider):
             return
         state = normalize_state(self.info_state.user.query('interview_state') or build_interview_state())
-        if state.get('awaiting') not in {'name', 'readiness', 'main_answer', 'followup_answer'}:
+        awaiting = state.get('awaiting')
+        if awaiting not in {'name', 'readiness', 'main_answer', 'followup_answer'}:
             return
+        # For name/readiness, pass no step so the LLM focuses on slot extraction
+        # rather than story evidence classification.
+        step = None if awaiting in {'name', 'readiness'} else current_step(state)
         frame = EvidenceInterpreter(self.llm_provider).interpret(
             text,
-            current_step(state),
+            step,
             state,
             msg.get('turn_meta') or {},
             self.info_state.user.query('conversation_history') or [],
