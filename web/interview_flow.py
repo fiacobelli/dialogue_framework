@@ -10,11 +10,8 @@ from typing import Any
 
 from .interview_decision import (
     classify_story_answer,
-    extract_patient_name,
     input_guard_decision,
     is_skip_intent,
-    readiness_decision,
-    sufficiency_decision,
 )
 from .interview_prompts import (
     build_outgoing_turn_contract,
@@ -380,7 +377,11 @@ def decide_next_task(
     awaiting = state.get('awaiting')
 
     if awaiting == 'name':
-        name_result = _name_from_nlu(turn_meta) or extract_patient_name(user_input)
+        name_result = _name_from_nlu(turn_meta) or {
+            'name': None,
+            'status': 'missing',
+            'reason': 'semantic_nlu_required',
+        }
         state['last_decision'] = {'name': name_result}
         if not name_result['name']:
             state['phase'] = 'INTRO'
@@ -394,7 +395,12 @@ def decide_next_task(
         return _task('ask_readiness', state, phase='INTRO', step=None, decision=name_result)
 
     if awaiting == 'readiness':
-        decision = _readiness_from_nlu(turn_meta) or readiness_decision(user_input)
+        decision = _readiness_from_nlu(turn_meta) or {
+            'ready': False,
+            'kind': 'unclear',
+            'matched': None,
+            'reason': 'semantic_nlu_required',
+        }
         state['last_decision'] = {'readiness': decision}
         if decision['ready']:
             state['phase'] = 'STORY'
@@ -432,11 +438,12 @@ def decide_next_task(
 
         guard_reasons = {
             'empty_or_no_response',
-            'operational_issue',
-            'clarification_request',
-            'acknowledgement_only',
-            'too_short_fragment',
+            'semantic_operational_issue',
+            'semantic_clarification',
+            'semantic_non_answer',
+            'semantic_unclear',
             'low_confidence_fragment',
+            'semantic_nlu_required',
         }
         if decision['action'] == 'ask_followup' and decision.get('reason') in guard_reasons:
             state['repair_count'] = int(state.get('repair_count') or 0) + 1

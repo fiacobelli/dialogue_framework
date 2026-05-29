@@ -27,6 +27,7 @@ def empty_evidence_frame(reason: str = 'not_run') -> dict[str, Any]:
         'valid': False,
         'fallback_reason': reason,
         'input_quality': 'unclear',
+        'input_quality_confidence': 0.0,
         'safety': {'crisis': False, 'confidence': 0.0},
         'current_step': {
             'step_id': None,
@@ -101,6 +102,7 @@ def validate_evidence_frame(data: Any, current_step_id: str | None = None) -> di
         'valid': True,
         'fallback_reason': '',
         'input_quality': input_quality,
+        'input_quality_confidence': _confidence(data.get('input_quality_confidence')),
         'safety': {
             'crisis': bool(safety.get('crisis')),
             'confidence': _confidence(safety.get('confidence')),
@@ -189,6 +191,7 @@ class EvidenceInterpreter:
             'Allowed input_quality values: answer, clarification, operational_issue, non_answer, unclear.\n'
             'Allowed status values: sufficient, thin, not_addressed, explicit_none.\n\n'
             'Classify the latest user answer into evidence for the current step and any future steps.\n'
+            'Set input_quality_confidence from 0 to 1.\n'
             'Also extract slots.public_name when the user provides a public display name.\n'
             'Also extract slots.readiness as ready, not_ready, question, unclear, or empty when applicable.\n'
             'Use per-field confidence from 0 to 1. Keep summaries short and grounded only in the patient text.\n\n'

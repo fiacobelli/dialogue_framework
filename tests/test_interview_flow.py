@@ -17,10 +17,8 @@ from web.interview_flow import (
     build_runtime_directive,
     decide_next_task,
     deterministic_response,
-    extract_patient_name,
     input_guard_decision,
     progress_snapshot,
-    sufficiency_decision,
 )
 from web import microsite
 from web import database as db
@@ -40,12 +38,25 @@ from web.structured_logging import log_event
 
 
 class InterviewFlowTests(unittest.TestCase):
-    def _semantic_meta(self, *, status='sufficient', summary='semantic evidence', confidence=0.9, slots=None, future=None):
+    def _semantic_meta(
+        self,
+        *,
+        status='sufficient',
+        summary='semantic evidence',
+        confidence=0.9,
+        slots=None,
+        future=None,
+        input_quality='answer',
+        input_confidence=0.9,
+        already_answered_current=False,
+        safety=None,
+    ):
         return {
             'evidence_interpretation_shadow': {
                 'valid': True,
-                'input_quality': 'answer',
-                'safety': {'crisis': False, 'confidence': 0.0},
+                'input_quality': input_quality,
+                'input_quality_confidence': input_confidence,
+                'safety': safety or {'crisis': False, 'confidence': 0.0},
                 'current_step': {
                     'step_id': 'personal_background',
                     'status': status,
@@ -54,9 +65,21 @@ class InterviewFlowTests(unittest.TestCase):
                 },
                 'future_evidence': future or [],
                 'slots': slots or {},
-                'already_answered_current': False,
+                'already_answered_current': already_answered_current,
             }
         }
+
+    def _name_meta(self, name='Sophia', confidence=0.9):
+        return self._semantic_meta(slots={'public_name': name, 'public_name_confidence': confidence})
+
+    def _ready_meta(self, readiness='ready', confidence=0.9):
+        return self._semantic_meta(slots={'readiness': readiness, 'readiness_confidence': confidence})
+
+    def _start_story(self, state: dict | None = None, name='Sophia') -> dict:
+        state = state or build_interview_state()
+        decide_next_task(state, name, self._name_meta(name))
+        decide_next_task(state, 'ready', self._ready_meta())
+        return state
 
     def _generation_ready_evidence(self):
         return {
@@ -66,33 +89,27 @@ class InterviewFlowTests(unittest.TestCase):
             'donor_message': [{'answer': 'I want donors to know their help would matter.', 'accepted': True}],
         }
 
-    def test_incomplete_name_is_not_captured(self):
-        result = extract_patient_name('hi my name is')
-        self.assertIsNone(result['name'])
-        self.assertEqual(result['reason'], 'incomplete_marker')
-
-    def test_clear_name_moves_to_readiness(self):
+    def test_semantic_name_moves_to_readiness(self):
         state = build_interview_state()
-        task = decide_next_task(state, 'my name is Sophia')
+        task = decide_next_task(state, 'my name is Sophia', self._name_meta('Sophia'))
 
         self.assertEqual(task['type'], 'ask_readiness')
         self.assertEqual(state['patient_name'], 'Sophia')
         self.assertEqual(state['patient_name_status'], 'confirmed')
         self.assertEqual(state['awaiting'], 'readiness')
 
-    def test_natural_name_phrase_moves_to_readiness(self):
+    def test_name_without_semantic_nlu_repairs(self):
         state = build_interview_state()
         task = decide_next_task(state, 'I would like to use Adam Johnson. Adam Johnson.')
 
-        self.assertEqual(task['type'], 'ask_readiness')
-        self.assertEqual(state['patient_name'], 'Adam Johnson')
-        self.assertEqual(state['patient_name_status'], 'confirmed')
-        self.assertEqual(state['awaiting'], 'readiness')
+        self.assertEqual(task['type'], 'repair_name')
+        self.assertIsNone(state['patient_name'])
+        self.assertEqual(state['awaiting'], 'name')
 
-    def test_readiness_yes_starts_first_story_question(self):
+    def test_semantic_readiness_starts_first_story_question(self):
         state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        task = decide_next_task(state, 'yes I am ready')
+        decide_next_task(state, 'Sophia', self._name_meta())
+        task = decide_next_task(state, 'yes I am ready', self._ready_meta())
 
         self.assertEqual(task['type'], 'ask_main')
         self.assertEqual(task['step']['id'], 'personal_background')
@@ -100,28 +117,30 @@ class InterviewFlowTests(unittest.TestCase):
 
     def test_readiness_can_use_nlu_slot_instead_of_phrase_match(self):
         state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        meta = self._semantic_meta(slots={'readiness': 'ready', 'readiness_confidence': 0.9})
+        decide_next_task(state, 'Sophia', self._name_meta())
+        meta = self._ready_meta()
 
         task = decide_next_task(state, 'I suppose we can get going', meta)
 
         self.assertEqual(task['type'], 'ask_main')
         self.assertEqual(task['step']['id'], 'personal_background')
 
-    def test_readiness_not_ready_does_not_start_story(self):
+    def test_semantic_not_ready_does_not_start_story(self):
         state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        task = decide_next_task(state, 'not ready')
+        decide_next_task(state, 'Sophia', self._name_meta())
+        task = decide_next_task(state, 'not ready', self._ready_meta('not_ready'))
 
         self.assertEqual(task['type'], 'ask_readiness')
         self.assertEqual(state['awaiting'], 'readiness')
         self.assertEqual(state['phase'], 'INTRO')
 
     def test_acknowledgement_only_story_answer_repairs_without_advancing(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        task = decide_next_task(state, 'okay')
+        state = self._start_story()
+        task = decide_next_task(
+            state,
+            'okay',
+            self._semantic_meta(status='not_addressed', input_quality='non_answer', summary='Brief acknowledgement'),
+        )
 
         self.assertEqual(task['type'], 'repair_answer')
         self.assertEqual(task['step']['id'], 'personal_background')
@@ -129,9 +148,7 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['awaiting'], 'main_answer')
 
     def test_story_answer_uses_semantic_policy_before_phrase_fallback(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
         meta = self._semantic_meta(
             status='sufficient',
             summary='Patient says family and friends support them.',
@@ -146,9 +163,7 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(decision['reason'], 'semantic_sufficient')
 
     def test_future_evidence_is_recorded_and_redundant_step_is_skipped(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
         meta = self._semantic_meta(
             status='sufficient',
             summary='Patient is a student and family matters.',
@@ -172,10 +187,8 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['story_evidence']['medical_history'][-1]['answer_kind'], 'future_answer')
 
     def test_detailed_but_insufficient_answer_triggers_same_topic_followup(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        task = decide_next_task(state, 'I like my family')
+        state = self._start_story()
+        task = decide_next_task(state, 'I like my family', self._semantic_meta(status='thin', summary='Needs more detail'))
 
         self.assertEqual(task['type'], 'ask_followup')
         self.assertEqual(task['step']['id'], 'personal_background')
@@ -183,11 +196,13 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['awaiting'], 'followup_answer')
 
     def test_meaningful_answer_without_keywords_advances(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
-        task = decide_next_task(state, 'I restore old cars with my nephews every weekend')
+        task = decide_next_task(
+            state,
+            'I restore old cars with my nephews every weekend',
+            self._semantic_meta(summary='Patient restores old cars with nephews.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
@@ -195,34 +210,36 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertTrue(decision['sufficient'])
 
     def test_thin_answer_gets_one_followup(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
-        task = decide_next_task(state, 'I want peace')
+        task = decide_next_task(state, 'I want peace', self._semantic_meta(status='thin', summary='Thin answer'))
         response = deterministic_response(task, state)
 
         self.assertEqual(task['type'], 'ask_followup')
         self.assertIn('Could you tell me', response)
 
     def test_emotional_disclosure_changes_no_state_branch_when_answer_is_usable(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
-        task = decide_next_task(state, 'My kids matter most, but I am scared all the time')
+        task = decide_next_task(
+            state,
+            'My kids matter most, but I am scared all the time',
+            self._semantic_meta(summary='Patient says kids matter most and shares fear.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
         self.assertEqual(state['awaiting'], 'main_answer')
 
     def test_followup_answer_then_advances(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        decide_next_task(state, 'I want peace')
+        state = self._start_story()
+        decide_next_task(state, 'I want peace', self._semantic_meta(status='thin', summary='Thin answer'))
 
-        task = decide_next_task(state, 'I want people to understand I keep going for my kids')
+        task = decide_next_task(
+            state,
+            'I want people to understand I keep going for my kids',
+            self._semantic_meta(summary='Patient keeps going for their kids.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
@@ -231,9 +248,7 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(evidence[-1]['followup_kind'], 'repair')
 
     def test_crisis_language_returns_resource_without_continuing_to_next_section(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
         task = decide_next_task(state, 'My kids matter but sometimes I want to hurt myself')
         response = deterministic_response(task, state)
@@ -244,30 +259,34 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(state['step_index'], 0)
 
     def test_sufficient_answer_advances_without_story_deepening(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
-        task = decide_next_task(state, 'yes my family my friends my kids')
+        task = decide_next_task(
+            state,
+            'yes my family my friends my kids',
+            self._semantic_meta(summary='Patient says family and friends matter.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
         self.assertEqual(state['awaiting'], 'main_answer')
 
     def test_pushback_with_prior_evidence_advances_to_next_story_section(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
         state['story_evidence']['personal_background'] = [{
             'answer': 'yes my family my friends my kids',
             'accepted': True,
             'sufficiency': {'sufficient': True},
         }]
 
-        task = decide_next_task(state, 'I already mentioned that')
+        task = decide_next_task(
+            state,
+            'I already mentioned that',
+            self._semantic_meta(already_answered_current=True, summary='Prior evidence already covers this.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
-        self.assertEqual(task['decision']['reason'], 'prior_evidence_pushback')
+        self.assertEqual(task['decision']['reason'], 'semantic_prior_evidence')
 
     def test_missing_required_identity_recovery_happens_before_photos(self):
         state = build_interview_state()
@@ -283,30 +302,40 @@ class InterviewFlowTests(unittest.TestCase):
                 'donor_message': [{'answer': 'I hope someone can help me through this process.', 'accepted': True}],
             },
         })
-        task = decide_next_task(state, 'No, thank you.')
+        task = decide_next_task(
+            state,
+            'No, thank you.',
+            self._semantic_meta(status='explicit_none', summary='No final additions.'),
+        )
 
         self.assertEqual(task['type'], 'recover_generation_evidence')
         self.assertEqual(task['step']['id'], 'personal_background')
         self.assertFalse(state['complete'])
         self.assertEqual(state['awaiting'], 'main_answer')
 
-        close_task = decide_next_task(state, 'I am a PhD student and my family, school, and community matter to me.')
+        close_task = decide_next_task(
+            state,
+            'I am a PhD student and my family, school, and community matter to me.',
+            self._semantic_meta(summary='Patient is a PhD student and family, school, and community matter.'),
+        )
 
         self.assertEqual(close_task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
         self.assertEqual(state['phase'], 'PHOTOS')
 
     def test_transition_after_pushback_uses_llm_not_canned_depth_phrase(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
         state['story_evidence']['personal_background'] = [{
             'answer': 'yes my family my friends my kids',
             'accepted': True,
             'sufficiency': {'sufficient': True},
         }]
 
-        task = decide_next_task(state, 'I did mention it before')
+        task = decide_next_task(
+            state,
+            'I did mention it before',
+            self._semantic_meta(already_answered_current=True, summary='Prior evidence already covers this.'),
+        )
         directive = build_runtime_directive(task)
 
         self.assertEqual(task['type'], 'ack_then_next')
@@ -315,11 +344,13 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertIn('Do not use stock phrases', directive)
 
     def test_sufficient_answer_does_not_call_deepening_path(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
-        task = decide_next_task(state, 'yes my family my friends my kids')
+        task = decide_next_task(
+            state,
+            'yes my family my friends my kids',
+            self._semantic_meta(summary='Patient says family and friends matter.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'medical_history')
@@ -340,7 +371,11 @@ class InterviewFlowTests(unittest.TestCase):
             "doing the activities that I used to, like playing soccer and walking. I'll be back to my old "
             "self as well, like helping out and also working as well. Because I work as a teacher."
         )
-        task = decide_next_task(state, answer)
+        task = decide_next_task(
+            state,
+            answer,
+            self._semantic_meta(summary='Transplant would restore activity, work, and sense of self.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'donor_message')
@@ -361,18 +396,15 @@ class InterviewFlowTests(unittest.TestCase):
             "as I mentioned previously. And I love my parents. I'm a hopeful person as well. "
             "Hope is important in this world."
         )
-        task = decide_next_task(state, answer)
+        task = decide_next_task(
+            state,
+            answer,
+            self._semantic_meta(summary='Patient describes being responsible, helpful, loving, and hopeful.'),
+        )
 
         self.assertEqual(task['type'], 'ack_then_next')
         self.assertEqual(task['step']['id'], 'support_network')
         self.assertTrue(state['story_evidence']['donor_message'][-1]['accepted'])
-
-    def test_broad_dialysis_answer_is_not_sufficient_daily_life(self):
-        step = {'id': 'daily_life'}
-        decision = sufficiency_decision(step, 'most of the time treatments dialysis treatment')
-
-        self.assertFalse(decision['sufficient'])
-        self.assertEqual(decision['reason'], 'broad_treatment_only')
 
     def test_final_details_no_nothing_really_closes(self):
         state = build_interview_state()
@@ -385,7 +417,11 @@ class InterviewFlowTests(unittest.TestCase):
             'story_evidence': self._generation_ready_evidence(),
         })
 
-        task = decide_next_task(state, 'No, nothing really.')
+        task = decide_next_task(
+            state,
+            'No, nothing really.',
+            self._semantic_meta(status='explicit_none', summary='No final additions.'),
+        )
 
         self.assertEqual(task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
@@ -401,7 +437,11 @@ class InterviewFlowTests(unittest.TestCase):
             'story_evidence': self._generation_ready_evidence(),
         })
 
-        task = decide_next_task(state, 'No, thank you.')
+        task = decide_next_task(
+            state,
+            'No, thank you.',
+            self._semantic_meta(status='explicit_none', summary='No final additions.'),
+        )
 
         self.assertEqual(task['type'], 'close_to_photos')
         self.assertTrue(state['complete'])
@@ -419,12 +459,16 @@ class InterviewFlowTests(unittest.TestCase):
                     'story_evidence': self._generation_ready_evidence(),
                 })
 
-                task = decide_next_task(state, answer)
+                task = decide_next_task(
+                    state,
+                    answer,
+                    self._semantic_meta(status='explicit_none', summary='No final additions.'),
+                )
 
                 self.assertEqual(task['type'], 'close_to_photos')
                 self.assertTrue(state['complete'])
 
-    def test_short_section_specific_answers_are_accepted(self):
+    def test_concise_answers_require_semantic_nlu(self):
         examples = (
             (0, 'father', 'medical_history', 'ack_then_next'),
             (1, '2021', 'daily_life', 'ack_then_next'),
@@ -444,15 +488,17 @@ class InterviewFlowTests(unittest.TestCase):
                     'story_evidence': self._generation_ready_evidence(),
                 })
 
-                task = decide_next_task(state, answer)
+                task = decide_next_task(
+                    state,
+                    answer,
+                    self._semantic_meta(summary=f'Semantic evidence for {answer}.'),
+                )
 
                 self.assertEqual(task['type'], task_type)
                 self.assertEqual(task['step']['id'], next_step_id)
 
     def test_skip_story_question_records_skip_and_advances(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
         task = decide_next_task(state, '[skip]', {'skip_requested': True})
         response = deterministic_response(task, state)
@@ -474,38 +520,42 @@ class InterviewFlowTests(unittest.TestCase):
             'story_evidence': self._generation_ready_evidence(),
         })
 
-        task = decide_next_task(state, 'skip this question')
+        task = decide_next_task(state, 'skip this question', {'skip_requested': True})
 
         self.assertEqual(task['type'], 'skip_to_photos')
         self.assertTrue(state['complete'])
         self.assertIn('final_details', state['skipped_steps'])
 
     def test_operational_complaint_repairs_without_advancing(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        decide_next_task(state, 'My family matters most and I am a teacher in my community')
+        state = self._start_story()
+        decide_next_task(
+            state,
+            'My family matters most and I am a teacher in my community',
+            self._semantic_meta(summary='Patient says family matters and they teach.'),
+        )
 
-        task = decide_next_task(state, "It has trouble picking stuff up. It needs more time to pick stuff up.")
+        task = decide_next_task(
+            state,
+            "It has trouble picking stuff up. It needs more time to pick stuff up.",
+            self._semantic_meta(input_quality='operational_issue', input_confidence=0.9),
+        )
 
         self.assertEqual(task['type'], 'repair_answer')
-        self.assertEqual(task['decision']['reason'], 'operational_issue')
+        self.assertEqual(task['decision']['reason'], 'semantic_operational_issue')
         self.assertEqual(state['last_step_id'], 'medical_history')
         self.assertNotIn('medical_history', state.get('story_evidence', {}))
 
-    def test_long_operational_answer_is_not_sufficient_daily_life(self):
+    def test_operational_language_without_semantic_nlu_is_not_predicted(self):
         guard = input_guard_decision(
             {'id': 'daily_life'},
             "It's hard. It has trouble picking stuff up. It needs more time to pick stuff up.",
         )
 
-        self.assertTrue(guard['repair'])
-        self.assertEqual(guard['reason'], 'operational_issue')
+        self.assertFalse(guard['repair'])
+        self.assertEqual(guard['reason'], 'answer_candidate')
 
     def test_no_response_repairs_same_question(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
         task = decide_next_task(state, '[no speech detected]', {'no_response': True})
         response = deterministic_response(task, state)
@@ -522,16 +572,20 @@ class InterviewFlowTests(unittest.TestCase):
             'awaiting': 'story_answer',
             'complete': False,
         }
-        task = decide_next_task(state, '2 years ago')
+        task = decide_next_task(
+            state,
+            '2 years ago',
+            self._semantic_meta(summary='Patient says the diagnosis was two years ago.'),
+        )
 
-        self.assertIn(task['type'], {'ack_then_next', 'ask_followup'})
+        self.assertIn(task['type'], {'ack_then_next', 'repair_answer'})
         self.assertNotEqual(state['awaiting'], 'story_answer')
         self.assertEqual(state['version'], 2)
 
     def test_active_story_turn_contains_exact_canonical_question(self):
         state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        task = decide_next_task(state, 'yes')
+        decide_next_task(state, 'Sophia', self._name_meta())
+        task = decide_next_task(state, 'yes', self._ready_meta())
         response = deterministic_response(task, state)
 
         self.assertIn(task['step']['question'], response)
@@ -539,8 +593,8 @@ class InterviewFlowTests(unittest.TestCase):
 
     def test_outgoing_turn_contract_records_delivered_question(self):
         state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        task = decide_next_task(state, 'yes')
+        decide_next_task(state, 'Sophia', self._name_meta())
+        task = decide_next_task(state, 'yes', self._ready_meta())
         response = deterministic_response(task, state)
         contract = build_outgoing_turn_contract(task, state, response, 'turn-1')
 
@@ -551,19 +605,19 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertTrue(contract['delivery_validated'])
 
     def test_story_evidence_tracks_only_accepted_answers(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
-        decide_next_task(state, 'My family matters most and I am a teacher in my community')
+        state = self._start_story()
+        decide_next_task(
+            state,
+            'My family matters most and I am a teacher in my community',
+            self._semantic_meta(summary='Patient says family matters and they teach.'),
+        )
 
         evidence = state['story_evidence']['personal_background']
         self.assertIsInstance(evidence, list)
         self.assertTrue(evidence[-1]['accepted'])
 
     def test_progress_snapshot_reports_story_step(self):
-        state = build_interview_state()
-        decide_next_task(state, 'Sophia')
-        decide_next_task(state, 'yes')
+        state = self._start_story()
 
         progress = progress_snapshot(state, 'STORY')
 
@@ -598,6 +652,34 @@ class FakeMicrositeLLM:
 
 
 class InterviewGoalTests(unittest.TestCase):
+    def _semantic_meta(
+        self,
+        *,
+        status='sufficient',
+        summary='semantic evidence',
+        confidence=0.9,
+        slots=None,
+        input_quality='answer',
+        input_confidence=0.9,
+    ):
+        return {
+            'evidence_interpretation_shadow': {
+                'valid': True,
+                'input_quality': input_quality,
+                'input_quality_confidence': input_confidence,
+                'safety': {'crisis': False, 'confidence': 0.0},
+                'current_step': {
+                    'step_id': 'personal_background',
+                    'status': status,
+                    'summary': summary,
+                    'confidence': confidence,
+                },
+                'future_evidence': [],
+                'slots': slots or {},
+                'already_answered_current': False,
+            }
+        }
+
     def _generation_ready_evidence(self):
         return {
             'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
@@ -638,7 +720,10 @@ class InterviewGoalTests(unittest.TestCase):
 
             fake = FakeLLM()
             goal = InterviewGoal(fake, 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'yes'}
+            msg = {
+                MSG.ORIG_TEXT: 'yes',
+                'turn_meta': self._semantic_meta(slots={'readiness': 'ready', 'readiness_confidence': 0.9}),
+            }
 
             goal.execute_goal(msg, info_state)
 
@@ -674,7 +759,10 @@ class InterviewGoalTests(unittest.TestCase):
 
             fake = FakeLLM()
             goal = InterviewGoal(fake, 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'nothing else'}
+            msg = {
+                MSG.ORIG_TEXT: 'nothing else',
+                'turn_meta': self._semantic_meta(status='explicit_none', summary='No final additions.'),
+            }
 
             goal.execute_goal(msg, info_state)
 
@@ -717,7 +805,10 @@ class InterviewGoalTests(unittest.TestCase):
 
             fake = FakeLLM()
             goal = InterviewGoal(fake, 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'yes my family my friends my kids'}
+            msg = {
+                MSG.ORIG_TEXT: 'yes my family my friends my kids',
+                'turn_meta': self._semantic_meta(summary='Patient says family and friends matter.'),
+            }
 
             goal.execute_goal(msg, info_state)
 

@@ -72,13 +72,23 @@ def evidence_json_for_prompt(prompt: str) -> str:
     final_none = bool(re.search(r'\b(nothing else|no thanks|no thank|that is enough|that covers it|nah i am good|no that is all)\b', answer))
     clarification = bool(re.search(r'\b(repeat|what do you mean|what is this|do you mean)\b', answer))
     non_answer = '[no speech detected]' in answer
+    readiness = ''
+    if re.search(r'\b(yes|ready|sure|okay yes|go ahead|let us do it)\b', answer):
+        readiness = 'ready'
+    elif re.search(r'\b(not ready|not yet|wait|hold on)\b', answer):
+        readiness = 'not_ready'
+    elif re.search(r'\b(why|what for|who will see)\b', answer):
+        readiness = 'question'
+    name_match = re.search(r'\b([A-Z][A-Za-z\'-]+(?:\s+[A-Z][A-Za-z\'-]+){0,3})\b', answer_match.group(1) if answer_match else '')
     status = 'explicit_none' if final_none and step_id == 'final_details' else 'not_addressed'
     if not final_none and not clarification and not non_answer and len(answer.split()) >= 4:
         status = 'sufficient'
+    input_quality = 'clarification' if clarification else 'non_answer' if non_answer else 'answer'
     frame = {
         'schema_version': 1,
         'prompt_version': 'evidence-interpreter-v1',
-        'input_quality': 'clarification' if clarification else 'non_answer' if non_answer else 'answer',
+        'input_quality': input_quality,
+        'input_quality_confidence': 0.9,
         'safety': {'crisis': False, 'confidence': 0.0},
         'current_step': {
             'step_id': step_id,
@@ -87,6 +97,12 @@ def evidence_json_for_prompt(prompt: str) -> str:
             'confidence': 0.84 if status in {'sufficient', 'explicit_none'} else 0.55,
         },
         'future_evidence': future_evidence_from_answer(answer),
+        'slots': {
+            'public_name': name_match.group(1) if name_match else '',
+            'public_name_confidence': 0.9 if name_match else 0.0,
+            'readiness': readiness,
+            'readiness_confidence': 0.9 if readiness else 0.0,
+        },
         'final_nothing_else': final_none,
         'already_answered_current': 'already' in answer or 'as i said' in answer or 'mentioned' in answer,
     }
@@ -119,10 +135,12 @@ def run_scenario(scenario: Scenario) -> dict[str, Any]:
 
     for turn in scenario.turns:
         state_before = info_state.user.query('interview_state') or {}
-        if state_before.get('awaiting') in {'main_answer', 'followup_answer'} and not turn.meta.get('no_response'):
-            frame = interpreter.interpret(turn.text, current_step(state_before), state_before, turn.meta, info_state.user.query('conversation_history') or [])
+        turn_meta = dict(turn.meta or {})
+        if state_before.get('awaiting') in {'name', 'readiness', 'main_answer', 'followup_answer'}:
+            frame = interpreter.interpret(turn.text, current_step(state_before), state_before, turn_meta, info_state.user.query('conversation_history') or [])
+            turn_meta['evidence_interpretation_shadow'] = frame
             shadow_frames.append({'step_id': (current_step(state_before) or {}).get('id'), 'frame': frame})
-        msg = {MSG.ORIG_TEXT: turn.text, 'turn_meta': turn.meta}
+        msg = {MSG.ORIG_TEXT: turn.text, 'turn_meta': turn_meta}
         manager.update(msg, info_state)
         task = msg.get('interview_task') or {}
         task_type = task.get('type', 'unknown')

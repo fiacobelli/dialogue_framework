@@ -100,6 +100,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
             'schema_version': 1,
             'prompt_version': 'unit',
             'input_quality': 'answer',
+            'input_quality_confidence': 0.93,
             'safety': {'crisis': False, 'confidence': 2},
             'current_step': {'step_id': 'daily_life', 'status': 'sufficient', 'summary': 'x', 'confidence': 0.8},
             'future_evidence': [{'step_id': 'transplant_hope', 'status': 'thin', 'summary': 'hope', 'confidence': 0.5}],
@@ -115,6 +116,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
         }, current_step_id='daily_life')
 
         self.assertTrue(frame['valid'])
+        self.assertEqual(frame['input_quality_confidence'], 0.93)
         self.assertEqual(frame['safety']['confidence'], 1.0)
         self.assertNotIn('forbidden_action', frame)
         self.assertEqual(frame['future_evidence'][0]['step_id'], 'transplant_hope')
@@ -130,6 +132,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
 
         self.assertFalse(frame['valid'])
         self.assertEqual(frame['fallback_reason'], 'unit')
+        self.assertEqual(frame['input_quality_confidence'], 0.0)
 
     def test_interpreter_returns_valid_frame_from_llm_json(self):
         llm = JsonLLM()

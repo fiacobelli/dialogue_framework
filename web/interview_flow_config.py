@@ -73,103 +73,7 @@ FINAL_PHOTOS_PROMPT = (
     "The story part is complete, and the next step is to add up to three photos that you may want on your donor page."
 )
 
-SHORT_ANSWERS = {
-    'yes', 'yeah', 'yep', 'yup', 'yea',
-    'no', 'nah', 'nope',
-    'ok', 'okay', 'alright', 'all right',
-    'sure', 'fine', 'good', 'not really', 'none',
-}
-
 NO_RESPONSE_SENTINEL = '[no speech detected]'
-
-ACKNOWLEDGEMENT_ONLY = {
-    'yes', 'yeah', 'yep', 'yup', 'yea',
-    'ok', 'okay', 'alright', 'all right', 'sure',
-    'fine', 'good', 'right', 'correct',
-}
-
-CLARIFICATION_REQUESTS = {
-    'what', 'huh', 'sorry', 'repeat', 'repeat that', 'say that again',
-    'can you repeat', 'could you repeat', 'what do you mean',
-}
-
-OPERATIONAL_ISSUE_TERMS = {
-    'clunky', 'frustrating', 'super frustrating', 'microphone', 'mic',
-    'not picking', 'picking stuff up', 'pick stuff up', 'not hearing',
-    "didn't hear", 'did not hear', 'speak louder', 'repeat what you said',
-    'try again', 'cutting me off', 'cuts me off', 'not responsive',
-    'taking a while', 'too slow', 'slower', 'hear me',
-}
-
-SKIP_TERMS = {
-    'skip',
-    'skip this',
-    'skip this question',
-    'pass',
-    'i pass',
-    'next',
-    'next question',
-    'move on',
-    'prefer not to answer',
-    "i'd rather not answer",
-    'rather not answer',
-    'do not want to answer',
-    "don't want to answer",
-}
-
-READY_TERMS = {'yes', 'yeah', 'yep', 'yup', 'ready', 'sure', 'ok', 'okay', 'start', 'begin', 'go ahead'}
-NOT_READY_TERMS = {'no', 'not yet', 'not ready', 'wait', 'hold on', 'later', 'stop', 'pause'}
-READINESS_QUESTION_TERMS = {'why', 'what for', 'what is this', 'how does this work', 'who will see', 'share'}
-
-NAME_MARKERS = (
-    r'my name is',
-    r'i am',
-    r"i'm",
-    r'call me',
-    r'name is',
-)
-
-REJECT_NAME_WORDS = {
-    'hi', 'hello', 'hey', 'okay', 'ok', 'yes', 'no', 'ready', 'start', 'begin',
-    'patient', 'name', 'is', 'me', 'my',
-}
-
-DETAIL_TERMS: dict[str, set[str]] = {
-    'personal_background': {
-        'mother', 'father', 'mom', 'dad', 'wife', 'husband', 'daughter', 'son',
-        'sister', 'brother', 'family', 'friend', 'teacher', 'work', 'job',
-        'church', 'community', 'chicago', 'hobby', 'music', 'cook', 'cooking',
-        'school', 'grandkids', 'children', 'kids',
-    },
-    'medical_history': {
-        'year', 'years', 'month', 'months', 'ago', 'diagnosed', 'dialysis',
-        'kidney', 'failure', 'started', 'doctor', 'hospital',
-    },
-    'daily_life': {
-        'dialysis', 'treatment', 'tired', 'fatigue', 'exhausted', 'drained', 'pain', 'work', 'walk',
-        'drive', 'sleep', 'family', 'kids', 'children', 'cook', 'travel',
-        'appointments', 'schedule', 'hours', 'week', 'emotionally', 'sad',
-        'scared', 'independent', 'independence', 'activities',
-    },
-    'transplant_hope': {
-        'energy', 'travel', 'work', 'family', 'kids', 'children', 'grandkids',
-        'independent', 'independence', 'freedom', 'school', 'cook', 'walk',
-        'drive', 'future', 'life', 'normal', 'healthy', 'hobbies',
-    },
-    'donor_message': {
-        'know', 'person', 'family', 'help', 'chance', 'life', 'donor',
-        'grateful', 'thank', 'hope', 'mother', 'father', 'kids', 'children',
-    },
-    'support_network': {
-        'family', 'friend', 'friends', 'church', 'community', 'wife', 'husband',
-        'mother', 'father', 'daughter', 'son', 'sister', 'brother', 'support',
-        'help', 'drive', 'caregiver', 'alone',
-    },
-    'final_details': {
-        'include', 'quote', 'photo', 'photos', 'story', 'message', 'tone',
-        'nothing', 'none', 'no', 'everything', 'ready',
-    },
-}
 
 SECTION_TRANSITIONS: dict[str, str] = {
     'personal_background': "Let's start with who you are as a person.",
@@ -192,10 +96,3 @@ FOLLOWUP_QUESTIONS: dict[str, str] = {
 }
 
 DEEPENING_MAX_PER_STEP = 1
-
-CONTENT_STOPWORDS = {
-    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can',
-    'could', 'do', 'for', 'from', 'has', 'have', 'how', 'i', 'if', 'in',
-    'is', 'it', 'me', 'my', 'of', 'or', 'that', 'the', 'this', 'to', 'want',
-    'what', 'when', 'with', 'would', 'you', 'your',
-}
