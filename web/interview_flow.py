@@ -204,6 +204,63 @@ def _record_story_evidence(
         evidence[step['id']] = [step_entries, entry]
 
 
+def _step_has_accepted_evidence(state: dict[str, Any], step_id: str | None) -> bool:
+    if not step_id:
+        return False
+    entries = (state.get('story_evidence') or {}).get(step_id) or []
+    if isinstance(entries, dict):
+        entries = [entries]
+    return any(isinstance(entry, dict) and entry.get('accepted') for entry in entries)
+
+
+def _step_has_future_evidence(state: dict[str, Any], step_id: str | None) -> bool:
+    if not step_id:
+        return False
+    entries = (state.get('story_evidence') or {}).get(step_id) or []
+    if isinstance(entries, dict):
+        entries = [entries]
+    return any(
+        isinstance(entry, dict)
+        and entry.get('accepted')
+        and entry.get('answer_kind') == 'future_answer'
+        for entry in entries
+    )
+
+
+def _record_future_evidence_from_nlu(
+    state: dict[str, Any],
+    turn_meta: dict[str, Any] | None,
+    user_input: str,
+    current_step_id: str | None,
+) -> None:
+    frame = (turn_meta or {}).get('evidence_interpretation_shadow') or {}
+    for item in frame.get('future_evidence') or []:
+        step_id = item.get('step_id')
+        if not step_id or step_id == current_step_id or _step_has_accepted_evidence(state, step_id):
+            continue
+        try:
+            confidence = float(item.get('confidence') or 0)
+        except (TypeError, ValueError):
+            confidence = 0
+        if item.get('status') not in {'sufficient', 'explicit_none'} or confidence < 0.65:
+            continue
+        step = next((candidate for candidate in INTERVIEW_STEPS if candidate.get('id') == step_id), None)
+        if not step:
+            continue
+        _record_story_evidence(
+            state,
+            step,
+            user_input,
+            {
+                'sufficient': True,
+                'reason': 'semantic_future_evidence',
+                'matched': item.get('summary'),
+                'semantic_confidence': confidence,
+            },
+            'future_answer',
+        )
+
+
 def _record_skipped_step(state: dict[str, Any], step: dict[str, str] | None, user_input: str, awaiting: str) -> None:
     if not step:
         return
@@ -224,6 +281,8 @@ def _advance_or_close(state: dict[str, Any], decision: dict[str, Any], *, defaul
         return _recover_or_close_to_photos(state, decision, close_task_type=close_task_type, **extra)
 
     next_step = _advance_step(state)
+    while next_step and next_step.get('id') != 'final_details' and _step_has_future_evidence(state, next_step.get('id')):
+        next_step = _advance_step(state)
     if next_step:
         state['awaiting'] = 'main_answer'
         state['phase'] = next_step['phase']
@@ -288,6 +347,24 @@ def _name_from_nlu(turn_meta: dict[str, Any] | None) -> dict[str, Any] | None:
     return None
 
 
+def _readiness_from_nlu(turn_meta: dict[str, Any] | None) -> dict[str, Any] | None:
+    frame = (turn_meta or {}).get('evidence_interpretation_shadow') or {}
+    slots = frame.get('slots') if isinstance(frame.get('slots'), dict) else {}
+    readiness = _clean_text(slots.get('readiness'))
+    try:
+        confidence = float(slots.get('readiness_confidence') or 0)
+    except (TypeError, ValueError):
+        confidence = 0
+    if confidence < 0.65 or readiness not in {'ready', 'not_ready', 'question'}:
+        return None
+    return {
+        'ready': readiness == 'ready',
+        'kind': readiness,
+        'matched': 'nlu_slot',
+        'confidence': confidence,
+    }
+
+
 def decide_next_task(
     state: dict[str, Any],
     user_input: str = '',
@@ -317,7 +394,7 @@ def decide_next_task(
         return _task('ask_readiness', state, phase='INTRO', step=None, decision=name_result)
 
     if awaiting == 'readiness':
-        decision = readiness_decision(user_input)
+        decision = _readiness_from_nlu(turn_meta) or readiness_decision(user_input)
         state['last_decision'] = {'readiness': decision}
         if decision['ready']:
             state['phase'] = 'STORY'
@@ -381,6 +458,7 @@ def decide_next_task(
 
         if decision.get('record_current_answer'):
             _record_story_evidence(state, step, user_input, decision, awaiting)
+        _record_future_evidence_from_nlu(state, turn_meta, user_input, step.get('id') if step else None)
 
         if step and not decision['sufficient']:
             state.setdefault('thin_evidence', {})[step['id']] = decision

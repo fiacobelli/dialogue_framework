@@ -40,6 +40,24 @@ from web.structured_logging import log_event
 
 
 class InterviewFlowTests(unittest.TestCase):
+    def _semantic_meta(self, *, status='sufficient', summary='semantic evidence', confidence=0.9, slots=None, future=None):
+        return {
+            'evidence_interpretation_shadow': {
+                'valid': True,
+                'input_quality': 'answer',
+                'safety': {'crisis': False, 'confidence': 0.0},
+                'current_step': {
+                    'step_id': 'personal_background',
+                    'status': status,
+                    'summary': summary,
+                    'confidence': confidence,
+                },
+                'future_evidence': future or [],
+                'slots': slots or {},
+                'already_answered_current': False,
+            }
+        }
+
     def _generation_ready_evidence(self):
         return {
             'personal_background': [{'answer': 'I am Sophia and my family matters most.', 'accepted': True}],
@@ -80,6 +98,16 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['step']['id'], 'personal_background')
         self.assertEqual(state['awaiting'], 'main_answer')
 
+    def test_readiness_can_use_nlu_slot_instead_of_phrase_match(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        meta = self._semantic_meta(slots={'readiness': 'ready', 'readiness_confidence': 0.9})
+
+        task = decide_next_task(state, 'I suppose we can get going', meta)
+
+        self.assertEqual(task['type'], 'ask_main')
+        self.assertEqual(task['step']['id'], 'personal_background')
+
     def test_readiness_not_ready_does_not_start_story(self):
         state = build_interview_state()
         decide_next_task(state, 'Sophia')
@@ -99,6 +127,49 @@ class InterviewFlowTests(unittest.TestCase):
         self.assertEqual(task['step']['id'], 'personal_background')
         self.assertEqual(state['step_index'], 0)
         self.assertEqual(state['awaiting'], 'main_answer')
+
+    def test_story_answer_uses_semantic_policy_before_phrase_fallback(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        meta = self._semantic_meta(
+            status='sufficient',
+            summary='Patient says family and friends support them.',
+            confidence=0.88,
+        )
+
+        task = decide_next_task(state, 'yes', meta)
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'medical_history')
+        decision = state['story_evidence']['personal_background'][-1]['sufficiency']
+        self.assertEqual(decision['reason'], 'semantic_sufficient')
+
+    def test_future_evidence_is_recorded_and_redundant_step_is_skipped(self):
+        state = build_interview_state()
+        decide_next_task(state, 'Sophia')
+        decide_next_task(state, 'yes')
+        meta = self._semantic_meta(
+            status='sufficient',
+            summary='Patient is a student and family matters.',
+            confidence=0.88,
+            future=[{
+                'step_id': 'medical_history',
+                'status': 'sufficient',
+                'summary': 'Patient was diagnosed last year.',
+                'confidence': 0.86,
+            }],
+        )
+
+        task = decide_next_task(
+            state,
+            'I am a student, my family matters, and I was diagnosed last year.',
+            meta,
+        )
+
+        self.assertEqual(task['type'], 'ack_then_next')
+        self.assertEqual(task['step']['id'], 'daily_life')
+        self.assertEqual(state['story_evidence']['medical_history'][-1]['answer_kind'], 'future_answer')
 
     def test_detailed_but_insufficient_answer_triggers_same_topic_followup(self):
         state = build_interview_state()

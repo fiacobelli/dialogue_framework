@@ -204,6 +204,61 @@ def _accepted_evidence_for_step(state: dict[str, Any], step_id: str | None) -> l
     return [entry for entry in entries if isinstance(entry, dict) and entry.get('accepted')]
 
 
+def policy_from_frame(
+    step: dict[str, str] | None,
+    state: dict[str, Any],
+    turn_meta: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Map semantic NLU evidence into a bounded policy decision."""
+    frame = (turn_meta or {}).get('evidence_interpretation_shadow') or {}
+    if not frame.get('valid'):
+        return None
+    step_id = step.get('id') if step else None
+    current = frame.get('current_step') if isinstance(frame.get('current_step'), dict) else {}
+    status = current.get('status')
+    summary = current.get('summary')
+    confidence = current.get('confidence') or 0
+    prior = _accepted_evidence_for_step(state, step_id)
+
+    if frame.get('already_answered_current') and prior:
+        return {
+            'sufficient': True,
+            'action': 'accept_and_advance',
+            'record_current_answer': False,
+            'usable_evidence': True,
+            'prior_evidence_used': True,
+            'pushback_detected': True,
+            'reason': 'semantic_prior_evidence',
+            'matched': summary,
+            'semantic_confidence': confidence,
+        }
+    if status in {'sufficient', 'explicit_none'} and confidence >= 0.55:
+        return {
+            'sufficient': True,
+            'action': 'accept_and_advance',
+            'record_current_answer': True,
+            'usable_evidence': True,
+            'prior_evidence_used': False,
+            'pushback_detected': False,
+            'reason': f'semantic_{status}',
+            'matched': summary,
+            'semantic_confidence': confidence,
+        }
+    if status in {'thin', 'not_addressed'} and confidence >= 0.55:
+        return {
+            'sufficient': False,
+            'action': 'ask_followup',
+            'record_current_answer': False,
+            'usable_evidence': False,
+            'prior_evidence_used': False,
+            'pushback_detected': False,
+            'reason': f'semantic_{status}',
+            'matched': summary,
+            'semantic_confidence': confidence,
+        }
+    return None
+
+
 def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
     """Detect non-answers before they can advance the story state."""
     normalized = normalize_answer(text)
@@ -290,6 +345,11 @@ def classify_story_answer(
             'reason': 'safety_crisis',
             'question': 'Would you like to pause here?',
         }
+
+    semantic_decision = policy_from_frame(step, state, turn_meta)
+    if semantic_decision:
+        semantic_decision['pushback_detected'] = semantic_decision.get('pushback_detected') or pushback
+        return semantic_decision
 
     guard = input_guard_decision(step, text, turn_meta)
     if guard['repair']:

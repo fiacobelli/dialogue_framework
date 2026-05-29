@@ -5,11 +5,9 @@ import uuid
 from datetime import datetime
 from goal import Goal
 from strings import MSG, BELSTR
-from .config import INTERVIEW_EVIDENCE_SHADOW, INTERVIEW_SEMANTIC_RESPONSE_PLAN, LANGUAGE_NAMES
-from .evidence_interpreter import EvidenceInterpreter
+from .config import INTERVIEW_SEMANTIC_RESPONSE_PLAN, LANGUAGE_NAMES
 from .interview_flow import (
     build_interview_state,
-    current_step,
     decide_next_task,
     normalize_state,
 )
@@ -53,7 +51,8 @@ class InterviewGoal(Goal):
 
         avatar_profile = info_state.user.query('avatar_profile') or {}
         avatar_name = avatar_profile.get('name', 'Assistant')
-        self._attach_shadow_evidence_frame(msg, state, history, session_id)
+        if msg.get('evidence_interpretation_shadow'):
+            log_interview(session_id, f"EVIDENCE_NLU: {msg.get('evidence_interpretation_shadow')}")
         task = decide_next_task(
             state,
             user_input,
@@ -135,28 +134,6 @@ class InterviewGoal(Goal):
         }
         msg['llm_latency_ms'] = llm_latency_ms
         msg[MSG.RESPONSE] = response
-
-    def _attach_shadow_evidence_frame(self, msg, state: dict, history: list, session_id: str) -> None:
-        """Run semantic NLU before code-owned policy chooses the next task."""
-        if not INTERVIEW_EVIDENCE_SHADOW:
-            return
-        if state.get('awaiting') not in {'name', 'main_answer', 'followup_answer'}:
-            return
-        user_input = msg.get(MSG.ORIG_TEXT, '')
-        if not user_input:
-            return
-        frame = EvidenceInterpreter(self.llm).interpret(
-            user_input,
-            current_step(state),
-            state,
-            msg.get('turn_meta') or {},
-            history,
-        )
-        msg['evidence_interpretation_shadow'] = frame
-        turn_meta = dict(msg.get('turn_meta') or {})
-        turn_meta['evidence_interpretation_shadow'] = frame
-        msg['turn_meta'] = turn_meta
-        log_interview(session_id, f"EVIDENCE_SHADOW: {frame}")
 
     def _attach_semantic_response_plan(self, task: dict, msg: dict) -> None:
         """Attach grounded current-step evidence for NLG, without changing flow state."""

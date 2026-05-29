@@ -17,6 +17,7 @@ from .interview_flow_config import INTERVIEW_STEPS
 SCHEMA_VERSION = 1
 INPUT_QUALITIES = {'answer', 'clarification', 'operational_issue', 'non_answer', 'unclear'}
 STEP_STATUSES = {'sufficient', 'thin', 'not_addressed', 'explicit_none'}
+READINESS_VALUES = {'ready', 'not_ready', 'question', 'unclear', ''}
 
 
 def empty_evidence_frame(reason: str = 'not_run') -> dict[str, Any]:
@@ -90,10 +91,9 @@ def validate_evidence_frame(data: Any, current_step_id: str | None = None) -> di
     public_name = re.sub(r'\s+', ' ', public_name).strip()
     if len(public_name.split()) > 5:
         public_name = ''
-    try:
-        public_name_confidence = _confidence(slots.get('public_name_confidence'))
-    except (TypeError, ValueError):
-        public_name_confidence = 0.0
+    readiness = _text(slots.get('readiness'), 20).lower()
+    if readiness not in READINESS_VALUES:
+        readiness = ''
 
     return {
         'schema_version': SCHEMA_VERSION,
@@ -109,7 +109,9 @@ def validate_evidence_frame(data: Any, current_step_id: str | None = None) -> di
         'future_evidence': future,
         'slots': {
             'public_name': public_name,
-            'public_name_confidence': public_name_confidence,
+            'public_name_confidence': _confidence(slots.get('public_name_confidence')),
+            'readiness': readiness,
+            'readiness_confidence': _confidence(slots.get('readiness_confidence')),
         },
         'final_nothing_else': bool(data.get('final_nothing_else')),
         'already_answered_current': bool(data.get('already_answered_current')),
@@ -188,6 +190,7 @@ class EvidenceInterpreter:
             'Allowed status values: sufficient, thin, not_addressed, explicit_none.\n\n'
             'Classify the latest user answer into evidence for the current step and any future steps.\n'
             'Also extract slots.public_name when the user provides a public display name.\n'
+            'Also extract slots.readiness as ready, not_ready, question, unclear, or empty when applicable.\n'
             'Use per-field confidence from 0 to 1. Keep summaries short and grounded only in the patient text.\n\n'
             f'Current step: {json.dumps(step or {})}\n'
             f'All steps: {json.dumps(steps)}\n'

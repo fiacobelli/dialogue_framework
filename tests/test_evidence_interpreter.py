@@ -103,7 +103,12 @@ class EvidenceInterpreterTests(unittest.TestCase):
             'safety': {'crisis': False, 'confidence': 2},
             'current_step': {'step_id': 'daily_life', 'status': 'sufficient', 'summary': 'x', 'confidence': 0.8},
             'future_evidence': [{'step_id': 'transplant_hope', 'status': 'thin', 'summary': 'hope', 'confidence': 0.5}],
-            'slots': {'public_name': 'John Snow', 'public_name_confidence': 0.92},
+            'slots': {
+                'public_name': 'John Snow',
+                'public_name_confidence': 0.92,
+                'readiness': 'ready',
+                'readiness_confidence': 0.87,
+            },
             'final_nothing_else': False,
             'already_answered_current': False,
             'forbidden_action': 'move_to_photos',
@@ -114,6 +119,7 @@ class EvidenceInterpreterTests(unittest.TestCase):
         self.assertNotIn('forbidden_action', frame)
         self.assertEqual(frame['future_evidence'][0]['step_id'], 'transplant_hope')
         self.assertEqual(frame['slots']['public_name'], 'John Snow')
+        self.assertEqual(frame['slots']['readiness'], 'ready')
 
     def test_invalid_frame_raises(self):
         with self.assertRaises(ValueError):
@@ -178,10 +184,12 @@ class EvidenceShadowModeTests(unittest.TestCase):
                     'task_type': 'ask_main',
                 },
             })
-            goal = InterviewGoal(JsonLLM(), 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'My family matters most and I am a teacher.'}
+            llm = JsonLLM()
+            goal = InterviewGoal(llm, 'You are {avatar_name}.')
+            msg = {MSG.POSSIBLE_RESPONSES: [(1.0, 'My family matters most and I am a teacher.')]}
 
-            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True):
+            with patch('web.nlu_web.INTERVIEW_EVIDENCE_SHADOW', True):
+                self.assertTrue(NLUWeb(info_state, llm).check(msg))
                 goal.execute_goal(msg, info_state)
 
             self.assertIn('evidence_interpretation_shadow', msg)
@@ -212,10 +220,11 @@ class EvidenceShadowModeTests(unittest.TestCase):
             })
             llm = EvidenceThenResponseLLM()
             goal = InterviewGoal(llm, 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'My kids and my family keep me going.'}
+            msg = {MSG.POSSIBLE_RESPONSES: [(1.0, 'My kids and my family keep me going.')]}
 
-            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True), \
+            with patch('web.nlu_web.INTERVIEW_EVIDENCE_SHADOW', True), \
                  patch('web.goal_interview.INTERVIEW_SEMANTIC_RESPONSE_PLAN', True):
+                self.assertTrue(NLUWeb(info_state, llm).check(msg))
                 goal.execute_goal(msg, info_state)
 
             self.assertEqual(msg['interview_task']['type'], 'ack_then_next')
@@ -250,11 +259,13 @@ class EvidenceShadowModeTests(unittest.TestCase):
                     'task_type': 'ask_main',
                 },
             })
-            goal = InterviewGoal(MissingQuestionLLM(), 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'I am a hopeful person.'}
+            llm = MissingQuestionLLM()
+            goal = InterviewGoal(llm, 'You are {avatar_name}.')
+            msg = {MSG.POSSIBLE_RESPONSES: [(1.0, 'I am a hopeful person.')]}
 
-            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True), \
+            with patch('web.nlu_web.INTERVIEW_EVIDENCE_SHADOW', True), \
                  patch('web.goal_interview.INTERVIEW_SEMANTIC_RESPONSE_PLAN', True):
+                self.assertTrue(NLUWeb(info_state, llm).check(msg))
                 goal.execute_goal(msg, info_state)
 
             expected = 'Do you have family, friends, or a community supporting you through this?'
@@ -280,10 +291,12 @@ class EvidenceShadowModeTests(unittest.TestCase):
             info_state.user.update('session_id', 'unit-name-slot')
             info_state.user.update('avatar_profile', {'name': 'Ludi'})
             info_state.user.update('interview_state', build_interview_state())
-            goal = InterviewGoal(JsonLLM(payload), 'You are {avatar_name}.')
-            msg = {MSG.ORIG_TEXT: 'John Snow is my name.'}
+            llm = JsonLLM(payload)
+            goal = InterviewGoal(llm, 'You are {avatar_name}.')
+            msg = {MSG.POSSIBLE_RESPONSES: [(1.0, 'John Snow is my name.')]}
 
-            with patch('web.goal_interview.INTERVIEW_EVIDENCE_SHADOW', True):
+            with patch('web.nlu_web.INTERVIEW_EVIDENCE_SHADOW', True):
+                self.assertTrue(NLUWeb(info_state, llm).check(msg))
                 goal.execute_goal(msg, info_state)
 
             state = info_state.user.query('interview_state')
