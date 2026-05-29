@@ -60,7 +60,7 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 # Interview Settings
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)
 MAX_PHOTO_UPLOAD_BYTES = config('MAX_PHOTO_UPLOAD_BYTES', default=10 * 1024 * 1024, cast=int)
-INTERVIEW_EVIDENCE_SHADOW = config('INTERVIEW_EVIDENCE_SHADOW', default=False, cast=bool)
+INTERVIEW_EVIDENCE_SHADOW = config('INTERVIEW_EVIDENCE_SHADOW', default=True, cast=bool)
 INTERVIEW_SEMANTIC_RESPONSE_PLAN = config('INTERVIEW_SEMANTIC_RESPONSE_PLAN', default=False, cast=bool)
 EVIDENCE_INTERPRETER_PROMPT_VERSION = 'evidence-interpreter-v1'
 

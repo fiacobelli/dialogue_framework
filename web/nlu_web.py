@@ -38,7 +38,7 @@ class NLUWeb:
         if not (INTERVIEW_EVIDENCE_SHADOW and self.info_state and self.llm_provider):
             return
         state = normalize_state(self.info_state.user.query('interview_state') or build_interview_state())
-        if state.get('awaiting') not in {'name', 'main_answer', 'followup_answer'}:
+        if state.get('awaiting') not in {'name', 'readiness', 'main_answer', 'followup_answer'}:
             return
         frame = EvidenceInterpreter(self.llm_provider).interpret(
             text,
