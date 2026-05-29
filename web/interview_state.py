@@ -1,20 +1,71 @@
-"""Interview state + coverage helpers for the LLM-centered turn.
+"""Code-owned interview skeleton: state, section pointer, recorders, coverage,
+progress, and the deterministic safety/operational guards (crisis, skip, no-response).
 
-Owns the code-side skeleton: state shape, the section pointer, story-evidence and
-skip recorders (the exact shape microsite.py consumes), coverage/recovery, and the
-patient-facing progress snapshot. Extracted from the legacy interview_flow module.
+This is everything code owns; the LLM turn (goal_interview) drives it. story_evidence
+and skipped_steps shapes here are exactly what microsite.py consumes.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .interview_flow_config import (
     GENERATION_REQUIRED_EVIDENCE_GROUPS,
     INTERVIEW_STEPS,
+    NO_RESPONSE_SENTINEL,
     PROGRESS_LABELS,
 )
 
+# --- Deterministic guards (run before the LLM; never depend on it) ---
+
+CRISIS_PATTERNS = (
+    r'\bkill myself\b',
+    r'\bend my life\b',
+    r'\bhurt myself\b',
+    r'\bsuicidal\b',
+    r'\bdo not want to live\b',
+    r"\bdon't want to live\b",
+)
+
+
+def normalize_answer(text: str) -> str:
+    text = (text or '').lower().strip()
+    text = re.sub(r"[^a-z0-9'\s-]", ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def is_skip_intent(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
+    """Only an explicit UI skip event can skip a required story section."""
+    return bool((turn_meta or {}).get('skip_requested'))
+
+
+def _crisis_detected(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
+    """Deterministic crisis-language guard (safety floor)."""
+    normalized = normalize_answer(text)
+    return any(re.search(pattern, normalized) for pattern in CRISIS_PATTERNS)
+
+
+def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Detect system-level input failures without guessing patient meaning."""
+    normalized = normalize_answer(text)
+    words = normalized.split()
+    turn_meta = turn_meta or {}
+
+    if turn_meta.get('no_response') or normalized == normalize_answer(NO_RESPONSE_SENTINEL) or not normalized:
+        return {'repair': True, 'reason': 'empty_or_no_response', 'matched': normalized}
+
+    try:
+        confidence = turn_meta.get('speech_confidence')
+        low_confidence = confidence is not None and float(confidence) > 0 and float(confidence) < 0.45
+    except (TypeError, ValueError):
+        low_confidence = False
+    if low_confidence and len(words) < 5:
+        return {'repair': True, 'reason': 'low_confidence_fragment', 'matched': normalized}
+    return {'repair': False, 'reason': 'answer_candidate', 'matched': normalized}
+
+
+# --- Interview state + section pointer ---
 
 def build_interview_state() -> dict[str, Any]:
     """Initial state stored in info_state.user."""
