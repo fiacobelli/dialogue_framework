@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .interview_flow_config import FINAL_PHOTOS_PROMPT, FOLLOWUP_QUESTIONS, SECTION_TRANSITIONS
@@ -131,12 +132,30 @@ def expected_answer_kind(task: dict[str, Any], state: dict[str, Any]) -> str | N
     return None
 
 
+def _normalize_question_text(value: str) -> str:
+    value = (value or '').lower()
+    value = re.sub(r"[^a-z0-9'\s]", ' ', value)
+    return re.sub(r'\s+', ' ', value).strip()
+
+
+def _sentence_parts(response: str) -> list[str]:
+    return [part.strip() for part in re.split(r'(?<=[.!?])\s+', response or '') if part.strip()]
+
+
 def ensure_expected_question(response: str, task: dict[str, Any]) -> str:
     """Guarantee the patient hears the code-owned question for this turn."""
     question = expected_question_text(task)
-    if not question or question in (response or ''):
+    if not question:
         return response
     response = (response or '').strip()
+    normalized_question = _normalize_question_text(question)
+    normalized_response = _normalize_question_text(response)
+    if normalized_question and normalized_question in normalized_response:
+        return response
+    if task.get('type') in {'ack_then_next', 'ask_final'}:
+        parts = _sentence_parts(response)
+        acknowledgement = ' '.join(part for part in parts if '?' not in part).strip()
+        return f"{acknowledgement} {question}".strip() if acknowledgement else question
     if not response:
         return question
     return f"{response} {question}"
@@ -146,7 +165,7 @@ def build_outgoing_turn_contract(task: dict[str, Any], state: dict[str, Any], re
     """Record what the user actually received and what answer is expected next."""
     question = expected_question_text(task)
     step = task.get('step') or {}
-    delivery_validated = bool(question and question in response)
+    delivery_validated = bool(question and _normalize_question_text(question) in _normalize_question_text(response))
     return {
         'outgoing_turn_id': turn_id,
         'asked_step_id': step.get('id'),
@@ -203,6 +222,7 @@ def build_runtime_directive(task: dict[str, Any]) -> str:
             f'{semantic_lines}\n'
             '- If the patient says they already mentioned something, acknowledge that and use the earlier context; do not praise it as new detail.\n'
             '- Do not use stock phrases like "That gives this part of your story more depth" or "Thank you for sharing that."\n'
+            '- Do not ask any other question before the required next question.\n'
             f'- Then ask this next donor-story question exactly, verbatim, at the end: "{question}"\n'
             f'- Listen for: {focus}.\n'
             '- Ask only one question.'

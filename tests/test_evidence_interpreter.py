@@ -9,6 +9,8 @@ from strings import MSG
 from web.evidence_interpreter import EvidenceInterpreter, empty_evidence_frame, validate_evidence_frame
 from web.goal_interview import InterviewGoal
 from web.interview_flow import build_interview_state
+from web.interview_flow_config import INTERVIEW_STEPS
+from web.interview_prompts import build_outgoing_turn_contract, ensure_expected_question
 from web.nlu_web import NLUWeb
 
 
@@ -258,6 +260,35 @@ class EvidenceShadowModeTests(unittest.TestCase):
             self.assertIn('Your optimism is really shining through.', msg[MSG.RESPONSE])
             self.assertIn(expected, msg[MSG.RESPONSE])
             self.assertTrue(msg['interview_context']['outgoing_turn']['delivery_validated'])
+
+
+class ResponseContractTests(unittest.TestCase):
+    def test_extra_llm_question_is_removed_before_required_question(self):
+        task = {'type': 'ack_then_next', 'step': INTERVIEW_STEPS[1], 'phase': 'STORY'}
+        response = (
+            'Your family sounds close to you. '
+            'You mentioned being a student; are they supporting you through school as well?'
+        )
+
+        fixed = ensure_expected_question(response, task)
+
+        self.assertEqual(
+            fixed,
+            'Your family sounds close to you. When were you first diagnosed with kidney disease or kidney failure?',
+        )
+
+    def test_case_insensitive_existing_question_is_not_duplicated(self):
+        task = {'type': 'ack_then_next', 'step': INTERVIEW_STEPS[5], 'phase': 'STORY'}
+        response = (
+            'Your positivity is inspiring. I think you mentioned your family is supporting you; '
+            'do you have family, friends, or a community supporting you through this?'
+        )
+
+        fixed = ensure_expected_question(response, task)
+        contract = build_outgoing_turn_contract(task, {}, fixed, 'turn-1')
+
+        self.assertEqual(fixed.count('supporting you through this'), 1)
+        self.assertTrue(contract['delivery_validated'])
 
 
 if __name__ == '__main__':
