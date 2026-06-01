@@ -43,18 +43,29 @@ class InputHandler {
             dobInput.value = formatDob(dob);
             const validDate = isValidDate(dob);
             const ok = name.length >= 2 && validDate;
-            beginBtn.disabled = !ok;
+            // NOTE: do NOT disable the button here. Android WebViews can drop live
+            // 'input' events from the soft keyboard, which would leave Begin stuck
+            // disabled. Keep it tappable and validate on tap instead.
             hint.textContent = name.length < 2 ? 'Enter at least two letters for your last name'
                 : dob.length < 8 ? 'Enter date of birth as MM/DD/YYYY'
                 : !validDate ? 'Please enter a valid date of birth' : '';
             return ok;
         };
 
-        lastNameInput.addEventListener('input', validate);
-        dobInput.addEventListener('input', (e) => {
-            e.target.value = formatDob(extractDigits(e.target.value));
+        const onEdit = () => {
+            dobInput.value = formatDob(extractDigits(dobInput.value));
             validate();
+        };
+        // Listen on several event types — some Android WebViews don't fire 'input'
+        // reliably from the soft keyboard.
+        ['input', 'keyup', 'change', 'blur'].forEach((evt) => {
+            lastNameInput.addEventListener(evt, validate);
+            dobInput.addEventListener(evt, onEdit);
         });
+
+        // Begin is always tappable (taps work in the WebView even when live-typing
+        // events do not); validation happens on tap, with a hint shown if invalid.
+        beginBtn.disabled = false;
         beginBtn.addEventListener('click', () => {
             if (validate()) this._app._beginScreeningWithPin(buildId());
         });
