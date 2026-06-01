@@ -76,6 +76,10 @@ class SpeechManager {
     }
 
     _loadVoices() {
+        // window.speechSynthesis is undefined in the Android kiosk WebView. Without this
+        // guard, getVoices() throws at startup and crashes all app init (greyed Begin
+        // button, no form handlers). Voices aren't needed — the avatar (SitePal) speaks.
+        if (!this.synthesis) return;
         this.voices = this.synthesis.getVoices();
         this.synthesis.onvoiceschanged = () => { this.voices = this.synthesis.getVoices(); };
     }
