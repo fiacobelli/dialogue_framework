@@ -2,6 +2,31 @@
 <html lang="en">
 <head>
     <title>Health Screening</title>
+    <!-- TEMP DIAGNOSTIC: surface any JS error on-screen (WebView has no visible console). Remove after debugging. -->
+    <script>
+    (function () {
+        var buf = [];
+        function flush() {
+            if (!document.body) return;
+            var d = document.getElementById('jsDebug');
+            if (!d) {
+                d = document.createElement('div');
+                d.id = 'jsDebug';
+                d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b00020;color:#fff;font:12px monospace;padding:8px;white-space:pre-wrap;max-height:60%;overflow:auto';
+                document.body.appendChild(d);
+            }
+            d.textContent = buf.join('\n');
+        }
+        function show(m) { buf.push(m); flush(); }
+        window.addEventListener('error', function (e) {
+            show('[ERR] ' + (e.message || '') + ' @ ' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+            var r = e.reason; show('[PROMISE] ' + (r && (r.message || r) || r));
+        });
+        document.addEventListener('DOMContentLoaded', flush);
+    })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/css/screening.css">
 
