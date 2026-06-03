@@ -25,18 +25,43 @@ The older branches, `bernard` and `bernard-sdoh-screening`, are retained as hist
 7. Restart only the affected service.
 8. Run health checks before calling the deploy complete.
 
+## When Fixing Something
+
+Use this decision rule first:
+
+- Microsite fix: work on `bernard-dev`, deploy from `bernard-main`.
+- Screening fix: work on `bernard-sdoh-screening-dev`, deploy from `bernard-sdoh-screening-main`.
+
+Never start a fix on a `*-main` branch. The `*-main` branches are stable deployment branches only.
+
+The normal repair sequence is:
+
+1. Switch to the correct `*-dev` branch.
+2. Make the smallest clean fix.
+3. Run local tests or manual localhost testing.
+4. Commit and push the `*-dev` branch.
+5. Merge the tested `*-dev` branch into the matching `*-main` branch.
+6. Push the `*-main` branch.
+7. Pull the `*-main` branch on EC2.
+8. Restart only the affected service.
+9. Run local EC2 health checks.
+10. Run public URL checks.
+
+If local testing fails, stay on the `*-dev` branch and keep fixing there. Do not merge into `*-main` until the fix is stable.
+
 ## Microsite Commands
 
 ```bash
 git checkout bernard-dev
 # make changes
+# test locally
 git add <changed-files>
 git commit -m "Describe microsite change"
-git push
+git push origin bernard-dev
 
 git checkout bernard-main
-git merge bernard-dev
-git push
+git merge --ff-only bernard-dev
+git push origin bernard-main
 ```
 
 EC2 deploy branch:
@@ -47,6 +72,7 @@ git checkout bernard-main
 git pull --ff-only
 sudo systemctl restart microsite
 curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5001/
+curl -sS -o /dev/null -w "%{http_code}\n" https://ludi.a4hlab.org/microsite
 ```
 
 ## Screening Commands
@@ -54,13 +80,14 @@ curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5001/
 ```bash
 git checkout bernard-sdoh-screening-dev
 # make changes
+# test locally
 git add <changed-files>
 git commit -m "Describe screening change"
-git push
+git push origin bernard-sdoh-screening-dev
 
 git checkout bernard-sdoh-screening-main
-git merge bernard-sdoh-screening-dev
-git push
+git merge --ff-only bernard-sdoh-screening-dev
+git push origin bernard-sdoh-screening-main
 ```
 
 EC2 deploy branch:
@@ -71,6 +98,7 @@ git checkout bernard-sdoh-screening-main
 git pull --ff-only
 sudo systemctl restart sdoh
 curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/
+curl -sS -o /dev/null -w "%{http_code}\n" https://ludi.a4hlab.org/
 ```
 
 ## Rules
@@ -80,6 +108,8 @@ curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/
 - If an emergency hotfix is made on EC2, copy it back into the correct local branch and commit it immediately.
 - Keep deployment branches boring: only tested work should land in `*-main`.
 - Before switching EC2 branches, always check `git status --short --branch`.
+- Preserve unrelated untracked files unless they are explicitly reviewed and removed.
+- If a branch switch or merge is not fast-forward, stop and inspect before resolving it manually.
 
 ## Current EC2 Mapping
 
