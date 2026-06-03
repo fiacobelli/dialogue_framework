@@ -99,7 +99,7 @@ class InputHandler {
                     restartBtn.textContent = 'Tap again to confirm';
                     setTimeout(() => {
                         restartBtn.dataset.confirming = 'false';
-                        restartBtn.textContent = 'Start Over';
+                        restartBtn.textContent = '↺ Start Over';
                     }, 3000);
                 }
             });

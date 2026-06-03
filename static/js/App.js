@@ -103,21 +103,14 @@ class App {
     }
 
     _restartConversation() {
-        // Reset state without going back to login
+        // Return to avatar selection from any point in the screening flow.
         this._turnCount = 0;
         this.conversationActive = false;
         this._emptyCount = 0;
         this._paused = false;
         speechManager.destroy();
         turnManager.reset();
-        ui.hideProgress();
-        ui.showMessage('');
-        ui.setStatus('');
-        document.getElementById('thankYouScreen').style.display = 'none';
-        document.getElementById('conversationUI').style.display = 'block';
-        const restartRow = document.getElementById('restartRow');
-        if (restartRow) restartRow.style.display = 'block';
-        this.startConversation();
+        window.location.assign('/');
     }
 
     /** Wait for SitePal avatar to finish loading. */
@@ -313,8 +306,6 @@ class App {
 
     async classifyAndReport() {
         ui.setStatus('');
-        const restartRow = document.getElementById('restartRow');
-        if (restartRow) restartRow.style.display = 'none';
         try {
             await conversationAPI.classifyResponses();
             ui.showThankYou(this._lastSpokenText);
