@@ -498,7 +498,7 @@ class ScreeningGoalManager:
         """Generate opening greeting using LLM."""
         prompt = self.goal._build_prompt(info_state, avatar_name, lang)
         existing = info_state.user.query('conversation_history') or []
-        opening = self.goal.llm.generate(existing, prompt)
+        opening = self.goal._clean_spoken_response(self.goal.llm.generate(existing, prompt))
         existing.append({"role": "assistant", "content": opening})
         info_state.user.update('conversation_history', existing)
 
