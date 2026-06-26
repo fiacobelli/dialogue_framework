@@ -7,10 +7,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'Can you tell me a little about yourself and the roles or relationships that matter most in your life?',
         'focus': 'who the patient is as a person, including family, work, community, hobbies, values, or identity',
         'required': 'one concrete identity detail such as family role, work, community, hobby, value, or place',
-        'requires_narrative_detail': True,
-        'allow_short_answer': False,
-        'never_follow_up': False,
-        'min_detail_words': 5,
+        'allow_follow_up': True,
     },
     {
         'id': 'medical_history',
@@ -18,10 +15,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'When were you first diagnosed with kidney disease or kidney failure?',
         'focus': 'the beginning of the kidney disease journey',
         'required': 'diagnosis timing, dialysis timing, diagnosis context, or explicit uncertainty',
-        'requires_narrative_detail': False,
-        'allow_short_answer': True,
-        'never_follow_up': False,
-        'min_detail_words': 0,
+        'allow_follow_up': False,  # factual timeline anchor; a brief date is sufficient
     },
     {
         'id': 'daily_life',
@@ -29,10 +23,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'How has kidney failure affected your daily life, physically or emotionally?',
         'focus': 'dialysis, symptoms, daily limits, emotional burden, and what has changed',
         'required': 'a concrete daily-life impact such as schedule, fatigue, activity limits, emotions, work, family, or independence',
-        'requires_narrative_detail': True,
-        'allow_short_answer': False,
-        'never_follow_up': False,
-        'min_detail_words': 5,
+        'allow_follow_up': True,
     },
     {
         'id': 'transplant_hope',
@@ -40,10 +31,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'How would receiving a kidney transplant change your life?',
         'focus': 'specific hopes, activities, family moments, work, travel, energy, or independence',
         'required': 'a concrete life change, future goal, family moment, work, travel, activity, energy, or independence',
-        'requires_narrative_detail': True,
-        'allow_short_answer': False,
-        'never_follow_up': False,
-        'min_detail_words': 5,
+        'allow_follow_up': True,
     },
     {
         'id': 'donor_message',
@@ -51,10 +39,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'What would you want a potential donor to know about you as a person?',
         'focus': 'a direct message to potential donors and what makes the story personal',
         'required': 'a direct message, personal value, reason to consider donation, or explicit request for help',
-        'requires_narrative_detail': True,
-        'allow_short_answer': False,
-        'never_follow_up': False,
-        'min_detail_words': 5,
+        'allow_follow_up': True,
     },
     {
         'id': 'support_network',
@@ -62,10 +47,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'Do you have family, friends, or a community supporting you through this?',
         'focus': 'support network, community ties, and people who may be part of the story',
         'required': 'support people, support community, or an explicit statement that support is limited',
-        'requires_narrative_detail': True,
-        'allow_short_answer': False,
-        'never_follow_up': False,
-        'min_detail_words': 5,
+        'allow_follow_up': True,
     },
     {
         'id': 'final_details',
@@ -73,10 +55,7 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'question': 'Is there anything else about your story, or any further details on something in particular, that you would like included?',
         'focus': 'final details, tone, quotes, photos, or personal stories before photo upload',
         'required': 'a final addition, tone preference, quote, story, or explicit nothing else',
-        'requires_narrative_detail': False,
-        'allow_short_answer': True,
-        'never_follow_up': True,
-        'min_detail_words': 0,
+        'allow_follow_up': False,  # terminal step; never probe
     },
 ]
 

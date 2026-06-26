@@ -66,26 +66,6 @@ def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict
     return {'repair': False, 'reason': 'answer_candidate', 'matched': normalized}
 
 
-def needs_elaboration(text: str, step: dict[str, Any] | None) -> bool:
-    """Return whether this step needs one more detail-rich answer.
-
-    This is step intent, not speech prediction: no yes/no phrase lists and no
-    attempt to infer meaning. The LLM owns wording; code only prevents thin
-    donor-story evidence from advancing on narrative steps.
-    """
-    if not step or step.get('never_follow_up') or step.get('allow_short_answer'):
-        return False
-    if not step.get('requires_narrative_detail'):
-        return False
-
-    normalized = normalize_answer(text)
-    if not normalized:
-        return False
-    words = [word for word in normalized.split() if any(char.isalnum() for char in word)]
-    min_detail_words = int(step.get('min_detail_words') or 0)
-    return len(words) < min_detail_words
-
-
 # --- Interview state + section pointer ---
 
 def build_interview_state() -> dict[str, Any]:

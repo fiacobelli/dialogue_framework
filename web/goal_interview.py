@@ -3,9 +3,11 @@
 The LLM only voices each turn (a warm acknowledgement + the one question code told
 it to ask, plus the patient's name on the intro turn). Code owns section order,
 coverage, safety, completion, and the per-turn analytics/outgoing-turn contract that
-routes_api and database.py consume. Nothing in the flow waits on an LLM-produced
-flag, so the turn can never stall. Deterministic guards and state live in
-interview_state; the 7 sections + config in interview_flow_config.
+routes_api and database.py consume. Flow reads exactly one LLM-produced flag —
+``asked_followup`` (does this answer need one elaboration probe?) — and even that is
+capped at one probe per section and honored only on eligible steps, so the turn can
+never stall or loop. Deterministic guards and state live in interview_state; the 7
+sections + config in interview_flow_config.
 """
 
 from __future__ import annotations
@@ -32,7 +34,6 @@ from .interview_state import (
     current_step,
     input_guard_decision,
     is_skip_intent,
-    needs_elaboration,
     normalize_state,
 )
 
@@ -55,16 +56,22 @@ def _text(value: Any, limit: int = 1000) -> str:
     return str(value or '').strip()[:limit]
 
 
-def build_turn_directive(instruction: str) -> str:
+def build_turn_directive(instruction: str, offer_followup: bool = False) -> str:
     """Append the per-turn instruction + output format. Persona/voice rules live in
     prompts/interviewer.txt (the system prompt), not here."""
+    name_terminator = ',\n' if offer_followup else '\n'
+    followup_field = (
+        '  "asked_followup": true or false  (true ONLY if you asked the patient to say more this turn instead of moving on)\n'
+        if offer_followup else ''
+    )
     return (
         'RUNTIME TURN DIRECTIVE\n'
         f'{instruction.strip()}\n\n'
         'Return ONLY a JSON object (no other text):\n'
         '{\n'
         '  "reply": "what you say to the patient, following the voice rules above",\n'
-        '  "name": "the patient\'s name if they just gave it, otherwise an empty string"\n'
+        f'  "name": "the patient\'s name if they just gave it, otherwise an empty string"{name_terminator}'
+        f'{followup_field}'
         '}'
     )
 
@@ -92,7 +99,7 @@ def validate_turn(data: dict | None) -> dict:
     if len(name.split()) > 5:
         name = ''
     reply = _text(data.get('reply'))
-    return {'reply': reply, 'name': name, 'valid': bool(reply)}
+    return {'reply': reply, 'name': name, 'asked_followup': bool(data.get('asked_followup')), 'valid': bool(reply)}
 
 
 # --- State transitions: one question per section, code drives order ---
@@ -121,19 +128,24 @@ def _post_question(state: dict) -> str:
     return step['question'] if step else ''
 
 
-def instruction_for(state: dict, awaiting: str, step: dict | None, followup_now: bool = False) -> str:
+def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False) -> str:
     """Build the per-turn instruction telling the LLM what to voice this turn."""
     if awaiting == 'name':
         return (f'The patient just told you their name. Greet them warmly and ask this first '
                 f'question naturally: "{INTERVIEW_STEPS[0]["question"]}". '
                 f'Put the name they gave in the "name" field.')
-    if followup_now and step:
-        example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
-        return (f'The patient answered the current section, but the answer does not yet give enough '
-                f'story detail for this donor page. Warmly invite them to say a little more about '
-                f'this same topic. You may offer a helpful dialysis-relevant example, like: {example}. '
-                f'Ask one gentle, open question. Do not ask the next section question yet.')
     next_q = _next_question(state.get('step_index') or 0)
+    if can_probe and step:
+        example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
+        section_q = step.get('question', 'the current question')
+        advance = (f'acknowledge it warmly and ask the next question naturally: "{next_q}"'
+                   if next_q else 'acknowledge it warmly and thank them for sharing their story')
+        return (f'The patient just answered: "{section_q}". '
+                f'Judge their answer. If it gives a concrete, specific detail for this section, {advance}, '
+                f'and set asked_followup to false. '
+                f'If it is vague, a yes/no, or generic (for example "I am a good person"), do NOT move on '
+                f'— warmly ask one gentle, open follow-up that invites a specific example, such as: {example}. '
+                f'Set asked_followup to true only if you ask that follow-up.')
     if next_q:
         return (f'Warmly acknowledge what the patient just shared in one short sentence that shows you '
                 f'truly heard them, then ask this next question naturally: "{next_q}".')
@@ -171,7 +183,7 @@ def apply_turn(
     step: dict | None,
     user_input: str,
     turn: dict,
-    followup_now: bool = False,
+    asked_followup: bool = False,
 ) -> tuple[str, dict]:
     """Apply the voiced turn to state; return (task_type, decision). One question per section."""
     if awaiting == 'name':
@@ -183,7 +195,7 @@ def apply_turn(
         return 'ask_main', {'sufficient': bool(name), 'reason': 'intro_name'}
 
     if step:
-        if followup_now:
+        if asked_followup:
             decision = {'sufficient': False, 'reason': 'needs_elaboration'}
             _record_story_evidence(state, step, user_input, decision, 'main_answer')
             state['followup_count'] = 1
@@ -284,7 +296,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     latency = 0
     store_user = bool(user_input) and not turn_meta.get('no_response')
     story_phase = awaiting in {'main_answer', 'followup_answer'}
-    followup_now = False
+    can_probe = False
 
     # ---- deterministic floors (no LLM) ----
     if story_phase and is_skip_intent(user_input, turn_meta):
@@ -308,14 +320,14 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
 
     # ---- one LLM call (plain reply + name hint) ----
     if task_type is None:
-        followup_now = (
+        can_probe = (
             awaiting == 'main_answer'
             and step is not None
+            and bool(step.get('allow_follow_up'))
             and int(state.get('followup_count') or 0) == 0
-            and needs_elaboration(user_input, step)
         )
         prompt = system_prompt.replace('{avatar_name}', avatar) + '\n\n' + build_turn_directive(
-            instruction_for(state, awaiting, step, followup_now=followup_now))
+            instruction_for(state, awaiting, step, can_probe=can_probe), offer_followup=can_probe)
         if language != 'en':
             prompt += f"\n\nIMPORTANT: Respond entirely in {LANGUAGE_NAMES.get(language, 'English')}."
         llm_history = history + ([{'role': 'user', 'content': user_input}] if store_user else [])
@@ -334,12 +346,14 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
             # Model failed even after retry: never lose the answer or stall — record & advance.
             turn = {'reply': '', 'name': (user_input or '').strip()[:80] if awaiting == 'name' else ''}
         reply = turn['reply']
-        task_type, decision = apply_turn(state, awaiting, step, user_input, turn, followup_now=followup_now)
+        asked_followup = can_probe and bool(turn.get('asked_followup'))
+        task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=asked_followup)
         if invalid:
             decision = {'sufficient': True, 'reason': 'invalid_llm_json'}
         if not reply:
             reply = _post_question(state)
-        _log(session_id, f"TURN: task={task_type} awaiting={state.get('awaiting')} step={state.get('step_index')}")
+        _log(session_id, f"TURN: task={task_type} awaiting={state.get('awaiting')} step={state.get('step_index')} "
+                         f"can_probe={can_probe} asked_followup={asked_followup}")
 
     final_reply = emit(msg, info_state, state, previous_state, answered_turn, task_type,
                        decision, reply, latency, history, user_input, store_user)
