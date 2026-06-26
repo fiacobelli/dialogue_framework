@@ -21,7 +21,7 @@ from typing import Any
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
-from .interview_flow_config import FINAL_PHOTOS_PROMPT, INTERVIEW_STEPS
+from .interview_flow_config import FINAL_PHOTOS_PROMPT, FOLLOWUP_EXAMPLES, INTERVIEW_STEPS
 from .interview_state import (
     _advance_step,
     _crisis_detected,
@@ -32,6 +32,7 @@ from .interview_state import (
     current_step,
     input_guard_decision,
     is_skip_intent,
+    needs_elaboration,
     normalize_state,
 )
 
@@ -126,6 +127,12 @@ def instruction_for(state: dict, awaiting: str, step: dict | None) -> str:
         return (f'The patient just told you their name. Greet them warmly and ask this first '
                 f'question naturally: "{INTERVIEW_STEPS[0]["question"]}". '
                 f'Put the name they gave in the "name" field.')
+    if awaiting == 'followup_answer' and step:
+        example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
+        return (f'The patient answered the current section, but the answer does not yet give enough '
+                f'story detail for this donor page. Warmly invite them to say a little more about '
+                f'this same topic. You may offer a helpful dialysis-relevant example, like: {example}. '
+                f'Ask one gentle, open question. Do not ask the next section question yet.')
     next_q = _next_question(state.get('step_index') or 0)
     if next_q:
         return (f'Warmly acknowledge what the patient just shared in one short sentence that shows you '
@@ -169,10 +176,20 @@ def apply_turn(state: dict, awaiting: str, step: dict | None, user_input: str, t
         return 'ask_main', {'sufficient': bool(name), 'reason': 'intro_name'}
 
     if step:
-        _record_story_evidence(state, step, user_input, {'sufficient': True, 'reason': 'answered'}, 'main_answer')
+        if awaiting == 'main_answer' and needs_elaboration(user_input, step) and int(state.get('followup_count') or 0) == 0:
+            decision = {'sufficient': False, 'reason': 'needs_elaboration'}
+            _record_story_evidence(state, step, user_input, decision, 'main_answer')
+            state['followup_count'] = 1
+            state['awaiting'] = 'followup_answer'
+            state['phase'] = step.get('phase') or 'STORY'
+            return 'ask_followup', decision
+
+        answer_kind = 'followup_answer' if awaiting == 'followup_answer' else 'main_answer'
+        reason = 'followup_answered' if awaiting == 'followup_answer' else 'answered'
+        _record_story_evidence(state, step, user_input, {'sufficient': True, 'reason': reason}, answer_kind)
 
     task_type, _reply = advance_and_maybe_close(state, turn['reply'])
-    return task_type, {'sufficient': True, 'reason': 'answered'}
+    return task_type, {'sufficient': True, 'reason': 'followup_answered' if awaiting == 'followup_answer' else 'answered'}
 
 
 def emit(msg, info_state, state, previous_state, answered_turn, task_type, decision,
@@ -249,8 +266,8 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     previous_state = dict(state)
     answered_turn = previous_state.get('current_outgoing_turn') or {}
     awaiting = state.get('awaiting')
-    if awaiting not in {'name', 'main_answer'}:
-        awaiting = 'main_answer'  # coerce legacy states (e.g. 'readiness'/'followup_answer') into the story
+    if awaiting not in {'name', 'main_answer', 'followup_answer'}:
+        awaiting = 'main_answer'  # coerce legacy states (e.g. 'readiness') into the story
         state['awaiting'], state['phase'] = 'main_answer', 'STORY'
     step = current_step(state)
     _log(session_id, f"USER: {user_input}")
@@ -259,7 +276,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     decision: dict = {}
     latency = 0
     store_user = bool(user_input) and not turn_meta.get('no_response')
-    story_phase = awaiting == 'main_answer'
+    story_phase = awaiting in {'main_answer', 'followup_answer'}
 
     # ---- deterministic floors (no LLM) ----
     if story_phase and is_skip_intent(user_input, turn_meta):
