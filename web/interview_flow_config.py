@@ -77,6 +77,11 @@ FOLLOWUP_EXAMPLES = {
     ),
 }
 
+# Safety ceiling: probe a section until the answer is adequate, but never more than
+# this many times (research heuristic is 2-3 per theme). Guarantees forward progress
+# so a terse patient on one section can never block coverage of the rest.
+MAX_FOLLOWUPS_PER_SECTION = 3
+
 GENERATION_REQUIRED_EVIDENCE_GROUPS = {
     'identity': ('personal_background',),
     'kidney_experience': ('medical_history', 'daily_life'),
