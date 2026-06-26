@@ -695,8 +695,8 @@ class App {
             await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite('');
             ui.showDraftReview(data);
-            ui.setStatus('Review your draft, then publish when it looks right.');
-            this._lastSpokenText = `I drafted your donor page, ${data.name}. Please review it before publishing.`;
+            ui.setStatus('Review the private preview, then approve it when it looks right.');
+            this._lastSpokenText = `I prepared a private preview of your donor page, ${data.name}. Please review it before approving the public page.`;
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
@@ -733,14 +733,14 @@ class App {
         const name = document.getElementById('patientName').value || 'Patient';
         ui.showGenerating();
         ui.setStatus(allowPartialPhotos
-            ? 'Generating your donor page with the photos uploaded so far...'
-            : 'Generating your donor page...');
+            ? 'Preparing your donor page preview with the photos uploaded so far...'
+            : 'Preparing your donor page preview...');
 
         try {
             await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite(name, { allowPartialPhotos });
             ui.showDraftReview(data);
-            ui.setStatus('Review your draft, then publish when it looks right.');
+            ui.setStatus('Review the private preview, then approve it when it looks right.');
         } catch (err) {
             const message = this._generationErrorMessage(err);
             ui.showGenerateSection();
@@ -755,7 +755,7 @@ class App {
     async publish() {
         const consent = ui.getPublicationConsent();
         if (!consent.accepted) {
-            ui.setStatus('Please confirm that you understand this page may become public before publishing.');
+            ui.setStatus('Please confirm that you understand this page may become public before approving it.');
             return;
         }
         ui.showPublishing();
@@ -774,7 +774,7 @@ class App {
             const btn = document.getElementById('publishBtn');
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = 'Publish My Donor Page';
+                btn.textContent = 'Approve and Create Public Page';
             }
         }
     }

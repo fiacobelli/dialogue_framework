@@ -204,58 +204,67 @@
                     <label for="patientName">Name to show on the donor page</label>
                     <input type="text" id="patientName" placeholder="Use the name you gave Ludi">
                 </div>
-                <button id="generateBtn" type="button">Review and Draft My Donor Page</button>
+                <button id="generateBtn" type="button">Preview My Donor Page</button>
             </div>
 
             <div class="review-section" id="reviewSection" style="display:none;">
-                <p class="eyebrow">Review before publishing</p>
-                <h2>Check Your Donor Page Draft</h2>
+                <p class="eyebrow">Private preview</p>
+                <h2>Preview Your Donor Page</h2>
                 <p class="review-copy">
-                    This is still a private draft. Make sure the name and story are accurate.
-                    The page is not public until you choose to publish it.
+                    This preview is private. Review the page below, make corrections if needed,
+                    then approve it when it looks right.
                 </p>
 
-                <div class="review-field">
-                    <label for="reviewName">Public name shown on the page</label>
-                    <input type="text" id="reviewName">
-                </div>
-                <div class="review-field">
-                    <label for="reviewHeadline">Headline</label>
-                    <input type="text" id="reviewHeadline">
-                </div>
-                <div class="review-field">
-                    <label for="reviewShortIntro">Short introduction</label>
-                    <textarea id="reviewShortIntro" rows="4"></textarea>
-                </div>
-                <div class="review-field">
-                    <label for="reviewPersonalIdentity">Meet me</label>
-                    <textarea id="reviewPersonalIdentity" rows="5"></textarea>
-                </div>
-                <div class="review-field">
-                    <label for="reviewKidneyJourney">My kidney journey</label>
-                    <textarea id="reviewKidneyJourney" rows="5"></textarea>
-                </div>
-                <div class="review-field">
-                    <label for="reviewDailyImpact">What daily life is like</label>
-                    <textarea id="reviewDailyImpact" rows="5"></textarea>
-                </div>
-                <div class="review-field">
-                    <label for="reviewTransplantHope">What a transplant could make possible</label>
-                    <textarea id="reviewTransplantHope" rows="5"></textarea>
-                </div>
-                <div class="review-field">
-                    <label for="reviewDonorMessage">Message to potential donors</label>
-                    <textarea id="reviewDonorMessage" rows="5"></textarea>
-                </div>
-                <div class="photo-grid" id="reviewPhotos"></div>
+                <div class="donor-page-preview" id="draftPreview"></div>
+
+                <details class="edit-story-panel" id="editStoryPanel">
+                    <summary>Edit story details</summary>
+                    <p>
+                        Use this only if something is inaccurate or private. These fields update the page
+                        when you approve it.
+                    </p>
+                    <div class="review-field">
+                        <label for="reviewName">Name shown on the page</label>
+                        <input type="text" id="reviewName">
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewHeadline">Main headline</label>
+                        <input type="text" id="reviewHeadline">
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewShortIntro">Opening summary</label>
+                        <textarea id="reviewShortIntro" rows="4"></textarea>
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewPersonalIdentity">Who I am</label>
+                        <textarea id="reviewPersonalIdentity" rows="5"></textarea>
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewKidneyJourney">Why I need a kidney</label>
+                        <textarea id="reviewKidneyJourney" rows="5"></textarea>
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewDailyImpact">How kidney disease affects my life</label>
+                        <textarea id="reviewDailyImpact" rows="5"></textarea>
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewTransplantHope">What transplant could make possible</label>
+                        <textarea id="reviewTransplantHope" rows="5"></textarea>
+                    </div>
+                    <div class="review-field">
+                        <label for="reviewDonorMessage">What I want donors to know</label>
+                        <textarea id="reviewDonorMessage" rows="5"></textarea>
+                    </div>
+                </details>
+
                 <label class="publication-consent" for="publicationConsent">
                     <input type="checkbox" id="publicationConsent">
                     <span>
-                        I understand that publishing will create a public donor page using the name,
+                        I understand that approving this will create a public donor page using the name,
                         story, and photos I reviewed here.
                     </span>
                 </label>
-                <button id="publishBtn" type="button">Publish My Donor Page</button>
+                <button id="publishBtn" type="button">Approve and Create Public Page</button>
             </div>
 
             <div class="celebration-section" id="celebrationSection" style="display:none;">

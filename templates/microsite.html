@@ -188,25 +188,10 @@
             font: 700 17px/1.4 Verdana, sans-serif;
         }
 
-        .story-grid {
+        .story-section {
             display: grid;
-            grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr);
-            gap: 28px;
+            gap: 18px;
             margin: 12px 0 34px;
-        }
-
-        .section-label {
-            position: sticky;
-            top: 24px;
-            align-self: start;
-            padding: 22px;
-            border: 1px solid var(--line);
-            border-radius: 26px;
-            background: rgba(255, 255, 255, 0.58);
-            color: var(--sage-dark);
-            font: 800 13px/1.4 Verdana, sans-serif;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
         }
 
         .story-card {
@@ -217,7 +202,13 @@
             box-shadow: 0 18px 48px rgba(55, 40, 25, 0.08);
         }
 
-        .story-card + .story-card { margin-top: 18px; }
+        .story-kicker {
+            margin: 0 0 12px;
+            color: var(--clay);
+            font: 800 12px/1.25 Verdana, sans-serif;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
 
         .story-card h2 {
             margin: 0 0 14px;
@@ -228,10 +219,12 @@
         }
 
         .story-card p {
-            margin: 0;
+            margin: 0 0 18px;
             color: #3f4b43;
             font-size: 19px;
         }
+
+        .story-card p:last-child { margin-bottom: 0; }
 
         .photo-inset {
             position: relative;
@@ -347,7 +340,6 @@
         @media (max-width: 860px) {
             .page-shell { padding: 18px; }
             .hero,
-            .story-grid,
             .help-panel {
                 grid-template-columns: 1fr;
             }
@@ -356,7 +348,6 @@
             .intro { font-size: 20px; }
             .photo-card,
             .photo-card img { min-height: 380px; }
-            .section-label { position: static; }
             .story-card { padding: 24px; }
             .story-card h2 { font-size: 28px; }
             .help-panel { padding: 28px; }
@@ -393,18 +384,18 @@
             {% endif %}
         </section>
 
-        <section class="story-grid" aria-label="{{ name }}'s story">
-            <aside class="section-label">The story behind the ask</aside>
-            <div>
-                <article class="story-card">
-                    <h2>Meet {{ name }}</h2>
-                    <p>{{ content.personal_identity }}</p>
-                </article>
-                <article class="story-card">
-                    <h2>My kidney journey</h2>
-                    <p>{{ content.kidney_journey }}</p>
-                </article>
-            </div>
+        <section class="story-section" aria-label="{{ name }}'s story">
+            <article class="story-card">
+                <p class="story-kicker">Who I am</p>
+                <h2>Meet {{ name }}</h2>
+                <p>{{ content.personal_identity }}</p>
+            </article>
+            <article class="story-card">
+                <p class="story-kicker">Why I need a kidney</p>
+                <h2>My kidney journey</h2>
+                <p>{{ content.kidney_journey }}</p>
+                <p>{{ content.daily_impact }}</p>
+            </article>
         </section>
 
         {% if photo_items|length > 1 %}
@@ -417,22 +408,14 @@
         </figure>
         {% endif %}
 
-        <section class="story-grid" aria-label="{{ name }}'s life today">
-            <aside class="section-label">Life today &amp; the road ahead</aside>
-            <div>
-                <article class="story-card">
-                    <h2>What daily life is like</h2>
-                    <p>{{ content.daily_impact }}</p>
-                </article>
-                <article class="story-card">
-                    <h2>What a transplant could make possible</h2>
-                    <p>{{ content.transplant_hope }}</p>
-                </article>
-                <article class="story-card">
-                    <h2>A message to potential donors</h2>
-                    <p>{{ content.donor_message }}</p>
-                </article>
-            </div>
+        <section class="story-section" aria-label="{{ name }}'s hope for transplant">
+            <article class="story-card">
+                <p class="story-kicker">How a donor can help</p>
+                <h2>What a transplant could make possible</h2>
+                <p>{{ content.transplant_hope }}</p>
+                <h2>A message to potential donors</h2>
+                <p>{{ content.donor_message }}</p>
+            </article>
         </section>
 
         {% if photo_items|length > 2 %}

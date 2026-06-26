@@ -400,7 +400,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Review and Draft My Donor Page';
+            btn.textContent = 'Preview My Donor Page';
         }
     }
 
@@ -421,7 +421,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Drafting your donor page...';
+            btn.textContent = 'Preparing your preview...';
         }
     }
 
@@ -446,19 +446,82 @@ class UIController {
             if (el) el.value = value;
         });
 
-        const photoWrap = document.getElementById('reviewPhotos');
-        if (photoWrap) {
-            photoWrap.textContent = '';
-            (data.photos || []).forEach((url) => {
-                const slot = document.createElement('div');
-                slot.className = 'photo-slot';
-                const img = document.createElement('img');
-                img.src = url;
-                img.alt = 'Selected donor page photo';
-                slot.appendChild(img);
-                photoWrap.appendChild(slot);
-            });
-        }
+        this.renderDonorPagePreview(data, document.getElementById('draftPreview'), { privatePreview: true });
+        const editPanel = document.getElementById('editStoryPanel');
+        if (editPanel) editPanel.open = false;
+    }
+
+    renderDonorPagePreview(data, container, options = {}) {
+        if (!container) return;
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        const photos = (data.photo_items || (data.photos || []).map((url) => ({ url }))).filter(item => item?.url);
+        const name = data.name || 'My';
+        const photo = (index) => photos[index]?.url || '';
+        const photoCaption = (index, fallback) => photos[index]?.caption || fallback;
+        const helpTitle = options.privatePreview ? 'How this page asks for help' : 'How you can help';
+
+        container.innerHTML = `
+            <article class="preview-page-card">
+                <section class="preview-hero">
+                    <div>
+                        <p class="preview-badge">Kidney donor needed</p>
+                        <h3>${escapeHtml(data.headline || `${name}'s Kidney Donor Story`)}</h3>
+                        <p>${escapeHtml(data.short_intro || '')}</p>
+                    </div>
+                    ${photo(0) ? `
+                        <figure>
+                            <img src="${escapeHtml(photo(0))}" alt="Selected donor page photo">
+                            <figcaption>${escapeHtml(photoCaption(0, 'Who I am'))}</figcaption>
+                        </figure>
+                    ` : ''}
+                </section>
+
+                <section class="preview-story-section">
+                    <p class="preview-kicker">Who I am</p>
+                    <h4>Meet ${escapeHtml(name)}</h4>
+                    <p>${escapeHtml(data.personal_identity || data.my_story || '')}</p>
+                </section>
+
+                <section class="preview-story-section">
+                    <p class="preview-kicker">Why I need a kidney</p>
+                    <h4>My kidney journey</h4>
+                    <p>${escapeHtml(data.kidney_journey || '')}</p>
+                    <p>${escapeHtml(data.daily_impact || data.my_struggle || '')}</p>
+                </section>
+
+                ${photo(1) ? `
+                    <figure class="preview-wide-photo">
+                        <img src="${escapeHtml(photo(1))}" alt="Selected donor page photo">
+                        <figcaption>${escapeHtml(photoCaption(1, 'My kidney journey'))}</figcaption>
+                    </figure>
+                ` : ''}
+
+                <section class="preview-story-section">
+                    <p class="preview-kicker">How a donor can help</p>
+                    <h4>What transplant could make possible</h4>
+                    <p>${escapeHtml(data.transplant_hope || data.my_hope || '')}</p>
+                    <h4>A message to potential donors</h4>
+                    <p>${escapeHtml(data.donor_message || '')}</p>
+                </section>
+
+                ${photo(2) ? `
+                    <figure class="preview-wide-photo">
+                        <img src="${escapeHtml(photo(2))}" alt="Selected donor page photo">
+                        <figcaption>${escapeHtml(photoCaption(2, 'My hope after transplant'))}</figcaption>
+                    </figure>
+                ` : ''}
+
+                <section class="preview-help">
+                    <h4>${escapeHtml(helpTitle)}</h4>
+                    <p>Learn about living kidney donation, share this story, and encourage interested people to speak with a qualified transplant team.</p>
+                </section>
+            </article>
+        `;
     }
 
     getDraftReviewEdits() {
@@ -485,7 +548,7 @@ class UIController {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Publishing...';
+            btn.textContent = 'Creating public page...';
         }
         this.setStatus('');
     }
@@ -495,7 +558,7 @@ class UIController {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Publish My Donor Page';
+            btn.textContent = 'Approve and Create Public Page';
         }
         if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
     }
@@ -521,31 +584,8 @@ class UIController {
     showMicrositePreview(data) {
         document.getElementById('siteName').textContent = `${data.name}'s Story`;
 
-        const contentEl = document.getElementById('siteContent');
-        contentEl.textContent = '';
-        const sections = [
-            ['Short Introduction', data.short_intro],
-            ['Meet Me', data.personal_identity || data.my_story],
-            ['My Kidney Journey', data.kidney_journey],
-            ['What Daily Life Is Like', data.daily_impact || data.my_struggle],
-            ['What a Transplant Could Make Possible', data.transplant_hope || data.my_hope],
-            ['Message to Potential Donors', data.donor_message],
-        ].filter(([, value]) => value);
-        if (sections.length) {
-            sections.forEach(([label, value]) => {
-                const strong = document.createElement('strong');
-                strong.textContent = `${label}:`;
-                contentEl.appendChild(strong);
-                contentEl.appendChild(document.createTextNode(` ${value || ''}`));
-                contentEl.appendChild(document.createElement('br'));
-                contentEl.appendChild(document.createElement('br'));
-            });
-        } else {
-            contentEl.textContent = data.content || '';
-        }
-        document.getElementById('sitePhotos').innerHTML = (data.photos || [])
-            .map(p => `<div class="photo-slot"><img src="${p}" alt="Donor page photo"></div>`)
-            .join('');
+        this.renderDonorPagePreview(data, document.getElementById('siteContent'));
+        document.getElementById('sitePhotos').innerHTML = '';
 
         const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
         document.getElementById('micrositeUrl').innerHTML = `<a href="${fullUrl}" target="_blank">${fullUrl}</a>`;
