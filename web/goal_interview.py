@@ -1,15 +1,11 @@
 """LLM-centered interview goal — the whole turn in one place.
 
-The LLM only voices each turn (a warm acknowledgement + the one question code told
-it to ask, plus the patient's name on the intro turn). Code owns section order,
-coverage, safety, completion, and the per-turn analytics/outgoing-turn contract that
-routes_api and database.py consume. Flow reads exactly one LLM-produced flag —
-``asked_followup`` (is this answer still too thin?) — to keep probing a section until the
-answer is adequate, but bounded by MAX_FOLLOWUPS_PER_SECTION and honored only on eligible
-steps, so the turn can never stall or loop. Code (not the LLM) owns every section question:
-on each advance it appends the canonical next question verbatim, so questions are never
-skipped or substituted. Deterministic guards and state live in interview_state; the 7
-sections + config in interview_flow_config.
+The LLM judges whether a story answer needs more detail and writes warm language, but
+code assembles the final turn. Section questions are always appended by code on advance;
+follow-up turns require an explicit LLM follow-up question. Probing is bounded by
+MAX_FOLLOWUPS_PER_SECTION and honored only on eligible steps, so the turn can never stall
+or loop. Deterministic guards and state live in interview_state; the 7 sections + config
+in interview_flow_config.
 """
 
 from __future__ import annotations
@@ -66,19 +62,25 @@ def _text(value: Any, limit: int = 1000) -> str:
 def build_turn_directive(instruction: str, offer_followup: bool = False) -> str:
     """Append the per-turn instruction + output format. Persona/voice rules live in
     prompts/interviewer.txt (the system prompt), not here."""
-    name_terminator = ',\n' if offer_followup else '\n'
-    followup_field = (
-        '  "asked_followup": true or false  (true ONLY if you asked the patient to say more this turn instead of moving on)\n'
-        if offer_followup else ''
-    )
+    if offer_followup:
+        return (
+            'RUNTIME TURN DIRECTIVE\n'
+            f'{instruction.strip()}\n\n'
+            'Return ONLY a JSON object (no other text):\n'
+            '{\n'
+            '  "ack": "one short acknowledgement sentence, no question",\n'
+            '  "needs_followup": true or false,\n'
+            '  "followup_question": "the one follow-up question if needs_followup is true, otherwise an empty string",\n'
+            '  "name": "the patient\'s name if they just gave it, otherwise an empty string"\n'
+            '}'
+        )
     return (
         'RUNTIME TURN DIRECTIVE\n'
         f'{instruction.strip()}\n\n'
         'Return ONLY a JSON object (no other text):\n'
         '{\n'
         '  "reply": "what you say to the patient, following the voice rules above",\n'
-        f'  "name": "the patient\'s name if they just gave it, otherwise an empty string"{name_terminator}'
-        f'{followup_field}'
+        '  "name": "the patient\'s name if they just gave it, otherwise an empty string"\n'
         '}'
     )
 
@@ -100,13 +102,32 @@ def parse_turn(raw: str) -> dict | None:
 
 
 def validate_turn(data: dict | None) -> dict:
-    """Sanitize the model output into {reply, name, valid}."""
+    """Sanitize the model output into the turn contract fields."""
     data = data if isinstance(data, dict) else {}
     name = re.sub(r'\s+', ' ', _text(data.get('name'), 80)).strip()
     if len(name.split()) > 5:
         name = ''
     reply = _text(data.get('reply'))
-    return {'reply': reply, 'name': name, 'asked_followup': bool(data.get('asked_followup')), 'valid': bool(reply)}
+    ack = _text(data.get('ack'), 500)
+    followup_question = _text(data.get('followup_question'), 500)
+    return {
+        'reply': reply,
+        'ack': ack,
+        'name': name,
+        'needs_followup': bool(data.get('needs_followup')),
+        'followup_question': followup_question,
+        'valid': bool(reply or ack or followup_question),
+    }
+
+
+def _probe_contract_valid(turn: dict, can_probe: bool) -> bool:
+    if not can_probe:
+        return bool(turn.get('valid'))
+    if not turn.get('valid'):
+        return False
+    if turn.get('needs_followup') and not _text(turn.get('followup_question')):
+        return False
+    return True
 
 
 # --- State transitions: one question per section, code drives order ---
@@ -135,6 +156,19 @@ def _post_question(state: dict) -> str:
     return step['question'] if step else ''
 
 
+def _join_reply(ack: str, question: str) -> str:
+    ack = _text(ack, 500)
+    question = _text(question, 500)
+    if question and not question.endswith('?'):
+        question = f'{question}?'
+    return f'{ack} {question}'.strip() if ack else question
+
+
+def _fallback_followup_question(step: dict | None) -> str:
+    focus = (step or {}).get('focus') or 'what matters most in this part of your story'
+    return f'Could you tell me a little more about {focus}, with one specific example?'
+
+
 def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False) -> str:
     """Build the per-turn instruction telling the LLM what to voice this turn.
 
@@ -151,12 +185,12 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
         example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
         section_q = step.get('question', 'the current question')
         return (f'The patient just answered: "{section_q}". '
-                f'Judge their answer. If it already gives a concrete, specific detail for this section, '
-                f'warmly acknowledge what they shared in one short sentence, set asked_followup to false, '
-                f'and do NOT ask any question (the system asks the next one). '
-                f'If it is still vague, a yes/no, or generic (for example "I am a good person"), do NOT move '
-                f'on — warmly ask one gentle, open follow-up that invites a specific example, such as: '
-                f'{example}, and set asked_followup to true.')
+                f'Judge whether their answer gives a concrete, specific detail for this section. '
+                f'If it is adequate, write only a warm acknowledgement in ack, set needs_followup to false, '
+                f'and leave followup_question empty. '
+                f'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
+                f'needs_followup to true and put one gentle, open follow-up question in followup_question. '
+                f'The follow-up should invite a specific example, such as: {example}.')
     if next_q:
         return ('Warmly acknowledge what the patient just shared in one short sentence that shows you '
                 'truly heard them, and do NOT ask any question; the system will ask the next question.')
@@ -348,25 +382,44 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
         raw = llm.generate(llm_history, prompt, json_mode=True)
         _log(session_id, f"LLM_RAW: {raw[:600]}")
         turn = validate_turn(parse_turn(raw))
-        if not turn['valid']:
-            raw = llm.generate(llm_history, prompt + '\n\nReturn ONLY the JSON object described above.', json_mode=True)
+        if not _probe_contract_valid(turn, can_probe):
+            raw = llm.generate(
+                llm_history,
+                prompt + '\n\nReturn ONLY the JSON object described above. If needs_followup is true, followup_question must contain one actual question.',
+                json_mode=True,
+            )
             _log(session_id, f"LLM_RAW_RETRY: {raw[:600]}")
             turn = validate_turn(parse_turn(raw))
+        if can_probe and turn.get('valid') and turn.get('needs_followup') and not _text(turn.get('followup_question')):
+            turn['followup_question'] = _fallback_followup_question(step)
         latency = int((time.perf_counter() - t0) * 1000)
 
-        invalid = not turn['valid']
+        invalid = not _probe_contract_valid(turn, can_probe)
         if invalid:
             # Model failed even after retry: never lose the answer or stall — record & advance.
-            turn = {'reply': '', 'name': (user_input or '').strip()[:80] if awaiting == 'name' else ''}
-        reply = turn['reply']
-        asked_followup = can_probe and bool(turn.get('asked_followup'))
-        task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=asked_followup)
+            turn = {
+                'reply': '',
+                'ack': '',
+                'name': (user_input or '').strip()[:80] if awaiting == 'name' else '',
+                'needs_followup': False,
+                'followup_question': '',
+            }
+        needs_followup = can_probe and bool(turn.get('needs_followup')) and bool(_text(turn.get('followup_question')))
+        if can_probe:
+            if needs_followup:
+                reply = _join_reply(turn.get('ack'), turn.get('followup_question') or _fallback_followup_question(step))
+            else:
+                reply = _text(turn.get('ack')) or _text(turn.get('reply'))
+        else:
+            reply = turn.get('reply') or turn.get('ack') or ''
+        task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=needs_followup)
         if invalid:
             decision = {'sufficient': True, 'reason': 'invalid_llm_json'}
         if not reply:
             reply = _post_question(state)
         _log(session_id, f"TURN: task={task_type} awaiting={state.get('awaiting')} step={state.get('step_index')} "
-                         f"can_probe={can_probe} asked_followup={asked_followup}")
+                         f"can_probe={can_probe} needs_followup={needs_followup} "
+                         f"followup_question={bool(_text(turn.get('followup_question')))}")
 
     final_reply = emit(msg, info_state, state, previous_state, answered_turn, task_type,
                        decision, reply, latency, history, user_input, store_user)
