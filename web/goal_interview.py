@@ -121,13 +121,13 @@ def _post_question(state: dict) -> str:
     return step['question'] if step else ''
 
 
-def instruction_for(state: dict, awaiting: str, step: dict | None) -> str:
+def instruction_for(state: dict, awaiting: str, step: dict | None, followup_now: bool = False) -> str:
     """Build the per-turn instruction telling the LLM what to voice this turn."""
     if awaiting == 'name':
         return (f'The patient just told you their name. Greet them warmly and ask this first '
                 f'question naturally: "{INTERVIEW_STEPS[0]["question"]}". '
                 f'Put the name they gave in the "name" field.')
-    if awaiting == 'followup_answer' and step:
+    if followup_now and step:
         example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
         return (f'The patient answered the current section, but the answer does not yet give enough '
                 f'story detail for this donor page. Warmly invite them to say a little more about '
@@ -165,7 +165,14 @@ def advance_and_maybe_close(state: dict, reply: str) -> tuple[str, str]:
     return 'close_to_photos', FINAL_PHOTOS_PROMPT
 
 
-def apply_turn(state: dict, awaiting: str, step: dict | None, user_input: str, turn: dict) -> tuple[str, dict]:
+def apply_turn(
+    state: dict,
+    awaiting: str,
+    step: dict | None,
+    user_input: str,
+    turn: dict,
+    followup_now: bool = False,
+) -> tuple[str, dict]:
     """Apply the voiced turn to state; return (task_type, decision). One question per section."""
     if awaiting == 'name':
         name = turn['name'] or (user_input or '').strip()[:80]
@@ -176,7 +183,7 @@ def apply_turn(state: dict, awaiting: str, step: dict | None, user_input: str, t
         return 'ask_main', {'sufficient': bool(name), 'reason': 'intro_name'}
 
     if step:
-        if awaiting == 'main_answer' and needs_elaboration(user_input, step) and int(state.get('followup_count') or 0) == 0:
+        if followup_now:
             decision = {'sufficient': False, 'reason': 'needs_elaboration'}
             _record_story_evidence(state, step, user_input, decision, 'main_answer')
             state['followup_count'] = 1
@@ -277,6 +284,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     latency = 0
     store_user = bool(user_input) and not turn_meta.get('no_response')
     story_phase = awaiting in {'main_answer', 'followup_answer'}
+    followup_now = False
 
     # ---- deterministic floors (no LLM) ----
     if story_phase and is_skip_intent(user_input, turn_meta):
@@ -300,8 +308,14 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
 
     # ---- one LLM call (plain reply + name hint) ----
     if task_type is None:
+        followup_now = (
+            awaiting == 'main_answer'
+            and step is not None
+            and int(state.get('followup_count') or 0) == 0
+            and needs_elaboration(user_input, step)
+        )
         prompt = system_prompt.replace('{avatar_name}', avatar) + '\n\n' + build_turn_directive(
-            instruction_for(state, awaiting, step))
+            instruction_for(state, awaiting, step, followup_now=followup_now))
         if language != 'en':
             prompt += f"\n\nIMPORTANT: Respond entirely in {LANGUAGE_NAMES.get(language, 'English')}."
         llm_history = history + ([{'role': 'user', 'content': user_input}] if store_user else [])
@@ -320,7 +334,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
             # Model failed even after retry: never lose the answer or stall — record & advance.
             turn = {'reply': '', 'name': (user_input or '').strip()[:80] if awaiting == 'name' else ''}
         reply = turn['reply']
-        task_type, decision = apply_turn(state, awaiting, step, user_input, turn)
+        task_type, decision = apply_turn(state, awaiting, step, user_input, turn, followup_now=followup_now)
         if invalid:
             decision = {'sufficient': True, 'reason': 'invalid_llm_json'}
         if not reply:
