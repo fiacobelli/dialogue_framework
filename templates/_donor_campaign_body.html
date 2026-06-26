@@ -1,0 +1,131 @@
+<div class="donor-campaign{% if campaign.preview %} donor-campaign-preview{% endif %}">
+    <header class="campaign-topbar">
+        <div class="campaign-shell campaign-topbar-inner">
+            <div class="campaign-brand">
+                <span>Kidney donor needed</span>
+                <strong>{{ campaign.title }}</strong>
+            </div>
+            <nav class="campaign-top-actions" aria-label="Page actions">
+                <a class="campaign-btn green" href="{{ campaign.primary_cta.href }}">{{ campaign.primary_cta.label }}</a>
+                <a class="campaign-btn secondary" href="{{ campaign.secondary_cta.href }}" target="_blank" rel="noopener">{{ campaign.secondary_cta.label }}</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="campaign-hero">
+        <div class="campaign-shell campaign-hero-grid">
+            {% if photo_items %}
+            <figure class="campaign-photo-frame">
+                <img src="{{ photo_items[0].url }}" alt="{{ photo_items[0].role_label }} photo for {{ name }}'s donor page">
+                <figcaption>{{ photo_items[0].caption }}</figcaption>
+            </figure>
+            {% endif %}
+
+            <div class="campaign-hero-copy">
+                <div class="campaign-need-pill">Needs a kidney</div>
+                <h1>{{ content.headline }}</h1>
+                <p class="campaign-intro">{{ content.short_intro }}</p>
+                <div class="campaign-action-row">
+                    <a class="campaign-btn green" href="{{ campaign.primary_cta.href }}">{{ campaign.primary_cta.label }}</a>
+                    <a class="campaign-btn secondary" href="{{ campaign.secondary_cta.href }}" target="_blank" rel="noopener">{{ campaign.secondary_cta.label }}</a>
+                </div>
+                <aside class="campaign-story-highlight" aria-label="Why this matters">
+                    <h2>Why this matters</h2>
+                    <p>{{ campaign.story_highlight }}</p>
+                </aside>
+            </div>
+        </div>
+    </section>
+
+    <main id="main-content">
+        <section class="campaign-section green" aria-labelledby="who-i-am">
+            <div class="campaign-shell campaign-two-col">
+                <article class="campaign-card">
+                    <p class="campaign-mini-label">Who I am</p>
+                    <h2 id="who-i-am">Meet {{ name }}</h2>
+                    <p>{{ content.personal_identity }}</p>
+                </article>
+
+                {% if photo_items|length > 1 %}
+                <figure class="campaign-side-photo">
+                    <img src="{{ photo_items[1].url }}" alt="{{ photo_items[1].role_label }} photo for {{ name }}'s donor page">
+                    <figcaption>{{ photo_items[1].caption }}</figcaption>
+                </figure>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="campaign-section blue" aria-labelledby="why-kidney">
+            <div class="campaign-shell campaign-two-col">
+                <article class="campaign-card">
+                    <p class="campaign-mini-label">Why I need a kidney</p>
+                    <h2 id="why-kidney">My kidney journey</h2>
+                    <p>{{ content.kidney_journey }}</p>
+                    <h3>How this affects daily life</h3>
+                    <p>{{ content.daily_impact }}</p>
+                </article>
+
+                {% if photo_items|length > 2 %}
+                <figure class="campaign-side-photo">
+                    <img src="{{ photo_items[2].url }}" alt="{{ photo_items[2].role_label }} photo for {{ name }}'s donor page">
+                    <figcaption>{{ photo_items[2].caption }}</figcaption>
+                </figure>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="campaign-section" aria-labelledby="donor-help">
+            <div class="campaign-shell">
+                <article class="campaign-card">
+                    <p class="campaign-mini-label">How a donor can help</p>
+                    <h2 id="donor-help">What a transplant could make possible</h2>
+                    <p>{{ content.transplant_hope }}</p>
+                    <h3>A message to potential donors and supporters</h3>
+                    <p>{{ content.donor_message }}</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="campaign-help-panel" id="share" aria-labelledby="help-title">
+            <div class="campaign-shell">
+                <h2 id="help-title">How you can help {{ name }}</h2>
+                <p>{{ campaign.donor_callout }}</p>
+
+                <div class="campaign-help-grid">
+                    <div class="campaign-help-tile">
+                        <strong>Share this page</strong>
+                        <span>Send this story to family, friends, faith groups, and community networks.</span>
+                    </div>
+                    <div class="campaign-help-tile">
+                        <strong>Learn about living donation</strong>
+                        <span>Trusted kidney donation information can help people understand what questions to ask.</span>
+                    </div>
+                    <div class="campaign-help-tile">
+                        <strong>Talk with professionals</strong>
+                        <span>Donation decisions should be guided by qualified transplant professionals.</span>
+                    </div>
+                </div>
+
+                <div class="campaign-share-card">
+                    <h3>Share {{ name }}'s page</h3>
+                    <div class="campaign-share-actions">
+                        <a class="campaign-btn" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener">Facebook</a>
+                        <a class="campaign-btn" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
+                        <a class="campaign-btn" href="{{ campaign.share.email }}">Email</a>
+                        <button class="campaign-copy-btn" type="button" id="copyBtn" onclick="copyCampaignLink({{ url | tojson }})">Copy Link</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="campaign-trust">
+        <div class="campaign-shell">
+            <p>
+                This page shares a personal story and is not medical advice. Living donation decisions should be discussed with qualified transplant professionals.
+                Learn more from the <a href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">National Kidney Foundation</a>
+                and <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">UNOS</a>.
+            </p>
+        </div>
+    </footer>
+</div>

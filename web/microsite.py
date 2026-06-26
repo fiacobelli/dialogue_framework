@@ -3,6 +3,7 @@ import os
 import re
 import json
 import hashlib
+from urllib.parse import quote
 from flask import render_template, url_for
 from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, clean_text as _clean_text, load_prompt
 from .interview_flow_config import GENERATION_REQUIRED_EVIDENCE_GROUPS
@@ -240,14 +241,54 @@ def _truncate_text(value: str, limit: int = 180) -> str:
 
 
 def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) -> dict:
-    title = f"{name}'s Kidney Donor Story"
-    description = _truncate_text(content.get('short_intro') or content.get('headline') or title)
+    title = f"{name} Needs a Kidney | Can You Help?"
+    description = _truncate_text(
+        content.get('share_description')
+        or content.get('short_intro')
+        or f"{name} is sharing their kidney donor story. Please read and share this page."
+    )
     image = photo_items[0]['url'] if photo_items else None
     return {
         'meta_title': title,
         'meta_description': description,
         'meta_image': image,
         'share_text': f"Please read and share {name}'s kidney donor story: {url}",
+    }
+
+
+def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict], *, preview: bool = False) -> dict:
+    """Build the donor-campaign view model shared by public page and preview."""
+    share_text = f"Please read and share {name}'s kidney donor story: {url}"
+    share_url = quote(url, safe='')
+    encoded_share_text = quote(share_text, safe='')
+    story_highlight = (
+        _clean_text(content.get('donor_callout'))
+        or _clean_text(content.get('donor_message'))
+        or _clean_text(content.get('transplant_hope'))
+        or _clean_text(content.get('short_intro'))
+    )
+    return {
+        'preview': preview,
+        'title': f"{name} Needs a Kidney",
+        'story_highlight': story_highlight,
+        'donor_callout': _clean_text(content.get('donor_callout')) or (
+            'Sharing this page can help more people learn about the need for a living kidney donor '
+            'and the difference support can make.'
+        ),
+        'primary_cta': {
+            'label': 'Share This Page',
+            'href': '#share',
+        },
+        'secondary_cta': {
+            'label': 'Learn About Living Donation',
+            'href': 'https://www.kidney.org/kidney-topics/living-donation',
+        },
+        'share': {
+            'facebook': f'https://www.facebook.com/sharer/sharer.php?u={share_url}',
+            'whatsapp': f'https://wa.me/?text={encoded_share_text}',
+            'email': f'mailto:?subject={quote(f"{name} Needs a Kidney", safe="")}&body={encoded_share_text}',
+        },
+        'photo_count': len(photo_items or []),
     }
 
 
@@ -307,6 +348,7 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
     microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
     microsite_path = url_for('serve_microsite', session_id=session_id)
     photo_urls = [item['url'] for item in photo_items]
+    campaign = _campaign_context(name, content, microsite_url, photo_items)
 
     html = render_template('microsite.html',
         name=name,
@@ -314,6 +356,7 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
         photos=photo_urls,
         photo_items=photo_items,
         url=microsite_url,
+        campaign=campaign,
         **_share_context(name, content, microsite_url, photo_items),
     )
 
@@ -324,6 +367,19 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
     os.replace(tmp_filepath, filepath)
 
     return microsite_path, microsite_url
+
+
+def _render_preview_html(name: str, content: dict, photo_items: list[dict], url: str = '#share') -> str:
+    campaign = _campaign_context(name, content, url, photo_items, preview=True)
+    return render_template(
+        '_donor_campaign_body.html',
+        name=name,
+        content=content,
+        photos=[item['url'] for item in photo_items],
+        photo_items=photo_items,
+        url=url,
+        campaign=campaign,
+    )
 
 
 def _build_result(
@@ -382,6 +438,7 @@ def generate(info_state, provider, name: str, session_id: str, session: dict | N
         _photo_items(photos, session_id, preview=True, token=patient_token(info_state)),
         published=False,
     )
+    result['preview_html'] = _render_preview_html(name, content, result.get('photo_items') or [])
     result['prompt_version'] = MICROSITE_PROMPT_VERSION
     result['llm_model'] = _provider_model_name(provider)
     result['evidence_hash'] = _evidence_hash(conversation)
@@ -429,6 +486,7 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
         microsite_url=microsite_url,
         published=True,
     )
+    result['preview_html'] = _render_preview_html(name, content, photo_items, microsite_url)
     for key in ('prompt_version', 'llm_model', 'evidence_hash'):
         if draft.get(key):
             result[key] = draft[key]

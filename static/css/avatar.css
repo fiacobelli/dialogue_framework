@@ -956,6 +956,17 @@
     margin-top: 18px;
 }
 
+.photo-consent-note {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 12px;
+    color: #1E3A8A !important;
+    font-size: 14px;
+    margin: 14px auto 0;
+    max-width: 620px;
+    padding: 10px 12px;
+}
+
 .photo-grid {
     display: flex;
     justify-content: center;

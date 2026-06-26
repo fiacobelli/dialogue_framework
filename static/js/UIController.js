@@ -446,9 +446,18 @@ class UIController {
             if (el) el.value = value;
         });
 
-        this.renderDonorPagePreview(data, document.getElementById('draftPreview'), { privatePreview: true });
+        this.showCampaignPreview(data, document.getElementById('draftPreview'), { privatePreview: true });
         const editPanel = document.getElementById('editStoryPanel');
         if (editPanel) editPanel.open = false;
+    }
+
+    showCampaignPreview(data, container, options = {}) {
+        if (!container) return;
+        if (data.preview_html) {
+            container.innerHTML = data.preview_html;
+            return;
+        }
+        this.renderDonorPagePreview(data, container, options);
     }
 
     renderDonorPagePreview(data, container, options = {}) {
@@ -584,7 +593,7 @@ class UIController {
     showMicrositePreview(data) {
         document.getElementById('siteName').textContent = `${data.name}'s Story`;
 
-        this.renderDonorPagePreview(data, document.getElementById('siteContent'));
+        this.showCampaignPreview(data, document.getElementById('siteContent'));
         document.getElementById('sitePhotos').innerHTML = '';
 
         const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
@@ -620,3 +629,15 @@ class UIController {
 }
 
 const ui = new UIController();
+
+window.copyCampaignLink = function copyCampaignLink(url) {
+    const write = navigator.clipboard
+        ? navigator.clipboard.writeText(url)
+        : Promise.resolve(window.prompt('Copy this link:', url));
+    write.then(() => {
+        const btn = document.getElementById('copyBtn');
+        if (!btn) return;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+    });
+};
