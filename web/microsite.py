@@ -5,7 +5,14 @@ import json
 import hashlib
 from urllib.parse import quote
 from flask import render_template, url_for
-from .config import MICROSITES_DIR, MICROSITE_PROMPT_FILE, clean_text as _clean_text, load_prompt
+from .config import (
+    MICROSITES_DIR,
+    MICROSITE_PROMPT_FILE,
+    MICROSITE_IMPACT_ITEMS,
+    MICROSITE_NEXT_STEPS,
+    clean_text as _clean_text,
+    load_prompt,
+)
 from .interview_flow_config import GENERATION_REQUIRED_EVIDENCE_GROUPS
 from . import database as db
 from .content_moderation import validate_public_content
@@ -256,6 +263,25 @@ def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) 
     }
 
 
+def _photo_slots(photo_items: list[dict] | None) -> dict:
+    """Map photos to page slots by role (None-safe). Fixes caption/section alignment and
+    lets 0-2 photos degrade gracefully: hero portrait / kidney journey / hope after transplant."""
+    ordered = list(photo_items or [])
+    by_role = {}
+    for item in ordered:
+        by_role.setdefault(item.get('photo_role'), item)
+    hero = by_role.get('before') or (ordered[0] if ordered else None)
+    remaining = [it for it in ordered if it is not hero]
+    rem_by_role = {}
+    for it in remaining:
+        rem_by_role.setdefault(it.get('photo_role'), it)
+    journey = rem_by_role.get('during') or rem_by_role.get('general')
+    hope = rem_by_role.get('hope')
+    if hope is journey:
+        hope = None
+    return {'hero': hero, 'journey': journey, 'hope': hope}
+
+
 def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict], *, preview: bool = False) -> dict:
     """Build the donor-campaign view model shared by public page and preview."""
     share_text = f"Please read and share {name}'s kidney donor story: {url}"
@@ -267,9 +293,16 @@ def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict
         or _clean_text(content.get('transplant_hope'))
         or _clean_text(content.get('short_intro'))
     )
+    first_name = (name or '').strip().split(' ')[0]
+    greeting = f"Hi, I'm {first_name}." if first_name else ''
+    photos = _photo_slots(photo_items)
     return {
         'preview': preview,
         'title': f"{name} Needs a Kidney",
+        'greeting': greeting,
+        'photos': photos,
+        'impact_items': MICROSITE_IMPACT_ITEMS,
+        'next_steps': MICROSITE_NEXT_STEPS,
         'story_highlight': story_highlight,
         'donor_callout': _clean_text(content.get('donor_callout')) or (
             'Sharing this page can help more people learn about the need for a living kidney donor '

@@ -1,0 +1,44 @@
+/* Donor microsite — design tokens (our identity: warm, human, hopeful).
+   Cool teal/ocean trust base + warm coral action accent + cream warmth. */
+:root {
+    /* Cool base (trust / medical lineage) */
+    --c-ocean-900: #0B3A45;
+    --c-ocean-700: #0E5A6B;
+    --c-ocean-500: #14788C;
+    --c-ocean-300: #7FB7C4;
+    --c-sky-100:   #E6F1F4;   /* soft cool band tint */
+
+    /* Warm coral accent — actions/urgency (what makes us not-NKR) */
+    --c-coral-500: #F4674A;   /* bright accent: pills, highlights, NON-text */
+    --c-coral-600: #C9442A;   /* AA-safe with white text → buttons */
+    --c-coral-700: #A6361F;   /* button hover */
+
+    /* Support */
+    --c-green-600: #1F915D;   /* hope highlight (minimal) */
+    --c-cream:     #FBF4EC;   /* warm surface band */
+
+    /* Neutrals */
+    --c-ink:    #10243A;
+    --c-muted:  #51657A;
+    --c-line:   rgba(16, 36, 58, 0.12);
+    --c-white:  #FFFFFF;
+
+    /* Focus ring (token, not the alert red) */
+    --c-focus:  var(--c-coral-600);
+
+    /* Type */
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body:    "Inter", "Segoe UI", system-ui, sans-serif;
+
+    /* Radius / shadow / layout */
+    --radius:    16px;
+    --radius-lg: 26px;
+    --radius-pill: 999px;
+    --shadow-sm: 0 6px 18px rgba(16, 36, 58, 0.06);
+    --shadow:    0 16px 44px rgba(16, 36, 58, 0.10);
+    --shell:     1120px;   /* page max width */
+    --read:      720px;    /* reading column */
+
+    /* Motion (enhancement only; reduced-motion disables) */
+    --motion: 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}

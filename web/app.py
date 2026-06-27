@@ -1,6 +1,6 @@
 """Flask application entry point for the dialogue framework."""
 
-from flask import Flask, render_template, send_from_directory, request, abort
+from flask import Flask, render_template, send_from_directory, request, abort, url_for
 from decouple import config
 import os
 from urllib.parse import quote
@@ -22,6 +22,7 @@ from .routes_publication import publication_bp
 from .routes_transcribe import transcribe_bp
 from .session_store import ensure_session
 from . import database as db
+from . import microsite
 from .database import configure as db_configure, init_db
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -68,84 +69,71 @@ def avatar_preview(scene_id):
     return render_template('avatar_preview.html', scene_id=scene_id)
 
 
-def _dev_photo(label: str, fill: str) -> dict:
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">'
-        f'<rect width="1200" height="900" fill="{fill}"/>'
-        '<circle cx="920" cy="130" r="220" fill="rgba(255,255,255,0.35)"/>'
-        '<circle cx="240" cy="730" r="260" fill="rgba(255,255,255,0.25)"/>'
-        '<rect x="120" y="230" width="960" height="440" rx="42" fill="rgba(255,255,255,0.52)"/>'
-        f'<text x="600" y="430" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" '
-        f'font-size="54" font-weight="800" fill="#113459">{label}</text>'
-        '<text x="600" y="500" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" '
-        'font-size="28" font-weight="600" fill="#526173">Sample image for design preview</text>'
-        '</svg>'
-    )
+def _dev_photo(filename: str, role: str, label: str, caption: str) -> dict:
+    """A dev-preview photo backed by a real avatar PNG (stand-in for a patient photo)."""
     return {
-        'url': f'data:image/svg+xml;charset=UTF-8,{quote(svg)}',
+        'url': url_for('static', filename=f'photos/avatars/{filename}'),
+        'stored_filename': filename,
+        'photo_role': role,
         'role_label': label,
-        'caption': label,
-        'photo_role': 'general',
+        'caption': caption,
     }
+
+
+# Dev-preview photo specs (override count with ?photos=0..3 to test fallback).
+_DEV_PHOTO_SPECS = (
+    ('2774646.png', 'before', 'Who I am', 'Me and the people who matter most.'),
+    ('2774647.png', 'during', 'My kidney journey', 'Life around dialysis and treatment.'),
+    ('2774648.png', 'hope', 'My hope after transplant', 'The life I hope to get back.'),
+)
 
 
 @app.route('/dev/microsite-preview')
 def dev_microsite_preview():
-    """Render a local-only campaign preview without running the interview."""
+    """Render a local-only campaign preview without running the interview.
+
+    Uses the SAME shared builder as the real page (microsite._campaign_context) so the
+    preview can never drift from production. Add ?photos=0..3 to test photo fallback.
+    """
     if not FLASK_DEBUG and not config('ENABLE_DEV_ROUTES', default=False, cast=bool):
         abort(404)
 
     name = request.args.get('name', 'Miles Davidson').strip() or 'Miles Davidson'
+    try:
+        photo_count = max(0, min(3, int(request.args.get('photos', 3))))
+    except (TypeError, ValueError):
+        photo_count = 3
+
     content = {
-        'headline': f'{name} Is Searching for a Living Kidney Donor',
+        'headline': f'Could you help {name} find a living kidney donor?',
         'short_intro': (
-            f'{name} is sharing this story while living with kidney failure. A kidney transplant could help '
-            'restore time, energy, and the everyday family moments that matter most.'
+            "I'm living with kidney failure, and a living-donor transplant would give me back time, energy, "
+            "and everyday moments with the people I love. Sharing my story might help me find a match."
         ),
         'personal_identity': (
-            f'{name} is a husband, father, and community member who cares deeply about being present for family. '
-            'The people closest to him describe him as steady, hopeful, and committed to the people he loves.'
+            "I'm a husband, father, and friend, and being there for my family is what matters most to me. "
+            "The people closest to me would say I'm steady, hopeful, and always showing up for the people I love."
         ),
         'kidney_journey': (
-            'Kidney failure has become part of daily life, with treatment, appointments, and health decisions '
-            'shaping the rhythm of each week.'
+            "Kidney failure has become part of my daily life. Treatment, appointments, and careful health "
+            "decisions now shape the rhythm of every week."
         ),
         'daily_impact': (
-            'The physical strain, diet limits, pain, and time required for treatment can make ordinary routines '
-            'feel difficult. Even simple activities, like climbing stairs or having enough energy for family time, '
-            'can become harder.'
+            "The fatigue, the diet limits, the pain, and the hours treatment takes can make ordinary days hard. "
+            "Even simple things, like climbing the stairs or having the energy for family time, can be a struggle."
         ),
         'transplant_hope': (
-            'A transplant could make it possible to return to fuller days: playing with children, working more '
-            'consistently, being active again, and feeling stronger for family life.'
+            "A transplant could give me fuller days again: playing with my kids, working more consistently, "
+            "being active, and feeling strong enough to be present for my family."
         ),
         'donor_message': (
-            'A donor would not just be helping one person. Their generosity could give a family more time, more hope, '
-            'and a chance to imagine life beyond kidney failure.'
+            "A donor wouldn't just be helping me. Your generosity could give my whole family more time, more "
+            "hope, and a chance to imagine life beyond kidney failure."
         ),
     }
-    photo_items = [
-        _dev_photo('Who I am', '#DAE7F7'),
-        _dev_photo('My kidney journey', '#E6F2E2'),
-        _dev_photo('Hope after transplant', '#C7E3FF'),
-    ]
+    photo_items = [_dev_photo(*spec) for spec in _DEV_PHOTO_SPECS[:photo_count]]
     url = request.url
-    share_text = f"Please read and share {name}'s kidney donor story: {url}"
-    share_url = quote(url, safe='')
-    encoded_share_text = quote(share_text, safe='')
-    campaign = {
-        'preview': True,
-        'title': f'{name} Needs a Kidney',
-        'story_highlight': content['donor_message'],
-        'donor_callout': 'Sharing this page can help more people learn about the need for a living kidney donor and the difference support can make.',
-        'primary_cta': {'label': 'Share This Page', 'href': '#share'},
-        'secondary_cta': {'label': 'Learn About Living Donation', 'href': 'https://www.kidney.org/kidney-topics/living-donation'},
-        'share': {
-            'facebook': f'https://www.facebook.com/sharer/sharer.php?u={share_url}',
-            'whatsapp': f'https://wa.me/?text={encoded_share_text}',
-            'email': f'mailto:?subject={quote(f"{name} Needs a Kidney", safe="")}&body={encoded_share_text}',
-        },
-    }
+    campaign = microsite._campaign_context(name, content, url, photo_items, preview=True)
     return render_template(
         'microsite.html',
         name=name,
@@ -156,8 +144,8 @@ def dev_microsite_preview():
         campaign=campaign,
         meta_title=f'{name} Needs a Kidney | Can You Help?',
         meta_description=content['short_intro'],
-        meta_image='',
-        share_text=share_text,
+        meta_image=photo_items[0]['url'] if photo_items else '',
+        share_text=f"Please read and share {name}'s kidney donor story: {url}",
     )
 
 

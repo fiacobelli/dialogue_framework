@@ -61,6 +61,27 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)
 MAX_PHOTO_UPLOAD_BYTES = config('MAX_PHOTO_UPLOAD_BYTES', default=10 * 1024 * 1024, cast=int)
 
+# Donor microsite — static campaign copy (config over hardcoding)
+MICROSITE_IMPACT_ITEMS = [
+    {'icon': 'shield-check', 'title': 'Guided by experts',
+     'blurb': 'Living donation is led by a qualified transplant team, every step of the way.'},
+    {'icon': 'info', 'title': 'Learn with no pressure',
+     'blurb': 'Anyone can explore what donation involves before deciding anything.'},
+    {'icon': 'heart', 'title': 'A life-changing gift',
+     'blurb': 'One living donor can restore health, energy, and time with family.'},
+    {'icon': 'people', 'title': 'More than one life',
+     'blurb': 'Your decision can give a whole family new hope for the future.'},
+]
+
+MICROSITE_NEXT_STEPS = [
+    {'title': 'Share this page',
+     'blurb': 'Send it to people who might help, or who may know someone who can.'},
+    {'title': 'Learn about living donation',
+     'blurb': 'Understand what donation involves, with no obligation to continue.'},
+    {'title': 'Talk with a transplant team',
+     'blurb': 'Qualified professionals guide anyone who wants to explore donating.'},
+]
+
 # Localized Strings
 WELCOME_BACK = {
     'en': 'Welcome back!'

@@ -6,6 +6,10 @@
     <title>{{ meta_title }}</title>
     <meta name="description" content="{{ meta_description }}">
     <link rel="canonical" href="{{ url }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/microsite_tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/microsite_campaign.css') }}">
 
     <meta property="og:site_name" content="Ludi Donor Stories">
@@ -23,6 +27,10 @@
     {% if meta_image %}
     <meta name="twitter:image" content="{{ meta_image }}">
     {% endif %}
+    <script>
+        /* Enable scroll-reveal only when JS is on and motion is welcome; content is visible by default otherwise. */
+        try { if (window.matchMedia && !matchMedia('(prefers-reduced-motion: reduce)').matches) { document.documentElement.classList.add('js-reveal'); } } catch (e) {}
+    </script>
 </head>
 <body>
     <a class="skip-link" href="#main-content">Skip to story</a>
@@ -40,6 +48,16 @@
                 setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
             });
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (!document.documentElement.classList.contains('js-reveal')) return;
+            var els = document.querySelectorAll('.reveal');
+            if (!('IntersectionObserver' in window)) { els.forEach(function (el) { el.classList.add('is-in'); }); return; }
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); } });
+            }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+            els.forEach(function (el) { io.observe(el); });
+        });
     </script>
 </body>
 </html>
