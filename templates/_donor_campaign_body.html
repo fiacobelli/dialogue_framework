@@ -32,52 +32,53 @@
     </section>
 
     <main id="main-content">
-        <section class="campaign-section campaign-section--identity" aria-labelledby="who-i-am">
-            <div class="campaign-shell campaign-reading reveal">
-                <p class="campaign-mini-label">Who I am</p>
-                <h2 id="who-i-am">Meet {{ name }}</h2>
-                <p>{{ content.personal_identity }}</p>
+        <section class="campaign-section campaign-hook">
+            <p class="campaign-shell campaign-reading reveal">{{ content.short_intro }}</p>
+        </section>
+
+        <section class="campaign-section campaign-split-section" aria-labelledby="who-i-am">
+            <div class="campaign-split{% if not photos.journey %} is-solo{% endif %} reveal">
+                <div class="campaign-split-text">
+                    <p class="campaign-mini-label">Who I am</p>
+                    <h2 id="who-i-am">Meet {{ name }}</h2>
+                    <p>{{ content.personal_identity }}</p>
+                </div>
+                {% if photos.journey %}
+                <div class="campaign-split-media"><img src="{{ photos.journey.url }}" alt="Photo of {{ name }}" loading="lazy"></div>
+                {% endif %}
             </div>
         </section>
 
-        <section class="campaign-section campaign-section--need" aria-labelledby="why-kidney">
-            <div class="campaign-shell campaign-two-col{% if not photos.journey %} is-solo{% endif %}">
-                <article class="campaign-card reveal">
+        <section class="campaign-section campaign-split-section campaign-section--dark" aria-labelledby="why-kidney">
+            <div class="campaign-split campaign-split--reverse{% if not photos.hope %} is-solo{% endif %} reveal">
+                <div class="campaign-split-text">
                     <p class="campaign-mini-label">Why I need a kidney</p>
                     <h2 id="why-kidney">My kidney journey</h2>
                     <p>{{ content.kidney_journey }}</p>
                     {% if content.daily_impact %}
-                    <details class="campaign-readmore" open>
+                    <details class="campaign-readmore">
                         <summary>How this affects my daily life</summary>
                         <p>{{ content.daily_impact }}</p>
                     </details>
                     {% endif %}
-                </article>
-                {% if photos.journey %}
-                <figure class="campaign-side-photo reveal">
-                    <img src="{{ photos.journey.url }}" alt="{{ photos.journey.role_label }} photo of {{ name }}" loading="lazy" width="560" height="420">
-                    <figcaption>{{ photos.journey.caption }}</figcaption>
-                </figure>
+                </div>
+                {% if photos.hope %}
+                <div class="campaign-split-media"><img src="{{ photos.hope.url }}" alt="Photo of {{ name }}" loading="lazy"></div>
                 {% endif %}
             </div>
         </section>
 
-        <section class="campaign-section campaign-section--help" aria-labelledby="donor-help">
-            <div class="campaign-shell campaign-two-col campaign-two-col--reverse{% if not photos.hope %} is-solo{% endif %}">
-                <article class="campaign-card reveal">
-                    <p class="campaign-mini-label">How a donor can help</p>
-                    <h2 id="donor-help">What a transplant could make possible</h2>
-                    <p>{{ content.transplant_hope }}</p>
-                    {% if content.donor_message %}
-                    <blockquote class="campaign-pullquote">{{ content.donor_message }}</blockquote>
-                    {% endif %}
-                </article>
-                {% if photos.hope %}
-                <figure class="campaign-side-photo reveal">
-                    <img src="{{ photos.hope.url }}" alt="{{ photos.hope.role_label }} photo of {{ name }}" loading="lazy" width="560" height="420">
-                    <figcaption>{{ photos.hope.caption }}</figcaption>
-                </figure>
-                {% endif %}
+        {% if campaign.pull_quote %}
+        <section class="campaign-section campaign-quote-section">
+            <blockquote class="campaign-shell campaign-quote reveal">{{ campaign.pull_quote }}</blockquote>
+        </section>
+        {% endif %}
+
+        <section class="campaign-section campaign-hope" aria-labelledby="donor-help">
+            <div class="campaign-shell campaign-reading reveal">
+                <p class="campaign-mini-label">How a donor can help</p>
+                <h2 id="donor-help">What a transplant could make possible</h2>
+                <p>{{ content.transplant_hope }}</p>
             </div>
         </section>
 

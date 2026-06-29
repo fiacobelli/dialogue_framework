@@ -328,11 +328,14 @@ def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict
     first_name = (name or '').strip().split(' ')[0]
     greeting = f"Hi, I'm {first_name}." if first_name else ''
     photos = _photo_slots(photo_items, hero_choice)
+    donor_msg = _clean_text(content.get('donor_message'))
+    pull_quote = re.split(r'(?<=[.!?])\s+', donor_msg)[0].strip() if donor_msg else ''
     return {
         'preview': preview,
         'title': f"{name} Needs a Kidney",
         'greeting': greeting,
         'photos': photos,
+        'pull_quote': pull_quote,
         'impact_items': MICROSITE_IMPACT_ITEMS,
         'next_steps': MICROSITE_NEXT_STEPS,
         'story_highlight': story_highlight,
