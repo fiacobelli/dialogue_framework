@@ -13,7 +13,7 @@ class OllamaProvider:
         self.model = model
         self.base_url = base_url or OLLAMA_BASE_URL
 
-    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Generate response from message history."""
         all_messages = []
         if system_prompt:
@@ -23,6 +23,8 @@ class OllamaProvider:
         payload = {"model": self.model, "messages": all_messages, "stream": False}
         if json_mode:
             payload["format"] = "json"
+        if temperature is not None:
+            payload["options"] = {"temperature": temperature}
         try:
             resp = requests.post(f"{self.base_url}/api/chat", json=payload)
             resp.raise_for_status()
@@ -38,7 +40,7 @@ class GroqProvider:
         self.model = model
         self.api_key = api_key
 
-    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Generate response from message history."""
         all_messages = []
         if system_prompt:
@@ -48,6 +50,8 @@ class GroqProvider:
         payload = {"model": self.model, "messages": all_messages}
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if temperature is not None:
+            payload["temperature"] = temperature
         try:
             resp = requests.post(
                 GROQ_API_URL,

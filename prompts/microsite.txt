@@ -1,32 +1,51 @@
-Generate a polished kidney donor landing-page draft for {name}.
+Write a warm, compelling kidney donor landing-page draft for {name}, in first person as {name}.
 
-INTERVIEW EVIDENCE:
+INTERVIEW EVIDENCE (everything {name} actually shared):
 {conversation}
 
-CONTENT RULES:
-- Use only details explicitly supported by the interview evidence.
-- If the evidence says the patient chose to skip a section, do not invent details for that section. Keep the related page section brief and neutral.
-- Do not invent children, jobs, hobbies, cities, emotions, diagnosis details, transplant status, timelines, or family relationships.
-- Write in first person as {name}.
-- Make the writing warm, clear, specific, and publication-ready without pressure, guilt, exaggeration, or unrealistic promises.
-- You may improve flow, transitions, phrasing, and emotional clarity, but every concrete fact must come from the evidence.
-- Use the strongest concrete details from the evidence instead of flattening them into generic donor-page language.
-- When evidence supports it, include specific relationships, activities, values, support people, timeline, and hopes the patient mentioned.
-- If a section has sparse evidence, keep it concise. Do not pad with generic emotional language.
-- Do not mention the interview tool, microphone, uploads, repeated attempts, or technical frustration.
-- Avoid cliches such as "second chance", "new lease on life", and "life-changing gift" unless the patient used those words.
-- The headline should be specific to the supported story, not a generic donor slogan.
-- Do not say the patient is "counting on" donors, trying to "touch hearts", or asking anyone to "give back" unless the patient used that framing.
-- Do not provide donation instructions, medical advice, or contact information that was not supplied.
-- Prefer vivid but restrained sentences over bare summaries. The page should read like a respectful personal profile, not a form recap.
+YOUR JOB — POLISH, DON'T INVENT:
+You are a skilled, empathetic writer turning {name}'s own words into a heartfelt personal story that makes
+a stranger genuinely care. Take what they said and make it move people.
+- Elevate the writing: vivid, warm, specific, emotionally resonant prose with real momentum. No dry recaps.
+- Draw out the human meaning behind the facts they shared — what these people, moments, and hopes mean to
+  them — without adding new facts.
+- Lead with the strongest, most concrete details from the evidence; never flatten them into generic
+  donor-page filler.
+- Write in {name}'s natural, sincere first-person voice.
+
+HARD RULES — NEVER INVENT (this is a real person's medical story):
+- Every concrete fact must come from the interview evidence: relationships, family, work, hobbies, places,
+  diagnosis, timeline, symptoms, treatment, and hopes. If {name} did not say it, do not write it.
+- Do not invent people, events, numbers, dates, or medical details. You may voice a feeling that is clearly
+  implied by what they shared, but you may not add facts they did not give.
+- Do NOT add any new concrete noun, activity, place, example, or illustration. Make ONLY the facts {name}
+  actually gave more vivid through word choice and emotional framing. (If they said they cannot climb stairs,
+  do not also write "or take a shower" or "go for a walk." If they did not mention a job, sport, or hobby,
+  do not add one.)
+- Ignore any famous person or real-world meaning attached to {name}'s name. {name} is an ordinary, private
+  individual; never borrow anything implied by the name itself.
+- Polish what exists; never manufacture what doesn't. If {name} said little about a topic, write a shorter,
+  honest section rather than padding it with invented detail.
+- No medical advice, no promises, and no donation instructions or contact info that was not provided.
+- Never mention the interview, microphone, photos, uploads, retries, or any technical detail.
+- Skip empty cliches ("second chance", "new lease on life") unless {name} used those words — specific and
+  true is always more moving than generic.
+
+TONE:
+Heartfelt and dignified. Never guilt-tripping, exaggerated, or pleading. It should read like a moving
+personal profile built entirely from {name}'s own truth.
+
+FINAL CHECK before you answer: re-read every concrete detail you wrote — each person, activity, place,
+event, number, and limitation. If any of it is not directly stated in the interview evidence above, delete
+it or rewrite it to stay faithful. When in doubt, leave it out.
 
 Return ONLY valid JSON with exactly these keys:
 {{
-  "headline": "One supported sentence, 8-16 words, suitable for the hero section.",
-  "short_intro": "Two or three concise sentences introducing why this donor page matters, using only supported details.",
-  "personal_identity": "Two to four sentences about who {name} is as a person, grounded only in stated identity, relationships, values, work, hobbies, or community.",
-  "kidney_journey": "Two to four sentences about the beginning or current state of the kidney journey, using only stated medical timeline or context.",
-  "daily_impact": "Two to four sentences about how kidney disease or dialysis affects daily life, physically, emotionally, socially, or practically.",
-  "transplant_hope": "Two to four sentences about what receiving a transplant could make possible, using only stated hopes or life changes.",
-  "donor_message": "Two to four direct, respectful sentences to potential donors or supporters, grounded in what the patient said."
+  "headline": "One vivid, specific sentence (8-16 words) for the hero, grounded in {name}'s real story, not a generic slogan.",
+  "short_intro": "Two or three compelling sentences that pull the reader in and frame why this page matters, using only supported details.",
+  "personal_identity": "A warm, vivid paragraph about who {name} is: the relationships, values, work, and community that make them who they are, grounded only in what they shared.",
+  "kidney_journey": "A vivid paragraph about how {name}'s kidney journey began and where it stands now, using only the stated medical timeline and context.",
+  "daily_impact": "A heartfelt paragraph on how kidney disease or dialysis affects {name}'s daily life, physically, emotionally, and socially, drawn from what they described.",
+  "transplant_hope": "A hopeful, concrete paragraph on what a transplant could make possible for {name}, using only the hopes and life changes they expressed.",
+  "donor_message": "A few direct, sincere sentences from {name} to potential donors and supporters, grounded in what they said."
 }}

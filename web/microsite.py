@@ -10,16 +10,21 @@ from .config import (
     MICROSITE_PROMPT_FILE,
     MICROSITE_IMPACT_ITEMS,
     MICROSITE_NEXT_STEPS,
+    MICROSITE_LLM_MODEL,
+    LLM_PROVIDER,
+    GROQ_API_KEY,
+    OLLAMA_BASE_URL,
     clean_text as _clean_text,
     load_prompt,
 )
+from .llm_provider import get_provider
 from .interview_flow_config import GENERATION_REQUIRED_EVIDENCE_GROUPS
 from . import database as db
 from .content_moderation import validate_public_content
 from .patient_auth import patient_token
 from .session_store import persist_session_state
 
-MICROSITE_PROMPT_VERSION = 'microsite-public-page-v2'
+MICROSITE_PROMPT_VERSION = 'microsite-public-page-v3'
 CONTENT_FIELDS = (
     'headline',
     'short_intro',
@@ -73,6 +78,27 @@ def parse_llm_json(text: str) -> dict:
 
 def _provider_model_name(provider) -> str:
     return str(getattr(provider, 'model', None) or provider.__class__.__name__)
+
+
+def _generation_provider(fallback):
+    """Build the stronger, config-driven model for the one-shot generation call.
+    Falls back to the interview provider if it cannot be constructed."""
+    try:
+        kwargs = {'model': MICROSITE_LLM_MODEL}
+        if LLM_PROVIDER == 'groq':
+            kwargs['api_key'] = GROQ_API_KEY
+        elif LLM_PROVIDER == 'ollama':
+            kwargs['base_url'] = OLLAMA_BASE_URL
+        return get_provider(LLM_PROVIDER, **kwargs)
+    except Exception:
+        return fallback
+
+
+def _safe_parse_llm_json(text: str) -> dict | None:
+    try:
+        return parse_llm_json(text)
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return None
 
 
 def _evidence_hash(conversation: str) -> str:
@@ -453,11 +479,18 @@ def generate(info_state, provider, name: str, session_id: str, session: dict | N
 
     prompt_template = load_prompt(MICROSITE_PROMPT_FILE)
     prompt = prompt_template.format(name=name, conversation=conversation)
-    raw_content = provider.generate([{"role": "user", "content": prompt}])
 
-    try:
-        content_json = parse_llm_json(raw_content)
-    except (json.JSONDecodeError, AttributeError, TypeError):
+    # Generate with the stronger, fact-faithful model; if it errors or is rate-limited,
+    # fall back to the interview provider so a draft is never blocked.
+    gen_provider = _generation_provider(provider)
+    used_provider = gen_provider
+    raw_content = gen_provider.generate([{"role": "user", "content": prompt}], temperature=0.4)
+    content_json = _safe_parse_llm_json(raw_content)
+    if content_json is None and gen_provider is not provider:
+        used_provider = provider
+        raw_content = provider.generate([{"role": "user", "content": prompt}], temperature=0.4)
+        content_json = _safe_parse_llm_json(raw_content)
+    if content_json is None:
         raise MicrositeGenerationError(
             'invalid_draft_json',
             'The page draft could not be generated in the required format. Please try again.',
@@ -473,7 +506,7 @@ def generate(info_state, provider, name: str, session_id: str, session: dict | N
     )
     result['preview_html'] = _render_preview_html(name, content, result.get('photo_items') or [])
     result['prompt_version'] = MICROSITE_PROMPT_VERSION
-    result['llm_model'] = _provider_model_name(provider)
+    result['llm_model'] = _provider_model_name(used_provider)
     result['evidence_hash'] = _evidence_hash(conversation)
     result['evidence_snapshot'] = _evidence_snapshot(state, conversation, evidence_source)
 
