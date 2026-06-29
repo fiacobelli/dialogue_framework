@@ -105,7 +105,7 @@ def dev_microsite_preview():
         photo_count = 3
 
     content = {
-        'headline': f'Could you help {name} find a living kidney donor?',
+        'headline': "I want more time with the people I love.",
         'short_intro': (
             "I'm living with kidney failure, and a living-donor transplant would give me back time, energy, "
             "and everyday moments with the people I love. Sharing my story might help me find a match."
@@ -132,8 +132,19 @@ def dev_microsite_preview():
         ),
     }
     photo_items = [_dev_photo(*spec) for spec in _DEV_PHOTO_SPECS[:photo_count]]
+    if request.args.get('headline') == 'long':
+        content['headline'] = (
+            "I am hoping with all my heart to find a living kidney donor so I can keep being here for my family"
+        )
+    hero_choice = None
+    try:
+        hi = request.args.get('hero')
+        if hi is not None and photo_items:
+            hero_choice = photo_items[max(0, min(len(photo_items) - 1, int(hi)))]['stored_filename']
+    except (TypeError, ValueError):
+        hero_choice = None
     url = request.url
-    campaign = microsite._campaign_context(name, content, url, photo_items, preview=True)
+    campaign = microsite._campaign_context(name, content, url, photo_items, preview=True, hero_choice=hero_choice)
     return render_template(
         'microsite.html',
         name=name,

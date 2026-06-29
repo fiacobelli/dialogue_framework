@@ -1,44 +1,64 @@
-/* Donor microsite — design tokens (our identity: warm, human, hopeful).
-   Cool teal/ocean trust base + warm coral action accent + cream warmth. */
+/* Donor microsite — design tokens.
+   Identity: editorial "ink + paper + one warm accent". Photos carry the color. */
 :root {
-    /* Cool base (trust / medical lineage) */
-    --c-ocean-900: #0B3A45;
-    --c-ocean-700: #0E5A6B;
-    --c-ocean-500: #14788C;
-    --c-ocean-300: #7FB7C4;
-    --c-sky-100:   #E6F1F4;   /* soft cool band tint */
+    /* Core palette */
+    --c-paper:    #F7F3EC;   /* warm paper surface */
+    --c-paper-2:  #EFE8DC;   /* slightly deeper alt band */
+    --c-ink:      #1C1712;   /* warm near-black (body + display) */
+    --c-ink-2:    #3C352D;   /* secondary text */
+    --c-muted:    #6B6256;   /* captions / labels */
+    --c-line:     rgba(28, 23, 18, 0.12);
+    --c-white:    #FFFFFF;
 
-    /* Warm coral accent — actions/urgency (what makes us not-NKR) */
-    --c-coral-500: #F4674A;   /* bright accent: pills, highlights, NON-text */
-    --c-coral-600: #C9442A;   /* AA-safe with white text → buttons */
-    --c-coral-700: #A6361F;   /* button hover */
+    /* One warm accent (sunrise coral) — actions + emphasis only */
+    --c-accent:        #E0552E;  /* bright accent: non-text (pills, rules, overlay) */
+    --c-accent-strong: #C0431F;  /* AA-safe with white text → buttons */
+    --c-accent-hover:  #A5371A;
 
-    /* Support */
-    --c-green-600: #1F915D;   /* hope highlight (minimal) */
-    --c-cream:     #FBF4EC;   /* warm surface band */
+    /* Hero dawn gradient (also the no-photo fallback) */
+    --c-dawn: linear-gradient(157deg, #F6C9A0 0%, #F2E3CF 46%, var(--c-paper) 100%);
+    /* Hero scrim (guarantees text contrast over any photo OR the dawn fallback) */
+    --c-scrim: linear-gradient(to top, rgba(20,15,11,0.92) 0%, rgba(20,15,11,0.58) 30%, rgba(20,15,11,0.22) 55%, transparent 78%);
 
-    /* Neutrals */
-    --c-ink:    #10243A;
-    --c-muted:  #51657A;
-    --c-line:   rgba(16, 36, 58, 0.12);
-    --c-white:  #FFFFFF;
+    --c-focus: var(--c-accent-strong);
 
-    /* Focus ring (token, not the alert red) */
-    --c-focus:  var(--c-coral-600);
-
-    /* Type */
+    /* Type — Fraunces display + Inter body, with clean system fallbacks */
     --font-display: "Fraunces", Georgia, "Times New Roman", serif;
-    --font-body:    "Inter", "Segoe UI", system-ui, sans-serif;
+    --font-body:    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+    /* Modular type scale (~1.25), fluid */
+    --text-sm:    0.875rem;
+    --text-base:  1.0625rem;   /* 17px */
+    --text-lg:    1.25rem;
+    --text-xl:    1.5rem;
+    --display-sm: clamp(28px, 4vw, 40px);
+    --display-md: clamp(34px, 5vw, 52px);
+    --display-lg: clamp(40px, 7vw, 76px);
+
+    /* 8pt spacing */
+    --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+    --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px;
 
     /* Radius / shadow / layout */
-    --radius:    16px;
-    --radius-lg: 26px;
+    --radius:    14px;
+    --radius-lg: 22px;
     --radius-pill: 999px;
-    --shadow-sm: 0 6px 18px rgba(16, 36, 58, 0.06);
-    --shadow:    0 16px 44px rgba(16, 36, 58, 0.10);
-    --shell:     1120px;   /* page max width */
-    --read:      720px;    /* reading column */
-
-    /* Motion (enhancement only; reduced-motion disables) */
+    --shadow-sm: 0 6px 20px rgba(28, 23, 18, 0.07);
+    --shadow:    0 20px 50px rgba(28, 23, 18, 0.14);
+    --shell:     1120px;
+    --read:      660px;
     --motion: 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+
+    /* ---- Back-compat aliases (old teal/coral names → new palette) so the existing
+       component CSS reskins automatically until it is migrated in Phase 2/3. ---- */
+    --c-ocean-900: var(--c-ink);
+    --c-ocean-700: var(--c-ink);
+    --c-ocean-500: var(--c-accent-strong);
+    --c-ocean-300: var(--c-line);
+    --c-sky-100:   var(--c-paper-2);
+    --c-coral-500: var(--c-accent);
+    --c-coral-600: var(--c-accent-strong);
+    --c-coral-700: var(--c-accent-hover);
+    --c-green-600: var(--c-accent-strong);
+    --c-cream:     var(--c-paper);
 }

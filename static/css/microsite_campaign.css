@@ -44,15 +44,17 @@
 .campaign-btn.ghost:hover { background: var(--c-ocean-700); border-color: var(--c-ocean-700); color: var(--c-white); }
 .campaign-btn:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 3px; }
 
-/* Sticky header ------------------------------------------------------------- */
+/* Fixed header — solid by default (no-JS safe); transparent while over the hero (JS adds .is-over-hero) */
 .campaign-topbar {
-    position: sticky; top: 0; z-index: 20;
-    background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    background: rgba(247, 243, 236, 0.92); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--c-line);
+    transition: background var(--motion), border-color var(--motion);
 }
+.campaign-topbar.is-over-hero { background: transparent; backdrop-filter: none; border-bottom-color: transparent; }
 .campaign-topbar-inner {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 18px; min-height: 76px; padding: 12px 0;
+    gap: 18px; min-height: 72px; padding: 12px 0;
 }
 .campaign-brand { min-width: 0; }
 .campaign-brand span, .campaign-mini-label {
@@ -60,49 +62,44 @@
     letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 4px;
 }
 .campaign-brand strong { color: var(--c-ocean-900); font: 700 clamp(18px, 2vw, 23px)/1.1 var(--font-display); display: block; }
+/* over-hero (transparent) state: white brand, hidden CTA so only the hero's CTA shows */
+.campaign-topbar.is-over-hero .campaign-brand strong { color: var(--c-white); text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45); }
+.campaign-topbar.is-over-hero .campaign-brand span { color: var(--c-white); opacity: 0.92; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45); }
+.campaign-topbar.is-over-hero .campaign-btn { opacity: 0; pointer-events: none; transition: opacity var(--motion); }
 
-/* Hero ---------------------------------------------------------------------- */
+/* Hero — full-bleed cinematic. The .campaign-hero box always paints the dawn gradient
+   (= the no-photo fallback); the photo + scrim layer over it; one contrast path either way. */
 .campaign-hero {
-    position: relative; overflow: hidden;
-    background: linear-gradient(180deg, #A9D4E5 0%, #C8E4ED 26%, #E4F1F4 52%, var(--c-cream) 100%);
-    padding: clamp(40px, 6vw, 88px) 0 clamp(48px, 6vw, 92px);
+    position: relative; overflow: hidden; isolation: isolate;
+    min-height: 88vh; display: flex; align-items: flex-end;
+    background: var(--c-dawn);
 }
-.campaign-clouds {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    z-index: 0; pointer-events: none;
+.campaign-hero-media { position: absolute; inset: 0; z-index: 0; }
+.campaign-hero-media img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center 28%;
+    filter: grayscale(0.15) contrast(1.05) saturate(0.95);
 }
-.campaign-hero-grid {
-    position: relative; z-index: 1; display: grid; align-items: center;
-    grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.05fr);
-    gap: clamp(28px, 5vw, 60px);
+.campaign-hero-media::after {  /* unifying warm wash over any photo */
+    content: ""; position: absolute; inset: 0;
+    background: var(--c-accent); mix-blend-mode: soft-light; opacity: 0.18;
 }
-.campaign-hero-grid.is-solo { grid-template-columns: 1fr; max-width: var(--read); text-align: center; }
-.campaign-hero-grid.is-solo .campaign-action-row,
-.campaign-hero-grid.is-solo .campaign-need-pill { justify-content: center; }
-
-.campaign-portrait {
-    margin: 0; width: 100%; max-width: 480px; background: var(--c-white); border: 8px solid var(--c-white);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden;
+.campaign-hero::after {  /* scrim: guarantees white-text contrast (photo OR dawn) */
+    content: ""; position: absolute; inset: 0; z-index: 1; background: var(--c-scrim);
 }
-.campaign-portrait img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; }
-.campaign-portrait figcaption { padding: 12px 16px; color: var(--c-muted); font: 600 13px/1.4 var(--font-body); }
-
-.campaign-need-pill {
-    display: inline-flex; align-items: center; gap: 9px;
-    background: var(--c-white); border: 1px solid var(--c-line); border-radius: var(--radius-pill);
-    color: var(--c-coral-600); font: 800 12px/1 var(--font-body); letter-spacing: 0.1em;
-    text-transform: uppercase; padding: 9px 14px; margin-bottom: 18px;
+.campaign-hero-inner {
+    position: relative; z-index: 2; width: 100%;
+    padding-top: clamp(40px, 10vh, 120px); padding-bottom: clamp(40px, 7vh, 92px);
 }
-.campaign-need-pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c-coral-500); }
-
-.campaign-greeting { margin: 0 0 6px; color: var(--c-ocean-500); font: 600 clamp(20px, 2.4vw, 26px)/1.2 var(--font-display); }
-.campaign-hero h1 { margin: 0 0 16px; color: var(--c-ocean-900); font: 600 clamp(34px, 5.4vw, 60px)/1.04 var(--font-display); letter-spacing: -0.01em; }
-.campaign-intro { margin: 0 0 24px; max-width: var(--read); color: var(--c-ink); font-size: clamp(17px, 2vw, 21px); }
-.campaign-action-row { display: flex; flex-wrap: wrap; gap: 12px; }
-.campaign-why {
-    margin: 26px 0 0; max-width: var(--read); padding-left: 18px;
-    border-left: 4px solid var(--c-green-600); color: var(--c-muted); font-size: 16px;
+.campaign-eyebrow {
+    margin: 0 0 16px; color: var(--c-white); opacity: 0.92;
+    font: 800 13px/1 var(--font-body); letter-spacing: 0.16em; text-transform: uppercase;
 }
+.campaign-hero h1 {
+    margin: 0 0 28px; max-width: 18ch; color: var(--c-white);
+    font: 600 var(--display-lg)/1.02 var(--font-display); letter-spacing: -0.01em;
+    text-shadow: 0 2px 28px rgba(0, 0, 0, 0.38);
+}
+.campaign-hero .campaign-btn.primary { font-size: 16px; padding: 15px 26px; }
 
 /* Story sections ------------------------------------------------------------ */
 .campaign-section { padding: clamp(44px, 7vw, 80px) 0; }

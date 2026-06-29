@@ -19,63 +19,15 @@
     </header>
 
     <section class="campaign-hero">
-        <svg class="campaign-clouds" viewBox="0 0 1440 600" preserveAspectRatio="xMidYMin slice" aria-hidden="true" focusable="false">
-            <defs><filter id="cloudSoft" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="6"/>
-            </filter></defs>
-            <g fill="#ffffff" filter="url(#cloudSoft)">
-                <g opacity="0.9">
-                    <circle cx="150" cy="118" r="56"/>
-                    <circle cx="220" cy="98" r="80"/>
-                    <circle cx="300" cy="122" r="60"/>
-                    <ellipse cx="225" cy="158" rx="160" ry="44"/>
-                </g>
-                <g opacity="0.55">
-                    <circle cx="380" cy="300" r="34"/>
-                    <circle cx="422" cy="288" r="48"/>
-                    <ellipse cx="406" cy="318" rx="92" ry="24"/>
-                </g>
-                <g opacity="0.68">
-                    <circle cx="630" cy="72" r="40"/>
-                    <circle cx="686" cy="56" r="54"/>
-                    <circle cx="742" cy="74" r="40"/>
-                    <ellipse cx="688" cy="96" rx="108" ry="28"/>
-                </g>
-                <g opacity="0.86">
-                    <circle cx="1120" cy="104" r="54"/>
-                    <circle cx="1196" cy="84" r="82"/>
-                    <circle cx="1276" cy="116" r="58"/>
-                    <ellipse cx="1198" cy="150" rx="166" ry="44"/>
-                </g>
-                <g opacity="0.48">
-                    <circle cx="980" cy="250" r="32"/>
-                    <circle cx="1026" cy="240" r="46"/>
-                    <ellipse cx="1010" cy="268" rx="88" ry="22"/>
-                </g>
-                <ellipse cx="720" cy="582" rx="1000" ry="150" opacity="0.45"/>
-            </g>
-        </svg>
-        <div class="campaign-shell campaign-hero-grid{% if not photos.hero %} is-solo{% endif %}">
+        <div class="campaign-hero-media">
             {% if photos.hero %}
-            <figure class="campaign-portrait">
-                <img src="{{ photos.hero.url }}" alt="Photo of {{ name }}" width="640" height="640">
-                {% if photos.hero.caption %}<figcaption>{{ photos.hero.caption }}</figcaption>{% endif %}
-            </figure>
+            <img src="{{ photos.hero.url }}" alt="Photo of {{ name }}">
             {% endif %}
-
-            <div class="campaign-hero-copy">
-                <div class="campaign-need-pill">Needs a living kidney donor</div>
-                {% if campaign.greeting %}<p class="campaign-greeting">{{ campaign.greeting }}</p>{% endif %}
-                <h1>{{ content.headline }}</h1>
-                <p class="campaign-intro">{{ content.short_intro }}</p>
-                <div class="campaign-action-row">
-                    <a class="campaign-btn primary" href="{{ campaign.primary_cta.href }}">{{ campaign.primary_cta.label }}</a>
-                    <a class="campaign-btn ghost" href="{{ campaign.secondary_cta.href }}" target="_blank" rel="noopener">{{ campaign.secondary_cta.label }}</a>
-                </div>
-                {% if campaign.story_highlight %}
-                <p class="campaign-why">{{ campaign.story_highlight }}</p>
-                {% endif %}
-            </div>
+        </div>
+        <div class="campaign-shell campaign-hero-inner">
+            <p class="campaign-eyebrow">{{ name }} needs a living kidney donor</p>
+            <h1>{{ content.headline }}</h1>
+            <a class="campaign-btn primary" href="#share">Share {{ name }}'s story</a>
         </div>
     </section>
 

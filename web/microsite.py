@@ -289,14 +289,20 @@ def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) 
     }
 
 
-def _photo_slots(photo_items: list[dict] | None) -> dict:
-    """Map photos to page slots by role (None-safe). Fixes caption/section alignment and
-    lets 0-2 photos degrade gracefully: hero portrait / kidney journey / hope after transplant."""
+def _photo_slots(photo_items: list[dict] | None, hero_choice: str | None = None) -> dict:
+    """Map photos to page slots (None-safe). The hero is the patient-chosen photo when given
+    (by stored filename or url), else the 'before' photo, else the first; remaining photos fill
+    the journey/hope slots in order so 0-2 photos degrade gracefully."""
     ordered = list(photo_items or [])
     by_role = {}
     for item in ordered:
         by_role.setdefault(item.get('photo_role'), item)
-    hero = by_role.get('before') or (ordered[0] if ordered else None)
+    hero = None
+    if hero_choice:
+        hero = next((it for it in ordered
+                     if it.get('stored_filename') == hero_choice or it.get('url') == hero_choice), None)
+    if hero is None:
+        hero = by_role.get('before') or (ordered[0] if ordered else None)
     remaining = [it for it in ordered if it is not hero]
     rem_by_role = {}
     for it in remaining:
@@ -308,7 +314,7 @@ def _photo_slots(photo_items: list[dict] | None) -> dict:
     return {'hero': hero, 'journey': journey, 'hope': hope}
 
 
-def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict], *, preview: bool = False) -> dict:
+def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict], *, preview: bool = False, hero_choice: str | None = None) -> dict:
     """Build the donor-campaign view model shared by public page and preview."""
     share_text = f"Please read and share {name}'s kidney donor story: {url}"
     share_url = quote(url, safe='')
@@ -321,7 +327,7 @@ def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict
     )
     first_name = (name or '').strip().split(' ')[0]
     greeting = f"Hi, I'm {first_name}." if first_name else ''
-    photos = _photo_slots(photo_items)
+    photos = _photo_slots(photo_items, hero_choice)
     return {
         'preview': preview,
         'title': f"{name} Needs a Kidney",
@@ -335,7 +341,7 @@ def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict
             'and the difference support can make.'
         ),
         'primary_cta': {
-            'label': 'Share This Page',
+            'label': f"Share {name}'s story",
             'href': '#share',
         },
         'secondary_cta': {

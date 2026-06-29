@@ -41,7 +41,7 @@ it or rewrite it to stay faithful. When in doubt, leave it out.
 
 Return ONLY valid JSON with exactly these keys:
 {{
-  "headline": "One vivid, specific sentence (8-16 words) for the hero, grounded in {name}'s real story, not a generic slogan.",
+  "headline": "A short, punchy first-person hero line in {name}'s voice (about 6-12 words), grounded in their real story, not a generic slogan.",
   "short_intro": "Two or three compelling sentences that pull the reader in and frame why this page matters, using only supported details.",
   "personal_identity": "A warm, vivid paragraph about who {name} is: the relationships, values, work, and community that make them who they are, grounded only in what they shared.",
   "kidney_journey": "A vivid paragraph about how {name}'s kidney journey began and where it stands now, using only the stated medical timeline and context.",

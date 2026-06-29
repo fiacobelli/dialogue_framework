@@ -58,6 +58,15 @@
             }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
             els.forEach(function (el) { io.observe(el); });
         });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var bar = document.querySelector('.campaign-topbar');
+            if (!bar) return;
+            var sync = function () { bar.classList.toggle('is-over-hero', window.scrollY < window.innerHeight * 0.7); };
+            window.addEventListener('scroll', sync, { passive: true });
+            window.addEventListener('resize', sync, { passive: true });
+            sync();
+        });
     </script>
 </body>
 </html>
