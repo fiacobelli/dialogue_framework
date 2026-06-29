@@ -100,10 +100,13 @@
 
         <section class="campaign-help-panel" id="share" aria-labelledby="help-title">
             <div class="campaign-shell">
-                <h2 id="help-title">How you can help {{ name }}</h2>
-                <p>{{ campaign.donor_callout }}</p>
+                <div class="campaign-help-intro reveal">
+                    <p class="campaign-mini-label">Share this story</p>
+                    <h2 id="help-title">How you can help {{ name }}</h2>
+                    <p>{{ campaign.donor_callout }}</p>
+                </div>
 
-                <ol class="campaign-steps">
+                <ol class="campaign-steps reveal">
                     {% for s in campaign.next_steps %}
                     <li class="campaign-step">
                         <span class="campaign-step-num">{{ loop.index }}</span>
@@ -116,7 +119,10 @@
                 </ol>
 
                 <div class="campaign-share-card reveal">
-                    <h3>Share {{ name }}'s page</h3>
+                    <div>
+                        <p class="campaign-mini-label">One simple action</p>
+                        <h3>Share {{ name }}'s page</h3>
+                    </div>
                     <div class="campaign-share-actions">
                         <a class="campaign-btn primary" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener">Facebook</a>
                         <a class="campaign-btn primary" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
@@ -130,11 +136,15 @@
 
     <footer class="campaign-trust">
         <div class="campaign-shell">
-            <p>
-                This page shares a personal story and is not medical advice. Living donation decisions should be discussed with qualified transplant professionals.
-                Learn more from the <a href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">National Kidney Foundation</a>
-                and <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">UNOS</a>.
-            </p>
+            <div class="campaign-trust-grid">
+                <p>
+                    This page shares a personal story and is not medical advice. Living donation decisions should be discussed with qualified transplant professionals.
+                </p>
+                <div class="campaign-trust-links" aria-label="Living donation resources">
+                    <a href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">National Kidney Foundation</a>
+                    <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">UNOS living donation</a>
+                </div>
+            </div>
         </div>
     </footer>
 </div>
