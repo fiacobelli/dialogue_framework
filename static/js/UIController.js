@@ -8,6 +8,7 @@ class UIController {
         this.wordRevealInterval = null;
         this.pendingWords = [];
         this.currentWordIndex = 0;
+        this.currentDraftData = null;
     }
 
     init() {
@@ -29,6 +30,7 @@ class UIController {
             photoStatus: document.getElementById('photoStatus'),
             generateSection: document.getElementById('generateSection'),
             reviewSection: document.getElementById('reviewSection'),
+            heroPhotoPicker: document.getElementById('heroPhotoPicker'),
             micrositePreview: document.getElementById('micrositePreview'),
             repeatBtn: document.getElementById('repeatBtn'),
             skipQuestionBtn: document.getElementById('skipQuestionBtn'),
@@ -426,6 +428,7 @@ class UIController {
     }
 
     showDraftReview(data) {
+        this.currentDraftData = data || {};
         this.setPostInterviewMode(true);
         if (this.elements.photoSection) this.elements.photoSection.classList.remove('visible');
         if (this.elements.generateSection) this.elements.generateSection.style.display = 'none';
@@ -447,8 +450,63 @@ class UIController {
         });
 
         this.showCampaignPreview(data, document.getElementById('draftPreview'), { privatePreview: true });
+        this.showHeroPhotoPicker(data);
         const editPanel = document.getElementById('editStoryPanel');
         if (editPanel) editPanel.open = false;
+    }
+
+    showHeroPhotoPicker(data) {
+        const container = this.elements.heroPhotoPicker || document.getElementById('heroPhotoPicker');
+        if (!container) return;
+
+        const photos = (data?.photo_items || []).filter(item => item?.url && item?.stored_filename);
+        if (!photos.length) {
+            container.innerHTML = '';
+            container.hidden = true;
+            return;
+        }
+
+        const requested = data.hero_photo || photos[0].stored_filename;
+        const selected = photos.some(photo => photo.stored_filename === requested)
+            ? requested
+            : photos[0].stored_filename;
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        container.hidden = false;
+        container.innerHTML = `
+            <div class="hero-photo-picker-copy">
+                <strong>Choose your main photo</strong>
+                <span>This becomes the most prominent photo people see.</span>
+            </div>
+            <div class="hero-photo-options">
+                ${photos.map((photo, index) => `
+                    <label class="hero-photo-option${photo.stored_filename === selected ? ' is-selected' : ''}">
+                        <input type="radio" name="heroPhoto" value="${escapeHtml(photo.stored_filename)}" ${photo.stored_filename === selected ? 'checked' : ''}>
+                        <img src="${escapeHtml(photo.url)}" alt="Photo option ${index + 1}">
+                    </label>
+                `).join('')}
+            </div>
+        `;
+
+        container.querySelectorAll('input[name="heroPhoto"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                container.querySelectorAll('.hero-photo-option').forEach(label => {
+                    label.classList.toggle('is-selected', label.contains(input));
+                });
+                const chosen = photos.find(photo => photo.stored_filename === input.value);
+                if (chosen) this.updatePreviewHeroPhoto(chosen.url);
+            });
+        });
+    }
+
+    updatePreviewHeroPhoto(url) {
+        const img = document.querySelector('#draftPreview .campaign-hero-media img');
+        if (img && url) img.src = url;
     }
 
     showCampaignPreview(data, container, options = {}) {
@@ -457,80 +515,7 @@ class UIController {
             container.innerHTML = data.preview_html;
             return;
         }
-        this.renderDonorPagePreview(data, container, options);
-    }
-
-    renderDonorPagePreview(data, container, options = {}) {
-        if (!container) return;
-        const escapeHtml = (value) => String(value || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-        const photos = (data.photo_items || (data.photos || []).map((url) => ({ url }))).filter(item => item?.url);
-        const name = data.name || 'My';
-        const photo = (index) => photos[index]?.url || '';
-        const photoCaption = (index, fallback) => photos[index]?.caption || fallback;
-        const helpTitle = options.privatePreview ? 'How this page asks for help' : 'How you can help';
-
-        container.innerHTML = `
-            <article class="preview-page-card">
-                <section class="preview-hero">
-                    <div>
-                        <p class="preview-badge">Kidney donor needed</p>
-                        <h3>${escapeHtml(data.headline || `${name}'s Kidney Donor Story`)}</h3>
-                        <p>${escapeHtml(data.short_intro || '')}</p>
-                    </div>
-                    ${photo(0) ? `
-                        <figure>
-                            <img src="${escapeHtml(photo(0))}" alt="Selected donor page photo">
-                            <figcaption>${escapeHtml(photoCaption(0, 'Who I am'))}</figcaption>
-                        </figure>
-                    ` : ''}
-                </section>
-
-                <section class="preview-story-section">
-                    <p class="preview-kicker">Who I am</p>
-                    <h4>Meet ${escapeHtml(name)}</h4>
-                    <p>${escapeHtml(data.personal_identity || data.my_story || '')}</p>
-                </section>
-
-                <section class="preview-story-section">
-                    <p class="preview-kicker">Why I need a kidney</p>
-                    <h4>My kidney journey</h4>
-                    <p>${escapeHtml(data.kidney_journey || '')}</p>
-                    <p>${escapeHtml(data.daily_impact || data.my_struggle || '')}</p>
-                </section>
-
-                ${photo(1) ? `
-                    <figure class="preview-wide-photo">
-                        <img src="${escapeHtml(photo(1))}" alt="Selected donor page photo">
-                        <figcaption>${escapeHtml(photoCaption(1, 'My kidney journey'))}</figcaption>
-                    </figure>
-                ` : ''}
-
-                <section class="preview-story-section">
-                    <p class="preview-kicker">How a donor can help</p>
-                    <h4>What transplant could make possible</h4>
-                    <p>${escapeHtml(data.transplant_hope || data.my_hope || '')}</p>
-                    <h4>A message to potential donors</h4>
-                    <p>${escapeHtml(data.donor_message || '')}</p>
-                </section>
-
-                ${photo(2) ? `
-                    <figure class="preview-wide-photo">
-                        <img src="${escapeHtml(photo(2))}" alt="Selected donor page photo">
-                        <figcaption>${escapeHtml(photoCaption(2, 'My hope after transplant'))}</figcaption>
-                    </figure>
-                ` : ''}
-
-                <section class="preview-help">
-                    <h4>${escapeHtml(helpTitle)}</h4>
-                    <p>Learn about living kidney donation, share this story, and encourage interested people to speak with a qualified transplant team.</p>
-                </section>
-            </article>
-        `;
+        container.innerHTML = '<p class="preview-error">Preview is unavailable. Please regenerate the page draft.</p>';
     }
 
     getDraftReviewEdits() {
@@ -543,6 +528,7 @@ class UIController {
             daily_impact: document.getElementById('reviewDailyImpact')?.value.trim() || '',
             transplant_hope: document.getElementById('reviewTransplantHope')?.value.trim() || '',
             donor_message: document.getElementById('reviewDonorMessage')?.value.trim() || '',
+            hero_photo: document.querySelector('input[name="heroPhoto"]:checked')?.value || '',
         };
     }
 

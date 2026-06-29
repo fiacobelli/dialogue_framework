@@ -273,14 +273,15 @@ def _truncate_text(value: str, limit: int = 180) -> str:
     return text[:limit].rsplit(' ', 1)[0].rstrip(' .,;:') + '...'
 
 
-def _share_context(name: str, content: dict, url: str, photo_items: list[dict]) -> dict:
+def _share_context(name: str, content: dict, url: str, photo_items: list[dict], hero_choice: str | None = None) -> dict:
     title = f"{name} Needs a Kidney | Can You Help?"
     description = _truncate_text(
         content.get('share_description')
         or content.get('short_intro')
         or f"{name} is sharing their kidney donor story. Please read and share this page."
     )
-    image = photo_items[0]['url'] if photo_items else None
+    hero = _photo_slots(photo_items, hero_choice).get('hero') or {}
+    image = hero.get('url') or (photo_items[0]['url'] if photo_items else None)
     return {
         'meta_title': title,
         'meta_description': description,
@@ -312,6 +313,12 @@ def _photo_slots(photo_items: list[dict] | None, hero_choice: str | None = None)
     if hope is journey:
         hope = None
     return {'hero': hero, 'journey': journey, 'hope': hope}
+
+
+def _hero_photo_id(photo_items: list[dict], hero_choice: str | None = None) -> str:
+    """Return the stored filename for the photo that will render in the hero."""
+    hero = _photo_slots(photo_items, hero_choice).get('hero') or {}
+    return hero.get('stored_filename') or ''
 
 
 def _campaign_context(name: str, content: dict, url: str, photo_items: list[dict], *, preview: bool = False, hero_choice: str | None = None) -> dict:
@@ -412,11 +419,11 @@ def _photo_urls(
     return [item['url'] for item in _photo_items(photos, session_id, preview=preview, token=token)]
 
 
-def _render_and_save(session_id: str, name: str, content: dict, photo_items: list[dict]) -> tuple[str, str]:
+def _render_and_save(session_id: str, name: str, content: dict, photo_items: list[dict], hero_choice: str | None = None) -> tuple[str, str]:
     microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
     microsite_path = url_for('serve_microsite', session_id=session_id)
     photo_urls = [item['url'] for item in photo_items]
-    campaign = _campaign_context(name, content, microsite_url, photo_items)
+    campaign = _campaign_context(name, content, microsite_url, photo_items, hero_choice=hero_choice)
 
     html = render_template('microsite.html',
         name=name,
@@ -425,7 +432,7 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
         photo_items=photo_items,
         url=microsite_url,
         campaign=campaign,
-        **_share_context(name, content, microsite_url, photo_items),
+        **_share_context(name, content, microsite_url, photo_items, hero_choice),
     )
 
     filepath = os.path.join(MICROSITES_DIR, f'{session_id}.html')
@@ -437,8 +444,8 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
     return microsite_path, microsite_url
 
 
-def _render_preview_html(name: str, content: dict, photo_items: list[dict], url: str = '#share') -> str:
-    campaign = _campaign_context(name, content, url, photo_items, preview=True)
+def _render_preview_html(name: str, content: dict, photo_items: list[dict], url: str = '#share', hero_choice: str | None = None) -> str:
+    campaign = _campaign_context(name, content, url, photo_items, preview=True, hero_choice=hero_choice)
     return render_template(
         '_donor_campaign_body.html',
         name=name,
@@ -513,6 +520,7 @@ def generate(info_state, provider, name: str, session_id: str, session: dict | N
         _photo_items(photos, session_id, preview=True, token=patient_token(info_state)),
         published=False,
     )
+    result['hero_photo'] = _hero_photo_id(result.get('photo_items') or [])
     result['preview_html'] = _render_preview_html(name, content, result.get('photo_items') or [])
     result['prompt_version'] = MICROSITE_PROMPT_VERSION
     result['llm_model'] = _provider_model_name(used_provider)
@@ -550,7 +558,9 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
     visit_id = info_state.user.query('visit_id')
     photos = db.list_visit_photos(visit_id) or (info_state.user.query('photos') or [])
     photo_items = _photo_items(photos)
-    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_items)
+    hero_choice = _clean_text(edits.get('hero_photo')) or _clean_text(draft.get('hero_photo'))
+    hero_photo = _hero_photo_id(photo_items, hero_choice)
+    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_items, hero_photo)
 
     result = _build_result(
         content,
@@ -561,7 +571,8 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
         microsite_url=microsite_url,
         published=True,
     )
-    result['preview_html'] = _render_preview_html(name, content, photo_items, microsite_url)
+    result['hero_photo'] = hero_photo
+    result['preview_html'] = _render_preview_html(name, content, photo_items, microsite_url, hero_photo)
     for key in ('prompt_version', 'llm_model', 'evidence_hash'):
         if draft.get(key):
             result[key] = draft[key]

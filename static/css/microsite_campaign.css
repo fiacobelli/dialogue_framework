@@ -54,7 +54,7 @@
 .campaign-topbar.is-over-hero { background: transparent; backdrop-filter: none; border-bottom-color: transparent; }
 .campaign-topbar-inner {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 18px; min-height: 72px; padding: 12px 0;
+    gap: 18px; min-height: 72px; padding-top: 12px; padding-bottom: 12px;
 }
 .campaign-brand { min-width: 0; }
 .campaign-brand span, .campaign-mini-label {

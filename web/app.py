@@ -145,6 +145,7 @@ def dev_microsite_preview():
         hero_choice = None
     url = request.url
     campaign = microsite._campaign_context(name, content, url, photo_items, preview=True, hero_choice=hero_choice)
+    hero = (campaign.get('photos') or {}).get('hero') or {}
     return render_template(
         'microsite.html',
         name=name,
@@ -155,7 +156,7 @@ def dev_microsite_preview():
         campaign=campaign,
         meta_title=f'{name} Needs a Kidney | Can You Help?',
         meta_description=content['short_intro'],
-        meta_image=photo_items[0]['url'] if photo_items else '',
+        meta_image=hero.get('url') or (photo_items[0]['url'] if photo_items else ''),
         share_text=f"Please read and share {name}'s kidney donor story: {url}",
     )
 
