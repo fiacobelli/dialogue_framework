@@ -291,28 +291,30 @@ def _share_context(name: str, content: dict, url: str, photo_items: list[dict], 
 
 
 def _photo_slots(photo_items: list[dict] | None, hero_choice: str | None = None) -> dict:
-    """Map photos to page slots (None-safe). The hero is the patient-chosen photo when given
-    (by stored filename or url), else the 'before' photo, else the first; remaining photos fill
-    the journey/hope slots in order so 0-2 photos degrade gracefully."""
+    """Map uploaded photos to independent top-image and before/during/after story slots."""
     ordered = list(photo_items or [])
     by_role = {}
     for item in ordered:
         by_role.setdefault(item.get('photo_role'), item)
+
     hero = None
     if hero_choice:
         hero = next((it for it in ordered
                      if it.get('stored_filename') == hero_choice or it.get('url') == hero_choice), None)
     if hero is None:
         hero = by_role.get('before') or (ordered[0] if ordered else None)
-    remaining = [it for it in ordered if it is not hero]
-    rem_by_role = {}
-    for it in remaining:
-        rem_by_role.setdefault(it.get('photo_role'), it)
-    journey = rem_by_role.get('during') or rem_by_role.get('general')
-    hope = rem_by_role.get('hope')
-    if hope is journey:
-        hope = None
-    return {'hero': hero, 'journey': journey, 'hope': hope}
+
+    before = by_role.get('before') or (ordered[0] if len(ordered) > 0 else None)
+    during = by_role.get('during') or (ordered[1] if len(ordered) > 1 else None)
+    after = by_role.get('hope') or (ordered[2] if len(ordered) > 2 else None)
+    return {
+        'hero': hero,
+        'before': before,
+        'during': during,
+        'after': after,
+        'journey': during,
+        'hope': after,
+    }
 
 
 def _hero_photo_id(photo_items: list[dict], hero_choice: str | None = None) -> str:

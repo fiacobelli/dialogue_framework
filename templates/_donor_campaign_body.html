@@ -14,10 +14,10 @@
                 <strong>{{ name }}</strong>
             </div>
             <div class="campaign-topbar-actions">
-                <span>Share this story</span>
-                <a class="campaign-share-icon" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener" aria-label="Share on Facebook">f</a>
-                <a class="campaign-share-icon" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp">W</a>
-                <a class="campaign-share-icon" href="{{ campaign.share.email }}" aria-label="Share by email">@</a>
+                <span>Help share this story</span>
+                <a class="campaign-share-icon" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener" aria-label="Share on Facebook">FB</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp">WA</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.email }}" aria-label="Share by email">Email</a>
                 <a class="campaign-btn primary" href="#share">How to help</a>
             </div>
         </div>
@@ -49,10 +49,10 @@
                         <h2 id="why-kidney">My kidney journey</h2>
                         <p>{{ content.kidney_journey }}</p>
                         {% if content.daily_impact %}
-                        <details class="campaign-readmore">
-                            <summary>How this affects my daily life</summary>
+                        <div class="campaign-daily-impact">
+                            <p class="campaign-mini-label">How this affects my daily life</p>
                             <p>{{ content.daily_impact }}</p>
-                        </details>
+                        </div>
                         {% endif %}
 
                         <h3>What a transplant could make possible</h3>
@@ -67,21 +67,45 @@
                     <p class="campaign-mini-label">How you can help</p>
                     <h2>Share {{ name }}'s story</h2>
                     <p>{{ campaign.donor_callout }}</p>
+                    <p class="campaign-help-note">One share could help this page reach someone who can learn, ask questions, or pass it along.</p>
                     <a class="campaign-btn primary" href="#share">Share this page</a>
                     <a class="campaign-help-link" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">Learn about living donation</a>
                 </aside>
             </div>
 
-            {% if photos.journey or photos.hope %}
-            <div class="campaign-shell campaign-gallery-grid reveal">
-                {% if photos.hero %}
-                <figure><img src="{{ photos.hero.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
+            {% if photos.before or photos.during or photos.after %}
+            <div class="campaign-shell campaign-photo-story-heading reveal">
+                <p class="campaign-mini-label">Before, during, and after</p>
+                <h3>My kidney journey in three moments</h3>
+                <p>These photos help show the person behind the diagnosis, what life is like now, and what a transplant could make possible.</p>
+            </div>
+            <div class="campaign-shell campaign-photo-story reveal" aria-label="{{ name }}'s kidney journey in photos">
+                {% if photos.before %}
+                <figure>
+                    <img src="{{ photos.before.url }}" alt="Photo showing {{ name }} before kidney disease took center stage" loading="lazy">
+                    <figcaption>
+                        <strong>Before kidney disease took center stage</strong>
+                        <span>{{ content.personal_identity }}</span>
+                    </figcaption>
+                </figure>
                 {% endif %}
-                {% if photos.journey %}
-                <figure><img src="{{ photos.journey.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
+                {% if photos.during %}
+                <figure>
+                    <img src="{{ photos.during.url }}" alt="Photo showing {{ name }} during treatment or daily life with kidney disease" loading="lazy">
+                    <figcaption>
+                        <strong>During treatment and daily life now</strong>
+                        <span>{{ content.daily_impact or content.kidney_journey }}</span>
+                    </figcaption>
+                </figure>
                 {% endif %}
-                {% if photos.hope %}
-                <figure><img src="{{ photos.hope.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
+                {% if photos.after %}
+                <figure>
+                    <img src="{{ photos.after.url }}" alt="Photo showing what life after transplant could make possible for {{ name }}" loading="lazy">
+                    <figcaption>
+                        <strong>After transplant, what I hope for</strong>
+                        <span>{{ content.transplant_hope }}</span>
+                    </figcaption>
+                </figure>
                 {% endif %}
             </div>
             {% endif %}
