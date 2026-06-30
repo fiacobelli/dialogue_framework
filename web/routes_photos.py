@@ -58,21 +58,23 @@ def _save_processed_photo(upload, photo_path: str) -> tuple[int, int]:
     return image.size
 
 
-def _photo_urls(session_id: str, photos: list[str], token: str | None = None) -> list[str]:
+def _photo_urls(session_id: str, photos: list[str], token: str | None = None,
+                token_param: str = 'patient_token') -> list[str]:
     return [
-        url_for('photos.photo_preview', session_id=session_id, filename=p, patient_token=token)
+        url_for('photos.photo_preview', session_id=session_id, filename=p, **{token_param: token})
         if token else url_for('photos.photo_preview', session_id=session_id, filename=p)
         for p in photos
     ]
 
 
-def _photo_items(session_id: str, visit_id: str | None, token: str | None = None) -> list[dict]:
+def _photo_items(session_id: str, visit_id: str | None, token: str | None = None,
+                 token_param: str = 'patient_token') -> list[dict]:
     items = []
     for photo in db.list_visit_photos(visit_id):
         role = photo.get('photo_role') or 'general'
         items.append({
             'stored_filename': photo['stored_filename'],
-            'url': url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename'], patient_token=token)
+            'url': url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename'], **{token_param: token})
             if token else url_for('photos.photo_preview', session_id=session_id, filename=photo['stored_filename']),
             'display_order': photo['display_order'],
             'photo_role': role,
@@ -217,20 +219,29 @@ def get_photo_status(session_id):
 
     s = get_session(session_id)
     info_state = s['info_state']
-    if not is_patient_authorized(info_state):
-        return jsonify({'error': 'unauthorized_session'}), 403
-    token = request.args.get('token')
     visit_id = info_state.user.query('visit_id')
-    if token and not db.validate_upload_token(visit_id, token, mark_used=False):
-        return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
+    token = request.args.get('token')
+    patient_ok = is_patient_authorized(info_state)
+    # The mobile upload page holds only the QR upload token, not the patient token,
+    # so authorize on either credential — otherwise the phone can never read back the
+    # photos it just uploaded and the upload UI appears stuck.
+    upload_ok = bool(token and db.validate_upload_token(visit_id, token, mark_used=False))
+    if not (patient_ok or upload_ok):
+        if token:
+            return jsonify({'error': 'Photo upload link is expired. Please scan the current QR code again.'}), 403
+        return jsonify({'error': 'unauthorized_session'}), 403
     photos = _current_photos(session_id, s)
 
+    # Sign preview URLs with the credential the caller actually presented, so the
+    # upload token's reach stays scoped to photos and the patient token is never
+    # handed to the phone.
+    url_token, token_param = (patient_token(info_state), 'patient_token') if patient_ok else (token, 'token')
     return jsonify({
         'photo_count': len(photos),
         'ready': len(photos) >= MAX_PHOTOS,
         'max_photos': MAX_PHOTOS,
-        'photos': _photo_urls(session_id, photos, patient_token(info_state)),
-        'photo_items': _photo_items(session_id, visit_id, patient_token(info_state)),
+        'photos': _photo_urls(session_id, photos, url_token, token_param),
+        'photo_items': _photo_items(session_id, visit_id, url_token, token_param),
     })
 
 
@@ -270,7 +281,12 @@ def photo_preview(session_id, filename):
         return jsonify({'error': 'Session not found'}), 404
     s = get_session(session_id)
     info_state = s['info_state']
-    if not is_patient_authorized(info_state):
+    visit_id = info_state.user.query('visit_id')
+    token = request.args.get('token')
+    # Same dual-auth as get_photo_status: the mobile page references these preview
+    # URLs with the upload token, so a valid upload token must serve the image too.
+    if not (is_patient_authorized(info_state)
+            or (token and db.validate_upload_token(visit_id, token, mark_used=False))):
         return jsonify({'error': 'unauthorized_session'}), 403
     photos = _current_photos(session_id, s)
     if filename not in photos:
