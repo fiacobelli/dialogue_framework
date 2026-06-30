@@ -168,40 +168,39 @@
 
             <div class="photo-section" id="photoSection">
                 <p class="eyebrow">Story complete</p>
-                <h2>Choose Photos for Your Donor Page</h2>
-                <p>Three photos are recommended. Each slot has a purpose, so choose photos that help tell this story clearly.</p>
+                <h2>Add Photos</h2>
+                <p>Add up to three public photos for the donor page.</p>
                 <p class="photo-consent-note">
-                    Choose photos you are comfortable making public, and avoid photos of other people unless you have permission to share them.
+                    Only choose photos you are comfortable sharing publicly.
                 </p>
 
                 <div id="qrSection" class="qr-section" style="display:none;">
-                    <p>Scan with your phone to upload photos:</p>
+                    <p>Scan to add photos from your phone.</p>
                     <img id="qrCode" alt="Mobile upload QR code">
                     <p class="upload-link-line">Or open: <a id="uploadLink" href="#" target="_blank"></a></p>
                     <p id="photoProgress">0/3 photos uploaded</p>
                 </div>
 
-                <p class="direct-upload-copy">Or upload directly from this device:</p>
                 <div class="photo-grid">
                     <div class="photo-slot" id="photo0" role="button" tabindex="0" title="Choose photo" data-role="before">
                         <span class="photo-slot-plus">+</span>
-                        <strong>Who I am</strong>
-                        <small>Your life, personality, family, work, school, community, or something meaningful.</small>
+                        <strong>Photo 1</strong>
+                        <small>Who I am</small>
                     </div>
                     <div class="photo-slot" id="photo1" role="button" tabindex="0" title="Choose photo" data-role="during">
                         <span class="photo-slot-plus">+</span>
-                        <strong>My kidney journey</strong>
-                        <small>Treatment, dialysis, appointments, or daily life with kidney disease.</small>
+                        <strong>Photo 2</strong>
+                        <small>My kidney journey</small>
                     </div>
                     <div class="photo-slot" id="photo2" role="button" tabindex="0" title="Choose photo" data-role="hope">
                         <span class="photo-slot-plus">+</span>
-                        <strong>My hope after transplant</strong>
-                        <small>What you hope to return to, do again, or experience with a transplant.</small>
+                        <strong>Photo 3</strong>
+                        <small>My hope after transplant</small>
                     </div>
                 </div>
                 <div id="photoStatus" class="photo-status" aria-live="polite"></div>
                 <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
-                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Choose Photos From This Device</button>
+                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Choose Photos</button>
                 <button class="secondary-action-btn" type="button" id="continueWithPhotosBtn" disabled>
                     Continue with these photos
                 </button>

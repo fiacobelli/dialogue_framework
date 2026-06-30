@@ -366,16 +366,16 @@ class UIController {
         const role = escapeHtml(item.photo_role || 'general');
         const guidance = {
             before: {
-                label: 'Who I am',
-                description: 'Your life, personality, family, work, school, community, or something meaningful.'
+                label: 'Photo 1',
+                description: 'Who I am'
             },
             during: {
-                label: 'My kidney journey',
-                description: 'Treatment, dialysis, appointments, or daily life with kidney disease.'
+                label: 'Photo 2',
+                description: 'My kidney journey'
             },
             hope: {
-                label: 'My hope after transplant',
-                description: 'What you hope to return to, do again, or experience with a transplant.'
+                label: 'Photo 3',
+                description: 'Hope after transplant'
             },
             general: {
                 label: 'Story photo',

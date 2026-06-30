@@ -44,34 +44,33 @@
 <body>
     <div class="upload-container">
         <div class="card">
-            <h2>Upload Your Photos</h2>
+            <h2>Add Photos</h2>
             <p class="upload-prompt">
-                Choose photos for each part of the donor page story.
-                You can select multiple photos from your library or tap a slot to replace it.
+                Add up to three photos for the donor page. Tap a photo slot to replace it.
             </p>
 
             <div class="photo-grid">
                 <div class="photo-slot" id="photo0">
                     <span class="plus">+</span>
-                    <strong>Who I am</strong>
-                    <small>Life, family, work, school, or community.</small>
+                    <strong>Photo 1</strong>
+                    <small>Who I am</small>
                 </div>
                 <div class="photo-slot" id="photo1">
                     <span class="plus">+</span>
-                    <strong>My kidney journey</strong>
-                    <small>Treatment or daily life with kidney disease.</small>
+                    <strong>Photo 2</strong>
+                    <small>My kidney journey</small>
                 </div>
                 <div class="photo-slot" id="photo2">
                     <span class="plus">+</span>
-                    <strong>My hope after transplant</strong>
-                    <small>What you hope to return to or do again.</small>
+                    <strong>Photo 3</strong>
+                    <small>Hope after transplant</small>
                 </div>
             </div>
 
             <input type="file" id="libraryInput" accept="image/*" multiple>
             <input type="file" id="cameraInput" accept="image/*" capture="environment">
             <button class="submit-btn" type="button" onclick="selectPhoto('library')">
-                Choose Photos From Library
+                Choose Photos
             </button>
             <button class="submit-btn" type="button" onclick="selectPhoto('camera')">
                 Take a New Photo
