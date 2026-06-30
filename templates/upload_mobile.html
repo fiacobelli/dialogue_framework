@@ -165,9 +165,16 @@
             slot.addEventListener('click', () => selectPhoto('library', index));
         });
 
-        document.getElementById('submitBtn').addEventListener('click', () => {
+        function returnToMainPage() {
+            if (window.history.length > 1) {
+                window.history.back();
+                return;
+            }
             window.close();
-        });
+            setStatus('Return to the main interview page to continue.', 'success');
+        }
+
+        document.getElementById('submitBtn').addEventListener('click', returnToMainPage);
 
         function setStatus(msg, type) {
             const el = document.getElementById('status');

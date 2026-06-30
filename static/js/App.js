@@ -188,6 +188,12 @@ class App {
             this.repeatLastMessage();
         });
 
+        window.addEventListener('pageshow', () => this.refreshPhotoStatusIfVisible());
+        window.addEventListener('focus', () => this.refreshPhotoStatusIfVisible());
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) this.refreshPhotoStatusIfVisible();
+        });
+
         const beginBtn = document.getElementById('beginBtn');
         if (beginBtn) beginBtn.addEventListener('click', () => {
             if (!this._startupReady) {
@@ -609,6 +615,32 @@ class App {
                 }
             }
         }, 3000);
+    }
+
+    async refreshPhotoStatusIfVisible() {
+        const photoSection = document.getElementById('photoSection');
+        if (!photoSection?.classList.contains('visible')) return;
+
+        try {
+            const status = await conversationAPI.getPhotoStatus();
+            this.photoPollingErrors = 0;
+            ui.updatePhotoProgress(status.photo_count, status.max_photos);
+            const photoItems = status.photo_items || (status.photos || []).map((url) => ({ url }));
+            photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
+
+            if (status.ready) {
+                this.stopPhotoPolling();
+                ui.showGenerateSection();
+                ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
+                ui.setStatus('Review the photo slots, then draft your donor page.');
+            } else if ((status.photo_count || 0) > 0) {
+                this.startPhotoPolling();
+                ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'info');
+            }
+            this.lastPhotoCount = status.photo_count || 0;
+        } catch (err) {
+            console.error('Photo status refresh failed:', err);
+        }
     }
 
     stopPhotoPolling() {
