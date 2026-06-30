@@ -76,6 +76,14 @@ MICROSITE_IMPACT_ITEMS = [
      'blurb': 'One living donor can restore health, energy, and time with family.'},
     {'icon': 'people', 'title': 'More than one life',
      'blurb': 'Your decision can give a whole family new hope for the future.'},
+    {'icon': 'shield-check', 'title': 'Medical evaluation',
+     'blurb': 'Potential donors are carefully evaluated for health and safety before donation.'},
+    {'icon': 'info', 'title': 'Questions are welcome',
+     'blurb': 'A transplant team can explain risks, recovery, timing, and available resources.'},
+    {'icon': 'people', 'title': 'Family support matters',
+     'blurb': 'Sharing this page helps more people understand the need and talk it through.'},
+    {'icon': 'heart', 'title': 'Every share can help',
+     'blurb': 'Even people who cannot donate may know someone willing to learn more.'},
 ]
 
 MICROSITE_NEXT_STEPS = [

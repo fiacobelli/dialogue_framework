@@ -505,7 +505,7 @@ class UIController {
     }
 
     updatePreviewHeroPhoto(url) {
-        const img = document.querySelector('#draftPreview .campaign-hero-media img');
+        const img = document.querySelector('#draftPreview .campaign-profile-photo img');
         if (img && url) img.src = url;
     }
 

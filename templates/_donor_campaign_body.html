@@ -11,81 +11,86 @@
     <header class="campaign-topbar">
         <div class="campaign-shell campaign-topbar-inner">
             <div class="campaign-brand">
-                <span>Kidney donor needed</span>
-                <strong>{{ campaign.title }}</strong>
+                <strong>{{ name }}</strong>
             </div>
-            <a class="campaign-btn primary" href="{{ campaign.primary_cta.href }}">{{ campaign.primary_cta.label }}</a>
+            <div class="campaign-topbar-actions">
+                <span>Share this story</span>
+                <a class="campaign-share-icon" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener" aria-label="Share on Facebook">f</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp">W</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.email }}" aria-label="Share by email">@</a>
+                <a class="campaign-btn primary" href="#share">How to help</a>
+            </div>
         </div>
     </header>
 
-    <section class="campaign-hero">
-        <div class="campaign-hero-media">
-            {% if photos.hero %}
-            <img src="{{ photos.hero.url }}" alt="Photo of {{ name }}">
-            {% endif %}
-        </div>
-        <div class="campaign-shell campaign-hero-inner">
-            <p class="campaign-eyebrow">{{ name }} needs a living kidney donor</p>
-            <h1>{{ content.headline }}</h1>
-            <a class="campaign-btn primary" href="#share">Share {{ name }}'s story</a>
-        </div>
-    </section>
-
     <main id="main-content">
-        <section class="campaign-section campaign-hook">
-            <p class="campaign-shell campaign-reading reveal">{{ content.short_intro }}</p>
-        </section>
+        <section class="campaign-profile">
+            <div class="campaign-shell campaign-profile-grid">
+            {% if photos.hero %}
+                <figure class="campaign-profile-photo reveal">
+                    <img src="{{ photos.hero.url }}" alt="Photo of {{ name }}">
+                </figure>
+            {% endif %}
 
-        <section class="campaign-section campaign-split-section" aria-labelledby="who-i-am">
-            <div class="campaign-split{% if not photos.journey %} is-solo{% endif %} reveal">
-                <div class="campaign-split-text">
-                    <p class="campaign-mini-label">Who I am</p>
-                    <h2 id="who-i-am">Meet {{ name }}</h2>
+                <div class="campaign-profile-copy reveal">
+                    <p class="campaign-mini-label">Who am I?</p>
+                    <h1>{{ content.headline }}</h1>
+                    <p class="campaign-profile-lead">{{ content.short_intro }}</p>
                     <p>{{ content.personal_identity }}</p>
                 </div>
-                {% if photos.journey %}
-                <div class="campaign-split-media"><img src="{{ photos.journey.url }}" alt="Photo of {{ name }}" loading="lazy"></div>
-                {% endif %}
             </div>
         </section>
 
-        <section class="campaign-section campaign-split-section campaign-section--dark" aria-labelledby="why-kidney">
-            <div class="campaign-split campaign-split--reverse{% if not photos.hope %} is-solo{% endif %} reveal">
-                <div class="campaign-split-text">
-                    <p class="campaign-mini-label">Why I need a kidney</p>
-                    <h2 id="why-kidney">My kidney journey</h2>
-                    <p>{{ content.kidney_journey }}</p>
-                    {% if content.daily_impact %}
-                    <details class="campaign-readmore">
-                        <summary>How this affects my daily life</summary>
-                        <p>{{ content.daily_impact }}</p>
-                    </details>
-                    {% endif %}
+        <section class="campaign-story-band" aria-labelledby="why-kidney">
+            <div class="campaign-shell campaign-story-grid">
+                <div class="campaign-story-stack reveal">
+                    <article class="campaign-story-card campaign-story-card--lead" aria-labelledby="why-kidney">
+                        <p class="campaign-mini-label">Why I need a kidney</p>
+                        <h2 id="why-kidney">My kidney journey</h2>
+                        <p>{{ content.kidney_journey }}</p>
+                        {% if content.daily_impact %}
+                        <details class="campaign-readmore">
+                            <summary>How this affects my daily life</summary>
+                            <p>{{ content.daily_impact }}</p>
+                        </details>
+                        {% endif %}
+
+                        <h3>What a transplant could make possible</h3>
+                        <p>{{ content.transplant_hope }}</p>
+                        {% if campaign.pull_quote %}
+                        <blockquote class="campaign-inline-quote">{{ campaign.pull_quote }}</blockquote>
+                        {% endif %}
+                    </article>
                 </div>
+
+                <aside class="campaign-help-card reveal" aria-label="How to help">
+                    <p class="campaign-mini-label">How you can help</p>
+                    <h2>Share {{ name }}'s story</h2>
+                    <p>{{ campaign.donor_callout }}</p>
+                    <a class="campaign-btn primary" href="#share">Share this page</a>
+                    <a class="campaign-help-link" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">Learn about living donation</a>
+                </aside>
+            </div>
+
+            {% if photos.journey or photos.hope %}
+            <div class="campaign-shell campaign-gallery-grid reveal">
+                {% if photos.hero %}
+                <figure><img src="{{ photos.hero.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
+                {% endif %}
+                {% if photos.journey %}
+                <figure><img src="{{ photos.journey.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
+                {% endif %}
                 {% if photos.hope %}
-                <div class="campaign-split-media"><img src="{{ photos.hope.url }}" alt="Photo of {{ name }}" loading="lazy"></div>
+                <figure><img src="{{ photos.hope.url }}" alt="Photo of {{ name }}" loading="lazy"></figure>
                 {% endif %}
             </div>
-        </section>
-
-        {% if campaign.pull_quote %}
-        <section class="campaign-section campaign-quote-section">
-            <blockquote class="campaign-shell campaign-quote reveal">{{ campaign.pull_quote }}</blockquote>
-        </section>
-        {% endif %}
-
-        <section class="campaign-section campaign-hope" aria-labelledby="donor-help">
-            <div class="campaign-shell campaign-reading reveal">
-                <p class="campaign-mini-label">How a donor can help</p>
-                <h2 id="donor-help">What a transplant could make possible</h2>
-                <p>{{ content.transplant_hope }}</p>
-            </div>
+            {% endif %}
         </section>
 
         <section class="campaign-impact" aria-labelledby="impact-title">
             <div class="campaign-shell">
-                <p class="campaign-mini-label campaign-impact-eyebrow">For anyone considering donating</p>
-                <h2 id="impact-title">What your help makes possible</h2>
+                <p class="campaign-mini-label campaign-impact-eyebrow">For anyone considering donation</p>
+                <h2 id="impact-title">Support and protections for living donors</h2>
                 <div class="campaign-impact-grid reveal">
                     {% for it in campaign.impact_items %}
                     <div class="campaign-impact-card">
