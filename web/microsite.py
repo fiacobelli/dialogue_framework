@@ -10,7 +10,7 @@ from .config import (
     MICROSITE_PROMPT_FILE,
     MICROSITE_IMPACT_ITEMS,
     MICROSITE_NEXT_STEPS,
-    MICROSITE_LLM_MODEL,
+    LLM_MODEL,
     LLM_PROVIDER,
     GROQ_API_KEY,
     OLLAMA_BASE_URL,
@@ -81,10 +81,10 @@ def _provider_model_name(provider) -> str:
 
 
 def _generation_provider(fallback):
-    """Build the stronger, config-driven model for the one-shot generation call.
+    """Build the config-driven model for the one-shot generation call.
     Falls back to the interview provider if it cannot be constructed."""
     try:
-        kwargs = {'model': MICROSITE_LLM_MODEL}
+        kwargs = {'model': LLM_MODEL}
         if LLM_PROVIDER == 'groq':
             kwargs['api_key'] = GROQ_API_KEY
         elif LLM_PROVIDER == 'ollama':

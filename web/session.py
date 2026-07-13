@@ -10,7 +10,7 @@ from rules import RuleManager
 from .goal_interview import InterviewGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
-from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, load_prompt
+from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, LLM_MODEL, load_prompt
 
 
 def create_session(session_id: str) -> dict:
@@ -22,7 +22,7 @@ def create_session(session_id: str) -> dict:
     info_state.user.update('session_id', session_id)
 
     provider_name = config('LLM_PROVIDER', default='ollama')
-    provider_kwargs = {'model': config('LLM_MODEL', default='mistral:7b-instruct')}
+    provider_kwargs = {'model': LLM_MODEL}
     if provider_name == 'groq':
         provider_kwargs['api_key'] = config('GROQ_API_KEY')
     provider = get_provider(provider_name, **provider_kwargs)

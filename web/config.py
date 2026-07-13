@@ -57,10 +57,10 @@ GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_WHISPER_URL = config('GROQ_WHISPER_URL', default='https://api.groq.com/openai/v1/audio/transcriptions')
 LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 
-# Provider + models. The interview uses the fast LLM_MODEL; the one-shot microsite
-# generation uses a stronger, fact-faithful model (its own Groq rate-limit bucket).
+# Provider + model. One model serves both the interview turns and the one-shot
+# microsite generation.
 LLM_PROVIDER = config('LLM_PROVIDER', default='ollama')
-MICROSITE_LLM_MODEL = config('MICROSITE_LLM_MODEL', default='llama-3.3-70b-versatile')
+LLM_MODEL = config('LLM_MODEL', default='llama-3.3-70b-versatile')
 
 # Interview Settings
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)
