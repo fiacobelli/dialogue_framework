@@ -1,0 +1,47 @@
+# systemd unit for the read-only study-data viewer (sqlite-web).
+#
+# REFERENCE / IaC ONLY — applied manually on EC2 as
+# /etc/systemd/system/dbviewer.service; nothing auto-applies this on git pull.
+#
+# Purpose: lets the research team browse and export the SDoH and microsite study
+# databases over the web, instead of needing SSH/SCP access to the server.
+#
+# Reachable at https://ludi.a4hlab.org/dbadmin (see deploy/nginx in the
+# transplant-microsite repo for the matching proxy block).
+#
+# Install:
+#   python3 -m venv /home/ubuntu/dbviewer/venv
+#   /home/ubuntu/dbviewer/venv/bin/pip install sqlite-web
+#   printf 'SQLITE_WEB_PASSWORD=<secret>\n' > /home/ubuntu/dbviewer/.env
+#   chmod 600 /home/ubuntu/dbviewer/.env
+#   sudo cp deploy/dbviewer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now dbviewer
+#
+# Notes on the flags:
+#   -r  read-only  — SQLite refuses writes, so the study data cannot be altered
+#                    through this interface, even via the SQL query page.
+#   -P  password   — read from SQLITE_WEB_PASSWORD in the EnvironmentFile below.
+#                    Without that variable set, sqlite_web prompts on stdin and
+#                    would hang under systemd.
+#   -x  no browser — do not try to open a local browser on startup.
+#   -H 127.0.0.1   — bind to loopback only; nginx is the sole way in.
+#   -u /dbadmin    — URL prefix, so it sits under the existing domain.
+#
+# The venv is deliberately separate from the application venv. Installing
+# sqlite-web into sdoh-screening/venv could upgrade Flask underneath the running
+# screening app.
+
+[Unit]
+Description=Read-only SQLite study-data viewer (sqlite-web)
+After=network.target
+
+[Service]
+User=ubuntu
+EnvironmentFile=/home/ubuntu/dbviewer/.env
+ExecStart=/home/ubuntu/dbviewer/venv/bin/sqlite_web -r -P -x -H 127.0.0.1 -p 5003 -u /dbadmin -R 100 \
+    /home/ubuntu/sdoh-screening/db/sdoh.db \
+    /home/ubuntu/transplant-microsite/db/transplant.db
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
