@@ -10,7 +10,7 @@ from rules import RuleManager
 from .goal_interview import InterviewGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
-from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, LLM_MODEL, load_prompt
+from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, LLM_MODEL, LLM_FALLBACK_MODEL, load_prompt
 
 
 def create_session(session_id: str) -> dict:
@@ -22,9 +22,12 @@ def create_session(session_id: str) -> dict:
     info_state.user.update('session_id', session_id)
 
     provider_name = config('LLM_PROVIDER', default='ollama')
-    provider_kwargs = {'model': LLM_MODEL}
+    default_model = 'openai/gpt-oss-120b' if provider_name == 'groq' else 'mistral:7b-instruct'
+    provider_kwargs = {'model': LLM_MODEL or default_model}
     if provider_name == 'groq':
         provider_kwargs['api_key'] = config('GROQ_API_KEY')
+        if LLM_FALLBACK_MODEL:
+            provider_kwargs['fallback_model'] = LLM_FALLBACK_MODEL
     provider = get_provider(provider_name, **provider_kwargs)
 
     nlu = NLUWeb(info_state, provider)

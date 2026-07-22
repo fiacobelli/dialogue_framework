@@ -60,7 +60,8 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 # Provider + model. One model serves both the interview turns and the one-shot
 # microsite generation.
 LLM_PROVIDER = config('LLM_PROVIDER', default='ollama')
-LLM_MODEL = config('LLM_MODEL', default='llama-3.3-70b-versatile')
+LLM_MODEL = config('LLM_MODEL', default='')
+LLM_FALLBACK_MODEL = config('LLM_FALLBACK_MODEL', default='')
 
 # Interview Settings
 MAX_PHOTOS = config('MAX_PHOTOS', default=3, cast=int)

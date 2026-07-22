@@ -11,6 +11,7 @@ from .config import (
     MICROSITE_IMPACT_ITEMS,
     MICROSITE_NEXT_STEPS,
     LLM_MODEL,
+    LLM_FALLBACK_MODEL,
     LLM_PROVIDER,
     GROQ_API_KEY,
     OLLAMA_BASE_URL,
@@ -84,9 +85,12 @@ def _generation_provider(fallback):
     """Build the config-driven model for the one-shot generation call.
     Falls back to the interview provider if it cannot be constructed."""
     try:
-        kwargs = {'model': LLM_MODEL}
+        default_model = 'openai/gpt-oss-120b' if LLM_PROVIDER == 'groq' else 'mistral:7b-instruct'
+        kwargs = {'model': LLM_MODEL or default_model}
         if LLM_PROVIDER == 'groq':
             kwargs['api_key'] = GROQ_API_KEY
+            if LLM_FALLBACK_MODEL:
+                kwargs['fallback_model'] = LLM_FALLBACK_MODEL
         elif LLM_PROVIDER == 'ollama':
             kwargs['base_url'] = OLLAMA_BASE_URL
         return get_provider(LLM_PROVIDER, **kwargs)
