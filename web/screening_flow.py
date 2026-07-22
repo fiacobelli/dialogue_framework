@@ -157,11 +157,32 @@ def load_question_topics(filepath: str) -> list[dict[str, Any]]:
     return topics
 
 
-def select_topics(topics: list[dict[str, Any]], count: int = 6) -> list[dict[str, Any]]:
-    """Randomly select topics, then sort least-to-most sensitive."""
-    selected = random.sample(topics, min(count, len(topics))) if topics else []
+def select_topics(topics: list[dict[str, Any]], count: int = 6,
+                  prior_category_counts: dict[str, int] | None = None,
+                  visit_number: int = 1) -> list[dict[str, Any]]:
+    """Select topics while prioritizing areas not yet covered for this patient."""
+    if not topics:
+        return []
+    prior_category_counts = prior_category_counts or {}
+    pool = list(topics)
+    random.shuffle(pool)
+    pool.sort(key=lambda t: prior_category_counts.get(t.get('category', ''), 0))
+    selected = pool[:min(count, len(pool))]
+    selected = [_with_rotated_question(t, prior_category_counts, visit_number) for t in selected]
     selected.sort(key=lambda t: t.get('sensitivity', 99))
     return selected
+
+
+def _with_rotated_question(topic: dict[str, Any], prior_category_counts: dict[str, int],
+                           visit_number: int) -> dict[str, Any]:
+    questions = topic.get('questions') or []
+    if not questions:
+        return dict(topic)
+    category = topic.get('category', '')
+    repeat_count = prior_category_counts.get(category, max(0, visit_number - 1))
+    rotated = dict(topic)
+    rotated['selected_question'] = questions[repeat_count % len(questions)]
+    return rotated
 
 
 def build_screening_state(topics: list[dict[str, Any]]) -> dict[str, Any]:

@@ -194,6 +194,31 @@ def create_visit(phone_pin: str, avatar_id: str, language: str,
     return visit_id, next_number
 
 
+def get_asked_category_counts(phone_pin: str) -> dict[str, int]:
+    """Return how many prior visits included each screening category."""
+    if not phone_pin:
+        return {}
+    with _conn() as c:
+        rows = c.execute(
+            """
+            SELECT question_category, COUNT(*) AS count
+            FROM (
+                SELECT v.visit_id, m.question_category
+                FROM visits v
+                JOIN messages m ON m.visit_id = v.visit_id
+                WHERE v.phone_pin = ?
+                  AND m.role = 'assistant'
+                  AND m.question_category IS NOT NULL
+                  AND m.question_category != ''
+                GROUP BY v.visit_id, m.question_category
+            )
+            GROUP BY question_category
+            """,
+            (phone_pin,),
+        ).fetchall()
+    return {row['question_category']: int(row['count']) for row in rows}
+
+
 def save_message(visit_id: str, role: str, content: str, turn_number: int,
                  agent: str = None, voice: str = None,
                  input_modality: str = None, response_latency_ms: int = None,

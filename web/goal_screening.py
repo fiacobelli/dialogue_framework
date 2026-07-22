@@ -338,7 +338,7 @@ class ScreeningGoal(Goal):
         task_type = task['type']
         topic = task.get('topic') or {}
         category = topic.get('category', '')
-        question = topic.get('questions', [''])[0] if topic else ''
+        question = topic.get('selected_question') or (topic.get('questions', [''])[0] if topic else '')
 
         if task_type == 'ask_readiness':
             return (

@@ -71,7 +71,8 @@ def new_session():
     else:
         info_state.user.update('visit_number', visit_number)
 
-    screening_topics = build_screening_topics()
+    prior_counts = db.get_asked_category_counts(patient_id) if patient_id else {}
+    screening_topics = build_screening_topics(prior_counts, visit_number)
     question_block = build_question_instructions_from_topics(screening_topics)
     info_state.user.update('question_instructions', question_block)
     info_state.user.update('screening_state', build_screening_state(screening_topics))
@@ -231,9 +232,11 @@ def classify_responses():
         })
 
 
-def build_screening_topics() -> list[dict]:
+def build_screening_topics(prior_counts: dict | None = None, visit_number: int = 1) -> list[dict]:
     """Pre-select structured topics for code-controlled screening flow."""
-    return select_topics(load_question_topics(QUESTIONS_FILE), count=6)
+    return select_topics(load_question_topics(QUESTIONS_FILE), count=6,
+                         prior_category_counts=prior_counts,
+                         visit_number=visit_number)
 
 
 def _turn_meta(data: dict) -> dict:
