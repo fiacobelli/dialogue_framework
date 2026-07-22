@@ -185,13 +185,13 @@ def _with_rotated_question(topic: dict[str, Any], prior_category_counts: dict[st
     return rotated
 
 
-def build_screening_state(topics: list[dict[str, Any]]) -> dict[str, Any]:
+def build_screening_state(topics: list[dict[str, Any]], is_returning: bool = False) -> dict[str, Any]:
     """Initial state stored in info_state.user."""
     return {
         'topics': topics,
         'topic_index': 0,
         'phase': 'INTRO',
-        'awaiting': 'name',
+        'awaiting': 'returning_checkin' if is_returning else 'name',
         'followup_used': False,
         'asked_final_care_team_question': False,
         'halfway_cue_given': False,
@@ -340,6 +340,9 @@ def decide_next_task(state: dict[str, Any], user_input: str) -> dict[str, Any]:
     awaiting = state.get('awaiting')
 
     if phase == 'INTRO':
+        if awaiting == 'returning_checkin':
+            state['awaiting'] = 'readiness'
+            return {'type': 'ask_readiness', 'probe_depth': None, 'topic': None}
         if awaiting == 'name':
             if not looks_like_name(user_input):
                 return {'type': 'ask_name_retry', 'probe_depth': None, 'topic': None}

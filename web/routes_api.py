@@ -75,9 +75,8 @@ def new_session():
     screening_topics = build_screening_topics(prior_counts, visit_number)
     question_block = build_question_instructions_from_topics(screening_topics)
     info_state.user.update('question_instructions', question_block)
-    info_state.user.update('screening_state', build_screening_state(screening_topics))
-
     is_returning = visit_number > 1
+    info_state.user.update('screening_state', build_screening_state(screening_topics, is_returning=is_returning))
     info_state.user.update('screening_phase', 'WELCOME')
     info_state.user.update('conversation_history', [])
     info_state.bel.add(BELSTR.DONE, False)

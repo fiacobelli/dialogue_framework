@@ -60,11 +60,11 @@ class ScreeningGoal(Goal):
     def is_complete(self, info_state) -> bool:
         return info_state.user.query('screening_phase') == 'REPORT'
 
-    def _build_prompt(self, info_state, avatar_name: str, language: str) -> str:
+    def _build_prompt(self, info_state, avatar_name: str, language: str, include_visit_intro: bool = True) -> str:
         """Concatenate the right intro + shared screener + runtime values."""
         visit_number = info_state.user.query('visit_number') or 1
         is_returning = visit_number > 1 and bool(info_state.user.query('last_summary'))
-        intro = self.subsequent_prompt if is_returning else self.first_time_prompt
+        intro = (self.subsequent_prompt if is_returning else self.first_time_prompt) if include_visit_intro else ''
         full = f"{intro}\n\n{self.system_prompt}" if intro else self.system_prompt
 
         question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
@@ -328,7 +328,7 @@ class ScreeningGoal(Goal):
 
     def _build_runtime_prompt(self, info_state, avatar_name: str, language: str,
                               task: dict, user_input: str) -> str:
-        prompt = self._build_prompt(info_state, avatar_name, language)
+        prompt = self._build_prompt(info_state, avatar_name, language, include_visit_intro=False)
         prompt += "\n\nRUNTIME TURN DIRECTIVE:\n"
         prompt += self._task_directive(task, user_input)
         prompt += "\n\nIMPORTANT: Do not include the text 'RUNTIME TURN DIRECTIVE' or any directive labels in your response. Output only patient-facing speech."
@@ -342,8 +342,8 @@ class ScreeningGoal(Goal):
 
         if task_type == 'ask_readiness':
             return (
-                "The patient just gave their name or introduced themselves. "
-                "Briefly greet them by name if you know it, then ask if they are ready to begin. "
+                "The patient just answered the opening check-in or gave their name. "
+                "Briefly acknowledge what they said, then ask if they are ready to begin. "
                 "Do not ask a screening question yet. Ask only one question."
             )
         if task_type == 'ask_name_retry':
@@ -496,7 +496,10 @@ class ScreeningGoalManager:
 
     def get_opening(self, info_state, lang: str = 'en', avatar_name: str = 'Assistant', is_returning: bool = False) -> str:
         """Generate opening greeting using LLM."""
-        prompt = self.goal._build_prompt(info_state, avatar_name, lang)
+        if is_returning:
+            prompt = self._returning_opening_prompt(info_state, avatar_name, lang)
+        else:
+            prompt = self.goal._build_prompt(info_state, avatar_name, lang)
         existing = info_state.user.query('conversation_history') or []
         opening = self.goal._clean_spoken_response(self.goal.llm.generate(existing, prompt))
         existing.append({"role": "assistant", "content": opening})
@@ -507,6 +510,26 @@ class ScreeningGoalManager:
             db.save_info_state(phone_pin, info_state.bel.beliefs, info_state.cg.beliefs, info_state.user.beliefs)
 
         return opening
+
+    def _returning_opening_prompt(self, info_state, avatar_name: str, lang: str) -> str:
+        """Build a returning-patient opening that cannot start new screening topics."""
+        last_summary = info_state.user.query('last_summary') or ''
+        question_block = info_state.user.query('question_instructions') or DEFAULT_QUESTION_BLOCK
+        prompt = self.system_prompt
+        prompt = prompt.replace('{avatar_name}', avatar_name)
+        prompt = prompt.replace('{question_instructions}', question_block)
+        prompt += (
+            "\n\nRUNTIME OPENING DIRECTIVE:\n"
+            "This is only the returning-patient opening. Briefly greet the patient, "
+            "mention one specific detail from the previous session, and ask one warm check-in question "
+            "about how that issue has been since then. Do not ask if they are ready yet. "
+            "Do not ask any new screening question. Ask only one question."
+        )
+        if last_summary:
+            prompt += f"\n\nSummary of last session:\n{last_summary}"
+        if lang != 'en':
+            prompt += f"\n\nIMPORTANT: Respond entirely in {LANGUAGE_NAMES.get(lang, 'English')}."
+        return prompt
 
 
 DEFAULT_QUESTION_BLOCK = "\n".join([
