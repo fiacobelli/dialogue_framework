@@ -50,6 +50,8 @@ FLASK_DEBUG = config('FLASK_DEBUG', default=False, cast=bool)
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
 GROQ_API_URL = config('GROQ_API_URL', default='https://api.groq.com/openai/v1/chat/completions')
 LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
+LLM_MODEL = config('LLM_MODEL', default='')
+LLM_FALLBACK_MODEL = config('LLM_FALLBACK_MODEL', default='')
 
 # Localized Strings
 WELCOME_BACK = {

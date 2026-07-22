@@ -75,9 +75,10 @@ class OllamaProvider:
 class GroqProvider:
     """Groq cloud LLM provider for production."""
 
-    def __init__(self, model: str = "llama-3.1-8b-instant", api_key: str = None):
+    def __init__(self, model: str = "openai/gpt-oss-120b", api_key: str = None, fallback_model: str = None):
         self.model = model
         self.api_key = api_key
+        self.fallback_model = fallback_model if fallback_model and fallback_model != model else None
 
     def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
         """Generate response from message history."""
@@ -86,12 +87,20 @@ class GroqProvider:
             all_messages.append({"role": "system", "content": system_prompt})
         all_messages.extend(messages)
 
-        payload = {"model": self.model, "messages": all_messages}
+        response = self._generate_with_model(self.model, all_messages, json_mode, temperature)
+        if response != LLM_ERROR_MESSAGE:
+            return response
+        if self.fallback_model:
+            logger.warning("Groq primary model %s failed; trying fallback model %s", self.model, self.fallback_model)
+            return self._generate_with_model(self.fallback_model, all_messages, json_mode, temperature)
+        return LLM_ERROR_MESSAGE
+
+    def _generate_with_model(self, model: str, all_messages: list, json_mode: bool, temperature: float = None) -> str:
+        payload = {"model": model, "messages": all_messages}
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         if temperature is not None:
             payload["temperature"] = temperature
-
         for attempt in range(MAX_RETRIES):
             try:
                 if BACKOFF_SECONDS[attempt]:
@@ -104,22 +113,22 @@ class GroqProvider:
                 )
                 if resp.status_code == 429:
                     logger.warning(
-                        "Groq rate limit (429) on attempt %d/%d — waiting %ds. Response: %s",
-                        attempt + 1, MAX_RETRIES, RATE_LIMIT_BACKOFF, resp.text[:200]
+                        "Groq rate limit (429) for model %s on attempt %d/%d — waiting %ds. Response: %s",
+                        model, attempt + 1, MAX_RETRIES, RATE_LIMIT_BACKOFF, resp.text[:200]
                     )
                     time.sleep(RATE_LIMIT_BACKOFF)
                     continue
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
             except requests.exceptions.Timeout:
-                logger.warning("Groq timeout on attempt %d/%d", attempt + 1, MAX_RETRIES)
+                logger.warning("Groq timeout for model %s on attempt %d/%d", model, attempt + 1, MAX_RETRIES)
             except requests.exceptions.ConnectionError as e:
-                logger.warning("Groq connection error on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e)
+                logger.warning("Groq connection error for model %s on attempt %d/%d: %s", model, attempt + 1, MAX_RETRIES, e)
             except requests.exceptions.HTTPError as e:
-                logger.warning("Groq HTTP %s on attempt %d/%d: %s", resp.status_code, attempt + 1, MAX_RETRIES, e)
+                logger.warning("Groq HTTP %s for model %s on attempt %d/%d: %s", resp.status_code, model, attempt + 1, MAX_RETRIES, e)
             except Exception as e:
-                logger.warning("Groq unexpected error on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e)
-        logger.error("Groq LLM call failed after %d attempts for model %s", MAX_RETRIES, self.model)
+                logger.warning("Groq unexpected error for model %s on attempt %d/%d: %s", model, attempt + 1, MAX_RETRIES, e)
+        logger.error("Groq LLM call failed after %d attempts for model %s", MAX_RETRIES, model)
         return LLM_ERROR_MESSAGE
 
 

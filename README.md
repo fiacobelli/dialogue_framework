@@ -27,7 +27,8 @@ A voice-enabled web application that interviews kidney transplant patients and g
    Create a `.env` file with:
    ```
    LLM_PROVIDER=groq
-   LLM_MODEL=llama-3.1-8b-instant
+   LLM_MODEL=openai/gpt-oss-120b
+   LLM_FALLBACK_MODEL=openai/gpt-oss-20b
    GROQ_API_KEY=your_api_key_here
    FLASK_SECRET_KEY=your_secret_key
    ```
