@@ -329,10 +329,25 @@ class ScreeningGoal(Goal):
     def _build_runtime_prompt(self, info_state, avatar_name: str, language: str,
                               task: dict, user_input: str) -> str:
         prompt = self._build_prompt(info_state, avatar_name, language, include_visit_intro=False)
+        prompt += self._recent_context_instruction(info_state)
         prompt += "\n\nRUNTIME TURN DIRECTIVE:\n"
         prompt += self._task_directive(task, user_input)
         prompt += "\n\nIMPORTANT: Do not include the text 'RUNTIME TURN DIRECTIVE' or any directive labels in your response. Output only patient-facing speech."
         return prompt
+
+    def _recent_context_instruction(self, info_state) -> str:
+        """Give the LLM prior-session context without changing required topic coverage."""
+        last_summary = info_state.user.query('last_summary')
+        if not last_summary:
+            return ''
+        return (
+            "\n\nRECENT PATIENT CONTEXT FROM PRIOR SESSION:\n"
+            f"{last_summary}\n\n"
+            "Use this only to avoid sounding repetitive. If the current topic overlaps with "
+            "something the patient already discussed, ask it as an update or change-since-last-time "
+            "question instead of pretending it is brand new. Do not skip the selected topic. "
+            "Preserve the intent of the source question and ask only one question."
+        )
 
     def _task_directive(self, task: dict, user_input: str) -> str:
         task_type = task['type']
@@ -356,6 +371,7 @@ class ScreeningGoal(Goal):
             return (
                 f"Current task: ask the main screening question for {category}. "
                 f"Ask this source question in patient-friendly spoken language: \"{question}\" "
+                "If recent patient context already covers part of this topic, frame the question as an update while preserving the source question's intent. "
                 f"{self._sensitive_topic_instruction(category)}"
                 "Ask only one question."
             )
@@ -378,6 +394,7 @@ class ScreeningGoal(Goal):
                 f"Current task: move to the next topic, {category}. "
                 f"Briefly acknowledge the patient's last answer. {halfway}"
                 f"Then ask this source question in patient-friendly spoken language: \"{question}\" "
+                "If recent patient context already covers part of this topic, frame the question as an update while preserving the source question's intent. "
                 f"{self._sensitive_topic_instruction(category)}"
                 "Ask only one question."
             )
