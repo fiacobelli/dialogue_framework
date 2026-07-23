@@ -343,10 +343,11 @@ class ScreeningGoal(Goal):
         return (
             "\n\nRECENT PATIENT CONTEXT FROM PRIOR SESSION:\n"
             f"{last_summary}\n\n"
-            "Use this only to avoid sounding repetitive. If the current topic overlaps with "
-            "something the patient already discussed, ask it as an update or change-since-last-time "
-            "question instead of pretending it is brand new. Do not skip the selected topic. "
-            "Preserve the intent of the source question and ask only one question."
+            "Use this only if it directly applies to the current source question. If it does not, "
+            "ignore it completely. Do not recap the opening check-in after the patient says they are ready. "
+            "If the current topic overlaps with something the patient already discussed, ask it as an update "
+            "or change-since-last-time question instead of pretending it is brand new. Do not skip the selected "
+            "topic. Preserve the intent of the source question and ask only one question."
         )
 
     def _task_directive(self, task: dict, user_input: str) -> str:
@@ -371,6 +372,7 @@ class ScreeningGoal(Goal):
             return (
                 f"Current task: ask the main screening question for {category}. "
                 f"Ask this source question in patient-friendly spoken language: \"{question}\" "
+                "If the patient just said they are ready, ask the source question directly without recapping the opening check-in. "
                 "If recent patient context already covers part of this topic, frame the question as an update while preserving the source question's intent. "
                 f"{self._sensitive_topic_instruction(category)}"
                 "Ask only one question."
