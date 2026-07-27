@@ -62,6 +62,8 @@ FALLBACK_PROMPT = 'You are a helpful assistant.'
 
 # Database
 DB_PATH = config('DB_PATH', default='db/sdoh.db')
+SCREENING_ADMIN_USERNAME = config('SCREENING_ADMIN_USERNAME', default='admin')
+SCREENING_ADMIN_PASSWORD = config('SCREENING_ADMIN_PASSWORD', default=config('ADMIN_PASSWORD', default=''))
 
 # Groq Whisper transcription
 GROQ_API_KEY = config('GROQ_API_KEY', default='')

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --ink: #1f2933;
+            --muted: #64748b;
+            --line: #dbe4ee;
+            --paper: #f8fafc;
+            --panel: #ffffff;
+            --blue: #246bfe;
+            --blue-dark: #174eb6;
+            --orange: #d95f26;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: var(--paper);
+        }
+        a { color: var(--blue-dark); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 24px;
+            background: #102a43;
+            color: white;
+        }
+        .topbar h1 { margin: 0; font-size: 20px; }
+        .topbar nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .topbar a, .topbar button { color: white; }
+        .topbar button {
+            border: 1px solid rgba(255,255,255,.45);
+            background: transparent;
+            border-radius: 999px;
+            padding: 7px 12px;
+            cursor: pointer;
+        }
+        main { width: min(1180px, calc(100vw - 32px)); margin: 28px auto 64px; }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .login {
+            width: min(440px, calc(100vw - 32px));
+            margin: 10vh auto;
+        }
+        label { display: block; font-weight: 700; margin: 14px 0 6px; }
+        input {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            font: inherit;
+        }
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-radius: 999px;
+            background: var(--blue);
+            color: white;
+            font-weight: 800;
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+        .button.secondary {
+            background: #e8eef7;
+            color: #123;
+        }
+        .button.warning { background: var(--orange); }
+        .error { color: #b42318; font-weight: 700; }
+        .muted { color: var(--muted); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 14px;
+        }
+        .metric {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+            background: linear-gradient(180deg, #fff, #f7fbff);
+        }
+        .metric strong { display: block; font-size: 28px; margin-bottom: 4px; }
+        .table-wrap { overflow-x: auto; }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 720px;
+        }
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 9px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 14px;
+        }
+        th {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: #52616f;
+            background: #f2f6fb;
+        }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+        .pill {
+            display: inline-block;
+            border-radius: 999px;
+            background: #eef6ff;
+            color: #164e8f;
+            padding: 5px 10px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .message {
+            border-left: 4px solid #cbd5e1;
+            padding: 12px 14px;
+            margin: 10px 0;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+        .message.assistant { border-left-color: var(--blue); }
+        .message.user { border-left-color: var(--orange); }
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 14px;
+            border-radius: 12px;
+            max-height: 420px;
+            overflow: auto;
+        }
+        @media (max-width: 760px) {
+            .topbar { align-items: flex-start; flex-direction: column; }
+            main { width: min(100vw - 20px, 1180px); margin-top: 16px; }
+            .panel { padding: 14px; border-radius: 12px; }
+        }
+    </style>
+</head>
+<body>
+{% if mode not in ['login', 'locked'] %}
+<header class="topbar">
+    <h1>Screening Database Admin</h1>
+    <nav>
+        <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+        {% for table in tables %}
+            <a href="{{ url_for('admin.table_view', table_name=table) }}">{{ table }}</a>
+        {% endfor %}
+        <form method="post" action="{{ url_for('admin.logout') }}">
+            <button type="submit">Log out</button>
+        </form>
+    </nav>
+</header>
+{% endif %}
+
+<main>
+{% if mode == 'locked' %}
+    <section class="panel login">
+        <h1>Screening Database Admin</h1>
+        <p class="error">Admin access is not configured.</p>
+        <p>Set <code>SCREENING_ADMIN_PASSWORD</code> on the server before enabling this page.</p>
+    </section>
+{% elif mode == 'login' %}
+    <section class="panel login">
+        <h1>Screening Database Admin</h1>
+        <p class="muted">Read-only access to screening sessions, messages, referrals, and exports.</p>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <form method="post">
+            <label for="username">Username</label>
+            <input id="username" name="username" autocomplete="username" required>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <div class="toolbar">
+                <button class="button" type="submit">Log in</button>
+            </div>
+        </form>
+    </section>
+{% elif mode == 'dashboard' %}
+    <section class="panel">
+        <h2>Overview</h2>
+        <div class="grid">
+            {% for label, value in metrics.items() %}
+                <div class="metric"><strong>{{ value }}</strong>{{ label.replace('_', ' ') }}</div>
+            {% endfor %}
+        </div>
+        <div class="toolbar">
+            <a class="button warning" href="{{ url_for('admin.download_database') }}">Download full screening database</a>
+            {% for table in tables %}
+                <a class="button secondary" href="{{ url_for('admin.download_table', table_name=table) }}">{{ table }} CSV</a>
+            {% endfor %}
+        </div>
+        {% if timing %}
+            <p class="muted">
+                Avg user response latency: {{ timing.avg_response_latency_ms or 'n/a' }} ms ·
+                Avg LLM latency: {{ timing.avg_llm_latency_ms or 'n/a' }} ms ·
+                Avg speech confidence: {{ timing.avg_speech_confidence or 'n/a' }}
+            </p>
+        {% endif %}
+    </section>
+
+    <section class="grid">
+        {% for group, rows in grouped.items() %}
+            <div class="panel">
+                <h3>{{ group }}</h3>
+                <table>
+                    <thead><tr><th>Label</th><th>Count</th></tr></thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endfor %}
+    </section>
+
+    <section class="panel">
+        <h2>Recent Visits</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient ID</th><th>Visit</th><th>Phase</th><th>Started</th>
+                        <th>Completed</th><th>Turns</th><th>Messages</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recent_visits %}
+                    <tr>
+                        <td>{{ row.phone_pin }}</td>
+                        <td>{{ row.visit_number }}</td>
+                        <td><span class="pill">{{ row.phase }}</span></td>
+                        <td>{{ row.started_at }}</td>
+                        <td>{{ row.completed_at or '' }}</td>
+                        <td>{{ row.total_turns }}</td>
+                        <td>{{ row.message_count }}</td>
+                        <td><a href="{{ url_for('admin.visit_detail', visit_id=row.visit_id) }}">Open</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% elif mode == 'visit' %}
+    <section class="panel">
+        <h2>{{ visit.phone_pin }} · Visit {{ visit.visit_number }}</h2>
+        <p class="muted">
+            {{ visit.started_at }}{% if visit.completed_at %} to {{ visit.completed_at }}{% endif %}
+            · phase {{ visit.phase }} · avatar {{ visit.avatar_id }} · language {{ visit.language }}
+        </p>
+        {% if referral %}
+            <h3>Referral Classification</h3>
+            <div class="grid">
+                <div class="metric"><strong>{{ referral.social_worker or 'n/a' }}</strong>Social worker</div>
+                <div class="metric"><strong>{{ referral.dietitian or 'n/a' }}</strong>Dietitian</div>
+                <div class="metric"><strong>{{ referral.nephrologist or 'n/a' }}</strong>Nephrologist</div>
+                <div class="metric"><strong>{{ referral.nurse_practitioner or 'n/a' }}</strong>Nurse practitioner</div>
+            </div>
+            <p>{{ referral.verbal_summary }}</p>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h2>Conversation</h2>
+        {% for msg in messages %}
+            <article class="message {{ msg.role }}">
+                <p>
+                    <strong>{{ msg.role }}</strong>
+                    <span class="muted">
+                        turn {{ msg.turn_number or '' }} · {{ msg.timestamp or '' }}
+                        {% if msg.question_category %} · {{ msg.question_category }}{% endif %}
+                        {% if msg.probe_depth is not none %} · probe {{ msg.probe_depth }}{% endif %}
+                    </span>
+                </p>
+                <p>{{ msg.content }}</p>
+                {% if msg.input_modality or msg.response_latency_ms or msg.llm_latency_ms %}
+                    <p class="muted">
+                        input {{ msg.input_modality or 'n/a' }} · response latency {{ msg.response_latency_ms or 'n/a' }} ms ·
+                        LLM latency {{ msg.llm_latency_ms or 'n/a' }} ms · confidence {{ msg.speech_confidence or 'n/a' }}
+                    </p>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </section>
+
+    <section class="panel">
+        <h2>Client Turn Events</h2>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Turn</th><th>Event</th><th>Client time</th><th>Metadata</th></tr></thead>
+                <tbody>
+                {% for event in events %}
+                    <tr>
+                        <td>{{ event.turn_number }}</td>
+                        <td>{{ event.event_type }}</td>
+                        <td>{{ event.client_ts_ms }}</td>
+                        <td>{{ event.metadata }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Saved Dialogue State</h2>
+        {% for item in state %}
+            <h3>{{ item.type }}</h3>
+            <pre>{{ item.data }}</pre>
+        {% endfor %}
+    </section>
+{% elif mode == 'table' %}
+    <section class="panel">
+        <h2>{{ table_name }} table</h2>
+        <p class="muted">Showing {{ rows|length }} of {{ total }} rows.</p>
+        <div class="toolbar">
+            <a class="button warning" href="{{ url_for('admin.download_table', table_name=table_name) }}">Download CSV</a>
+            {% if offset > 0 %}
+                <a class="button secondary" href="{{ url_for('admin.table_view', table_name=table_name, limit=limit, offset=[offset - limit, 0]|max) }}">Previous</a>
+            {% endif %}
+            {% if offset + limit < total %}
+                <a class="button secondary" href="{{ url_for('admin.table_view', table_name=table_name, limit=limit, offset=offset + limit) }}">Next</a>
+            {% endif %}
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                    {% for col in columns %}
+                        <td>{{ row[col] }}</td>
+                    {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% else %}
+    <section class="panel">
+        <h1>{{ title }}</h1>
+        <p>{{ message }}</p>
+    </section>
+{% endif %}
+</main>
+</body>
+</html>
