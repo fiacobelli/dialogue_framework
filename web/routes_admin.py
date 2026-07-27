@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import hmac
+import csv
+import os
+import tempfile
+from io import BytesIO, StringIO
 
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
 
 from .config import ADMIN_PASSWORD, ADMIN_USERNAME
 from . import database as db
+from . import database_admin as admin_db
 from . import takedown
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -65,7 +80,83 @@ def sessions():
     if guard:
         return guard
     visits = db.list_admin_visits(limit=100)
-    return render_template('admin_sessions.html', visits=visits)
+    return render_template('admin_sessions.html', visits=visits, tables=admin_db.list_admin_tables())
+
+
+@admin_bp.route('/reports')
+def reports():
+    """Show lightweight study/database summaries."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    return render_template('admin_reports.html', report=admin_db.get_admin_report())
+
+
+@admin_bp.route('/tables/<table_name>')
+def table(table_name):
+    """Browse one allowlisted database table."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    try:
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        table_data = admin_db.get_admin_table(table_name, limit=limit, offset=offset)
+    except (TypeError, ValueError):
+        abort(404)
+    return render_template('admin_table.html', table=table_data)
+
+
+@admin_bp.route('/download/table/<table_name>.csv')
+def download_table_csv(table_name):
+    """Download one allowlisted database table as CSV."""
+    guard = _require_admin()
+    if guard:
+        return guard
+    try:
+        columns, rows = admin_db.get_admin_table_export(table_name)
+    except ValueError:
+        abort(404)
+
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=columns, extrasaction='ignore')
+    writer.writeheader()
+    writer.writerows(rows)
+    filename = f'microsite_{table_name}.csv'
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@admin_bp.route('/download/database')
+def download_database():
+    """Download a consistent SQLite backup of the microsite database."""
+    guard = _require_admin()
+    if guard:
+        return guard
+
+    handle = tempfile.NamedTemporaryFile(prefix='microsite_db_', suffix='.db', delete=False)
+    handle.close()
+    try:
+        admin_db.create_admin_database_backup(handle.name)
+        with open(handle.name, 'rb') as backup:
+            payload = BytesIO(backup.read())
+        payload.seek(0)
+    finally:
+        try:
+            os.remove(handle.name)
+        except OSError:
+            pass
+
+    return send_file(
+        payload,
+        as_attachment=True,
+        download_name='microsite_database_backup.db',
+        mimetype='application/octet-stream',
+        max_age=0,
+    )
 
 
 @admin_bp.route('/session/<session_id>')

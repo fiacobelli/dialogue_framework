@@ -55,6 +55,8 @@
             <div class="muted">{{ visit.session_id }}</div>
         </div>
         <div class="top-actions">
+            <a href="{{ url_for('admin.reports') }}">Reports</a>
+            <a href="{{ url_for('admin.table', table_name='visits') }}">Tables</a>
             {% if visit.publication_status == 'published' %}
                 <a href="{{ url_for('serve_microsite', session_id=visit.session_id) }}" target="_blank" rel="noopener">View public page</a>
             {% endif %}

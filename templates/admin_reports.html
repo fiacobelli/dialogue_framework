@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Microsite Database Reports</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; font-family: Georgia, serif; background: #F8F1E8; color: #1C1917; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 32px; background: #FFFDF9; border-bottom: 1px solid #E7DDD5; }
+        h1 { margin: 0; font-size: 30px; }
+        h2 { margin: 0 0 14px; }
+        main { display: grid; gap: 22px; padding: 28px 32px 40px; }
+        section { background: #FFFDF9; border: 1px solid #E7DDD5; border-radius: 16px; padding: 20px; }
+        a { color: #C05621; font-weight: 700; }
+        button { border: 0; border-radius: 10px; padding: 9px 12px; background: #6B7280; color: white; cursor: pointer; }
+        nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+        .card { padding: 16px; border-radius: 14px; background: #F8F1E8; border: 1px solid #E7DDD5; }
+        .label { color: #78716C; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+        .value { margin-top: 8px; font-size: 30px; font-weight: 800; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #EFE7DF; text-align: left; }
+        th { color: #78716C; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+        .table-links { display: flex; flex-wrap: wrap; gap: 10px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Database Reports</h1>
+        <nav>
+            <a href="{{ url_for('admin.sessions') }}">Sessions</a>
+            <a href="{{ url_for('admin.download_database') }}">Download Full DB</a>
+            <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+        </nav>
+    </header>
+    <main>
+        {% set totals = report.totals %}
+        {% set messages = report.message_totals %}
+        <section>
+            <h2>Study Overview</h2>
+            <div class="cards">
+                <div class="card"><div class="label">Sessions</div><div class="value">{{ totals.total_sessions }}</div></div>
+                <div class="card"><div class="label">Completed</div><div class="value">{{ totals.completed_sessions or 0 }}</div></div>
+                <div class="card"><div class="label">Published Pages</div><div class="value">{{ totals.published_pages or 0 }}</div></div>
+                <div class="card"><div class="label">Deleted</div><div class="value">{{ totals.deleted_sessions or 0 }}</div></div>
+                <div class="card"><div class="label">Sessions With Photos</div><div class="value">{{ totals.sessions_with_photos or 0 }}</div></div>
+                <div class="card"><div class="label">Photo Slots</div><div class="value">{{ totals.total_photo_slots or 0 }}</div></div>
+                <div class="card"><div class="label">User Messages</div><div class="value">{{ messages.user_messages or 0 }}</div></div>
+                <div class="card"><div class="label">Assistant Messages</div><div class="value">{{ messages.assistant_messages or 0 }}</div></div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Tables And Downloads</h2>
+            <div class="table-links">
+                {% for table in report.tables %}
+                    <a href="{{ url_for('admin.table', table_name=table.name) }}">{{ table.label }}</a>
+                    <a href="{{ url_for('admin.download_table_csv', table_name=table.name) }}">Download {{ table.name }} CSV</a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section>
+            <h2>Publication Status</h2>
+            <table>
+                <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                <tbody>
+                    {% for row in report.publication_counts %}
+                    <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+                    {% else %}
+                    <tr><td colspan="2">No publication records.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Session Phases</h2>
+            <table>
+                <thead><tr><th>Phase</th><th>Count</th></tr></thead>
+                <tbody>
+                    {% for row in report.phase_counts %}
+                    <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+                    {% else %}
+                    <tr><td colspan="2">No phase records.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Recent Sessions</h2>
+            <table>
+                <thead><tr><th>Session</th><th>Name</th><th>Phase</th><th>Publication</th><th>Updated</th></tr></thead>
+                <tbody>
+                    {% for visit in report.recent_visits %}
+                    <tr>
+                        <td><a href="{{ url_for('admin.session_detail', session_id=visit.session_id) }}">{{ visit.session_id[:8] }}</a></td>
+                        <td>{{ visit.patient_display_name or 'Not captured' }}</td>
+                        <td>{{ visit.phase }}</td>
+                        <td>{{ visit.publication_status }}</td>
+                        <td>{{ visit.updated_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No sessions found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

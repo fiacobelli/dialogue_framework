@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{ table.label }} Table</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; font-family: Georgia, serif; background: #F8F1E8; color: #1C1917; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 32px; background: #FFFDF9; border-bottom: 1px solid #E7DDD5; }
+        h1 { margin: 0 0 6px; font-size: 30px; }
+        main { padding: 28px 32px 40px; }
+        a { color: #C05621; font-weight: 700; }
+        button { border: 0; border-radius: 10px; padding: 9px 12px; background: #6B7280; color: white; cursor: pointer; }
+        nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .muted { color: #78716C; }
+        .panel { margin-bottom: 22px; padding: 18px; border: 1px solid #E7DDD5; border-radius: 16px; background: #FFFDF9; }
+        .pager { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+        .table-wrap { overflow: auto; border: 1px solid #E7DDD5; border-radius: 16px; background: #FFFDF9; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #EFE7DF; text-align: left; vertical-align: top; max-width: 440px; overflow-wrap: anywhere; }
+        th { position: sticky; top: 0; background: #FFFDF9; color: #78716C; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>{{ table.label }}</h1>
+            <div class="muted">{{ table.description }}</div>
+        </div>
+        <nav>
+            <a href="{{ url_for('admin.sessions') }}">Sessions</a>
+            <a href="{{ url_for('admin.reports') }}">Reports</a>
+            <a href="{{ url_for('admin.download_table_csv', table_name=table.name) }}">Download CSV</a>
+            <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+        </nav>
+    </header>
+    <main>
+        <section class="panel">
+            Showing {{ table.start_index }}-{{ table.end_index }} of {{ table.total }} rows.
+            <div class="pager">
+                {% if table.prev_offset is not none %}
+                    <a href="{{ url_for('admin.table', table_name=table.name, limit=table.limit, offset=table.prev_offset) }}">Previous</a>
+                {% endif %}
+                {% if table.next_offset is not none %}
+                    <a href="{{ url_for('admin.table', table_name=table.name, limit=table.limit, offset=table.next_offset) }}">Next</a>
+                {% endif %}
+            </div>
+        </section>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        {% for column in table.columns %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in table.rows %}
+                    <tr>
+                        {% for column in table.columns %}
+                            <td>{{ row[column] if row[column] is not none else '' }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="{{ table.columns|length }}">No rows found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { margin: 0; font-family: Georgia, serif; background: #F8F1E8; color: #1C1917; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 24px 32px; background: #FFFDF9; border-bottom: 1px solid #E7DDD5; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 32px; background: #FFFDF9; border-bottom: 1px solid #E7DDD5; }
         h1 { margin: 0; font-size: 30px; }
         main { padding: 28px 32px; }
         table { width: 100%; border-collapse: collapse; background: #FFFDF9; border: 1px solid #E7DDD5; border-radius: 16px; overflow: hidden; }
@@ -16,14 +16,29 @@
         .published { background: #DCFCE7; color: #166534; }
         .unpublished { background: #FEE2E2; color: #991B1B; }
         button { border: 0; border-radius: 10px; padding: 9px 12px; background: #6B7280; color: white; cursor: pointer; }
+        nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .panel { margin-bottom: 22px; padding: 18px; border: 1px solid #E7DDD5; border-radius: 16px; background: #FFFDF9; }
+        .table-links { display: flex; flex-wrap: wrap; gap: 10px; }
     </style>
 </head>
 <body>
     <header>
         <h1>Microsite Sessions</h1>
-        <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+        <nav>
+            <a href="{{ url_for('admin.reports') }}">Reports</a>
+            <a href="{{ url_for('admin.download_database') }}">Download DB</a>
+            <form method="post" action="{{ url_for('admin.logout') }}"><button type="submit">Logout</button></form>
+        </nav>
     </header>
     <main>
+        <section class="panel">
+            <strong>Database Tables</strong>
+            <div class="table-links">
+                {% for table in tables %}
+                    <a href="{{ url_for('admin.table', table_name=table.name) }}">{{ table.label }}</a>
+                {% endfor %}
+            </div>
+        </section>
         <table>
             <thead>
                 <tr>
