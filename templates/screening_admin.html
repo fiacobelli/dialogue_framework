@@ -36,6 +36,7 @@
         .topbar h1 { margin: 0; font-size: 20px; }
         .topbar nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
         .topbar a, .topbar button { color: white; }
+        .topbar a.secondary-link { color: #b8c7d9; }
         .topbar button {
             border: 1px solid rgba(255,255,255,.45);
             background: transparent;
@@ -88,6 +89,11 @@
             grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
             gap: 14px;
         }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
         .metric {
             border: 1px solid var(--line);
             border-radius: 14px;
@@ -100,6 +106,18 @@
             border-collapse: collapse;
             width: 100%;
             min-width: 720px;
+        }
+        .summary-table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+        .summary-table th:last-child,
+        .summary-table td:last-child {
+            text-align: right;
+            width: 80px;
+        }
+        .summary-table td:first-child {
+            overflow-wrap: anywhere;
         }
         th, td {
             border-bottom: 1px solid var(--line);
@@ -116,6 +134,7 @@
             background: #f2f6fb;
         }
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+        .toolbar.compact { gap: 8px; }
         .pill {
             display: inline-block;
             border-radius: 999px;
@@ -144,6 +163,23 @@
             max-height: 420px;
             overflow: auto;
         }
+        .section-title {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .section-title h2,
+        .section-title h3 { margin: 0; }
+        .data-note {
+            border-left: 4px solid var(--orange);
+            background: #fff7ed;
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-top: 14px;
+            color: #7c2d12;
+        }
         @media (max-width: 760px) {
             .topbar { align-items: flex-start; flex-direction: column; }
             main { width: min(100vw - 20px, 1180px); margin-top: 16px; }
@@ -157,9 +193,12 @@
     <h1>Screening Database Admin</h1>
     <nav>
         <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
-        {% for table in tables %}
-            <a href="{{ url_for('admin.table_view', table_name=table) }}">{{ table }}</a>
-        {% endfor %}
+        <a href="{{ url_for('admin.table_view', table_name='patients') }}">patients</a>
+        <a href="{{ url_for('admin.table_view', table_name='visits') }}">visits</a>
+        <a href="{{ url_for('admin.table_view', table_name='messages') }}">messages</a>
+        <a href="{{ url_for('admin.table_view', table_name='referrals') }}">referrals</a>
+        <a class="secondary-link" href="{{ url_for('admin.table_view', table_name='turn_events') }}">turn events</a>
+        <a class="secondary-link" href="{{ url_for('admin.table_view', table_name='info_state') }}">dialogue state</a>
         <form method="post" action="{{ url_for('admin.logout') }}">
             <button type="submit">Log out</button>
         </form>
@@ -191,17 +230,21 @@
     </section>
 {% elif mode == 'dashboard' %}
     <section class="panel">
-        <h2>Overview</h2>
+        <div class="section-title">
+            <h2>Overview</h2>
+            <span class="muted">Screening database snapshot</span>
+        </div>
         <div class="grid">
             {% for label, value in metrics.items() %}
                 <div class="metric"><strong>{{ value }}</strong>{{ label.replace('_', ' ') }}</div>
             {% endfor %}
         </div>
-        <div class="toolbar">
+        <div class="toolbar compact">
             <a class="button warning" href="{{ url_for('admin.download_database') }}">Download full screening database</a>
-            {% for table in tables %}
-                <a class="button secondary" href="{{ url_for('admin.download_table', table_name=table) }}">{{ table }} CSV</a>
-            {% endfor %}
+            <a class="button secondary" href="{{ url_for('admin.download_table', table_name='patients') }}">patients CSV</a>
+            <a class="button secondary" href="{{ url_for('admin.download_table', table_name='visits') }}">visits CSV</a>
+            <a class="button secondary" href="{{ url_for('admin.download_table', table_name='messages') }}">messages CSV</a>
+            <a class="button secondary" href="{{ url_for('admin.download_table', table_name='referrals') }}">referrals CSV</a>
         </div>
         {% if timing %}
             <p class="muted">
@@ -210,13 +253,16 @@
                 Avg speech confidence: {{ timing.avg_speech_confidence or 'n/a' }}
             </p>
         {% endif %}
+        <p class="data-note">
+            This view shows the raw database. Patient/test cleanup should be done from a copied export or approved manifest, not by editing live records.
+        </p>
     </section>
 
-    <section class="grid">
+    <section class="summary-grid">
         {% for group, rows in grouped.items() %}
             <div class="panel">
                 <h3>{{ group }}</h3>
-                <table>
+                <table class="summary-table">
                     <thead><tr><th>Label</th><th>Count</th></tr></thead>
                     <tbody>
                     {% for row in rows %}
