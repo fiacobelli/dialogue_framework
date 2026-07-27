@@ -1,0 +1,23 @@
+# systemd unit for the SDoH screening Flask app.
+#
+# REFERENCE / IaC ONLY — applied manually on EC2 as
+# /etc/systemd/system/sdoh.service; nothing auto-applies this on git pull.
+#
+# The --no-control-socket flag is intentional. Gunicorn 25's default control
+# socket caused the systemd-managed worker to hang before booting on EC2, while
+# the same app started cleanly without the control socket.
+
+[Unit]
+Description=SDoH Screening Flask App
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/sdoh-screening
+Environment=PYTHONPATH=.
+EnvironmentFile=/home/ubuntu/sdoh-screening/.env
+ExecStart=/home/ubuntu/sdoh-screening/venv/bin/gunicorn --no-control-socket -w 1 -k gthread --threads 4 -b 127.0.0.1:5000 web.app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
