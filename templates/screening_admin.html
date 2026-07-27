@@ -216,7 +216,7 @@
 {% elif mode == 'login' %}
     <section class="panel login">
         <h1>Screening Database Admin</h1>
-        <p class="muted">Read-only access to screening sessions, messages, referrals, and exports.</p>
+        <p class="muted">Read-only access to the configured screening cohort, messages, referrals, and exports.</p>
         {% if error %}<p class="error">{{ error }}</p>{% endif %}
         <form method="post">
             <label for="username">Username</label>
@@ -232,7 +232,7 @@
     <section class="panel">
         <div class="section-title">
             <h2>Overview</h2>
-            <span class="muted">Screening database snapshot</span>
+            <span class="muted">{{ cohort_name }} snapshot</span>
         </div>
         <div class="grid">
             {% for label, value in metrics.items() %}
@@ -240,7 +240,7 @@
             {% endfor %}
         </div>
         <div class="toolbar compact">
-            <a class="button warning" href="{{ url_for('admin.download_database') }}">Download full screening database</a>
+            <a class="button warning" href="{{ url_for('admin.download_database') }}">Download cohort database</a>
             <a class="button secondary" href="{{ url_for('admin.download_table', table_name='patients') }}">patients CSV</a>
             <a class="button secondary" href="{{ url_for('admin.download_table', table_name='visits') }}">visits CSV</a>
             <a class="button secondary" href="{{ url_for('admin.download_table', table_name='messages') }}">messages CSV</a>
@@ -254,8 +254,27 @@
             </p>
         {% endif %}
         <p class="data-note">
-            This view shows the raw database. Patient/test cleanup should be done from a copied export or approved manifest, not by editing live records.
+            This view is filtered to {{ cohort_name }} patients. The live database is unchanged; aliases with completed screening data are included in the cohort export.
         </p>
+        {% if not cohort_configured %}
+            <p class="error">No admin cohort allowlist is configured, so this view is intentionally empty.</p>
+        {% endif %}
+        {% if cohort_aliases %}
+            <p class="muted">
+                Included aliases:
+                {% for alias, canonical in cohort_aliases.items() %}
+                    {{ alias }} -> {{ canonical }}{% if not loop.last %}; {% endif %}
+                {% endfor %}
+            </p>
+        {% endif %}
+        {% if cohort_excluded_aliases %}
+            <p class="muted">
+                Excluded empty typo IDs:
+                {% for alias, canonical in cohort_excluded_aliases.items() %}
+                    {{ alias }} -> {{ canonical }}{% if not loop.last %}; {% endif %}
+                {% endfor %}
+            </p>
+        {% endif %}
     </section>
 
     <section class="summary-grid">
@@ -372,7 +391,7 @@
 {% elif mode == 'table' %}
     <section class="panel">
         <h2>{{ table_name }} table</h2>
-        <p class="muted">Showing {{ rows|length }} of {{ total }} rows.</p>
+        <p class="muted">Showing {{ rows|length }} of {{ total }} cohort rows.</p>
         <div class="toolbar">
             <a class="button warning" href="{{ url_for('admin.download_table', table_name=table_name) }}">Download CSV</a>
             {% if offset > 0 %}
