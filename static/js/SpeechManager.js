@@ -405,7 +405,7 @@ class SpeechManager {
         try {
             const wav = float32ToWav(merged);
             const audioBytes = wav.size || 0;
-            if (audioBytes > 1024 * 1024) {
+            if (audioBytes > 3 * 1024 * 1024) {
                 throw new Error('audio_too_large');
             }
             const form = new FormData();

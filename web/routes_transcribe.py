@@ -14,7 +14,7 @@ from .session_store import ensure_session, get_session
 transcribe_bp = Blueprint('transcribe', __name__, url_prefix='/api')
 logger = logging.getLogger(__name__)
 
-MAX_TRANSCRIBE_AUDIO_BYTES = 1024 * 1024
+MAX_TRANSCRIBE_AUDIO_BYTES = 3 * 1024 * 1024
 WHISPER_MODEL = 'whisper-large-v3-turbo'
 
 
