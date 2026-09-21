@@ -186,6 +186,9 @@ class App {
         const publishBtn = document.getElementById('publishBtn');
         if (publishBtn) publishBtn.addEventListener('click', () => this.publish());
 
+        const reviseDraftBtn = document.getElementById('reviseDraftBtn');
+        if (reviseDraftBtn) reviseDraftBtn.addEventListener('click', () => this.reviseDraft());
+
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
 
@@ -826,6 +829,32 @@ class App {
                 btn.disabled = false;
                 btn.textContent = 'Approve and Create Public Page';
             }
+        }
+    }
+
+    async reviseDraft() {
+        const input = document.getElementById('revisionInstruction');
+        const btn = document.getElementById('reviseDraftBtn');
+        const instruction = input?.value.trim() || '';
+        if (!instruction) {
+            ui.setStatus('Please describe what you would like changed.');
+            input?.focus();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Updating preview...';
+        ui.setStatus('Updating your private preview...');
+        try {
+            const data = await conversationAPI.reviseMicrosite(instruction, ui.getDraftReviewEdits());
+            ui.showDraftReview(data);
+            ui.setStatus('Preview updated. Review it again before approving.');
+        } catch (err) {
+            ui.setStatus(err.message || 'The preview could not be updated. Please try again.');
+            console.error(err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Update Preview';
         }
     }
 

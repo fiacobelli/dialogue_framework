@@ -912,6 +912,7 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
         'evidence_hash',
         'evidence_snapshot',
         'review_edits',
+        'revision_instruction',
     )
     with _conn() as c:
         version = _next_draft_version(c, visit_id)

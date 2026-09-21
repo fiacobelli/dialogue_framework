@@ -175,6 +175,23 @@ class ConversationAPI {
         return await res.json();
     }
 
+    async reviseMicrosite(instruction, edits) {
+        if (!this.sessionId) throw new Error('No active session');
+
+        const res = await fetch(this._url('/api/revise'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this._authPayload({ instruction, edits: edits || {} }))
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            const err = new Error(data.message || 'Failed to revise donor page');
+            err.detail = data;
+            throw err;
+        }
+        return data;
+    }
+
     async unpublishMicrosite(reason = 'user_request') {
         if (!this.sessionId) throw new Error('No active session');
 

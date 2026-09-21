@@ -498,3 +498,43 @@ def publish_microsite():
     except Exception as e:
         logger.exception('microsite_publish_unhandled_error session_id=%s', session_id)
         return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/revise', methods=['POST'])
+def revise_microsite():
+    """Apply a natural-language editing request to a private draft."""
+    data = request.json or {}
+    session_id = data.get('session_id')
+    if not session_id or not ensure_session(session_id):
+        return jsonify({'error': 'Invalid session'}), 400
+
+    s = get_session(session_id)
+    info_state = s['info_state']
+    if not is_patient_authorized(info_state, data):
+        return jsonify({'error': 'unauthorized_session'}), 403
+
+    try:
+        result = microsite.revise(
+            info_state,
+            s['goal_mgr'].goal.llm,
+            data.get('instruction', ''),
+            data.get('edits') or {},
+            session_id,
+            s,
+        )
+        visit_id = info_state.user.query('visit_id')
+        db.save_draft(
+            visit_id,
+            result,
+            status='draft',
+            llm_model=result.get('llm_model'),
+            prompt_version=result.get('prompt_version'),
+        )
+        db.update_visit_from_info_state(visit_id, info_state)
+        log_event(logger, 'microsite_draft_revised', session_id=session_id, visit_id=visit_id)
+        return jsonify(result)
+    except microsite.MicrositeGenerationError as e:
+        return jsonify(e.to_response()), e.status_code
+    except Exception as e:
+        logger.exception('microsite_revise_unhandled_error session_id=%s', session_id)
+        return jsonify({'error': str(e)}), 500

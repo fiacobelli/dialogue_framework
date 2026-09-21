@@ -471,6 +471,8 @@ class UIController {
         this.showHeroPhotoPicker(data);
         const editPanel = document.getElementById('editStoryPanel');
         if (editPanel) editPanel.open = false;
+        const revisionInstruction = document.getElementById('revisionInstruction');
+        if (revisionInstruction) revisionInstruction.value = '';
     }
 
     showHeroPhotoPicker(data) {

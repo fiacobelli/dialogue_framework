@@ -816,6 +816,35 @@
     margin-bottom: 18px;
 }
 
+.revision-request {
+    margin: 20px 0;
+}
+
+.revision-request label {
+    color: #1C1917;
+    display: block;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.revision-request textarea {
+    border: 1px solid #D6CEC8;
+    border-radius: 10px;
+    font: inherit;
+    padding: 12px 14px;
+    resize: vertical;
+    width: 100%;
+}
+
+.revision-request textarea:focus {
+    border-color: #E86F2C;
+    outline: 2px solid rgba(232, 111, 44, 0.18);
+}
+
+.revision-request button {
+    margin-top: 10px;
+}
+
 .donor-page-preview {
     margin: 22px 0;
 }
