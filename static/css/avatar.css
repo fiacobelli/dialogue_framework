@@ -1195,6 +1195,16 @@
     font-size: 14px;
 }
 
+.public-page-qr {
+    margin: 22px auto 0;
+}
+
+#publicPageQr {
+    display: block;
+    margin: 10px auto;
+    width: min(220px, 70vw);
+}
+
 .microsite-content {
     line-height: 1.6;
     color: #1C1917;

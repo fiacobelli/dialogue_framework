@@ -815,7 +815,7 @@ class App {
             const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
             this.micrositeUrl = fullUrl;
             ui.showPublished();
-            ui.showCelebration(fullUrl);
+            ui.showCelebration(fullUrl, data.public_qr_image);
             ui.showMicrositePreview(data);
             ui.setStatus('Published.');
         } catch (err) {

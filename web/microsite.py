@@ -1,9 +1,13 @@
 """Microsite generation logic."""
+import base64
+import io
 import os
 import re
 import json
 import hashlib
 from urllib.parse import quote
+
+import qrcode
 from flask import render_template, url_for
 from .config import (
     MICROSITES_DIR,
@@ -103,6 +107,13 @@ def _safe_parse_llm_json(text: str) -> dict | None:
         return parse_llm_json(text)
     except (json.JSONDecodeError, AttributeError, TypeError):
         return None
+
+
+def qr_data_url(value: str) -> str:
+    qr = qrcode.make(value)
+    buffer = io.BytesIO()
+    qr.save(buffer, format='PNG')
+    return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('ascii')}"
 
 
 def _evidence_hash(conversation: str) -> str:

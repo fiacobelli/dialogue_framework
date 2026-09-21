@@ -615,7 +615,7 @@ class UIController {
         return fullUrl;
     }
 
-    showCelebration(micrositeUrl) {
+    showCelebration(micrositeUrl, qrImage) {
         if (!micrositeUrl) {
             console.error('showCelebration: missing URL');
             return;
@@ -627,6 +627,11 @@ class UIController {
             return;
         }
         btn.href = micrositeUrl;
+        const qr = document.getElementById('publicPageQr');
+        if (qr) {
+            qr.src = qrImage || '';
+            qr.hidden = !qrImage;
+        }
         section.style.display = 'block';
         section.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
