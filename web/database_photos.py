@@ -34,6 +34,10 @@ def reserve_photo_slot(visit_id: str | None, session_id: str, max_photos: int) -
         stored_filename = f'{session_id}_{display_order}.jpg'
         photo_role = _normalized_photo_role(None, display_order)
         c.execute(
+            'DELETE FROM photos WHERE visit_id = ? AND display_order = ? AND deleted_at IS NOT NULL',
+            (visit_id, display_order),
+        )
+        c.execute(
             """
             INSERT INTO photos(
                 id, visit_id, stored_filename, display_order, source, photo_role, uploaded_at
@@ -98,18 +102,16 @@ def release_photo_reservation(visit_id: str | None, stored_filename: str) -> Non
     """Release a reserved photo slot after validation or file processing fails."""
     if not visit_id:
         return
-    now = _now()
     with _conn() as c:
         c.execute(
             """
-            UPDATE photos
-            SET deleted_at = ?
+            DELETE FROM photos
             WHERE visit_id = ?
               AND stored_filename = ?
               AND source = 'reserved'
               AND deleted_at IS NULL
             """,
-            (now, visit_id, stored_filename),
+            (visit_id, stored_filename),
         )
         count = c.execute(
             """
@@ -121,7 +123,7 @@ def release_photo_reservation(visit_id: str | None, stored_filename: str) -> Non
             """,
             (visit_id,),
         ).fetchone()['n']
-        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, now, visit_id))
+        c.execute('UPDATE visits SET photo_count = ?, updated_at = ? WHERE id = ?', (count, _now(), visit_id))
 
 
 def list_visit_photo_filenames(visit_id: str | None) -> list[str]:

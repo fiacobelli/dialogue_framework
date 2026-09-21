@@ -118,7 +118,10 @@ class ConversationAPI {
             body: formData
         });
 
-        const data = await res.json();
+        let data = {};
+        try {
+            data = await res.json();
+        } catch (_) {}
         if (!res.ok) throw new Error(data.error || 'Failed to upload photo');
         return data;
     }
