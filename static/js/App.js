@@ -469,6 +469,13 @@ class App {
             return;
         }
 
+        const state = turnManager.getState();
+        if ([TurnState.PROCESSING, TurnState.SYSTEM_SPEAKING].includes(state)) {
+            ui.setStatus('Please wait for Ludi to finish.');
+            return;
+        }
+        if (state === TurnState.USER_SPEAKING) speechManager.pauseListening();
+
         ui.clearTranscript();
         ui.showProcessing();
         this._markTypedSent();
@@ -478,6 +485,10 @@ class App {
     async skipCurrentQuestion() {
         if (!this.conversationActive || !conversationAPI.getSessionId()) return;
         if (!window.confirm('Skip this question and move to the next part of your story?')) return;
+
+        const state = turnManager.getState();
+        if ([TurnState.PROCESSING, TurnState.SYSTEM_SPEAKING].includes(state)) return;
+        if (state === TurnState.USER_SPEAKING) speechManager.pauseListening();
 
         speechManager.recordEvent('skip_clicked');
         ui.clearTranscript();
