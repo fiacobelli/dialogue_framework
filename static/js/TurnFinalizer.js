@@ -18,10 +18,9 @@ class TurnFinalizer {
         this.callbacks = callbacks;
         this.config = {
             idlePromptMs: config.idlePromptMs ?? TURN_IDLE_PROMPT_MS,
+            postSpeechPromptMs: config.postSpeechPromptMs ?? TURN_POST_SPEECH_PROMPT_MS,
             postSpeechGraceMs: config.postSpeechGraceMs ?? TURN_POST_SPEECH_GRACE_MS,
-            extendedPostSpeechGraceMs: config.extendedPostSpeechGraceMs ?? TURN_EXTENDED_POST_SPEECH_GRACE_MS,
-            maxSpeechAudioMs: config.maxSpeechAudioMs ?? TURN_MAX_SPEECH_AUDIO_MS,
-            maxTurnMs: config.maxTurnMs ?? TURN_MAX_TURN_MS,
+            maxWaitForSpeechMs: config.maxWaitForSpeechMs ?? TURN_MAX_WAIT_FOR_SPEECH_MS,
             now: config.now || (() => performance.now()),
             setTimer: config.setTimer || ((fn, ms) => setTimeout(fn, ms)),
             clearTimer: config.clearTimer || ((id) => clearTimeout(id)),
@@ -39,7 +38,6 @@ class TurnFinalizer {
         this.segmentCount = 0;
         this.speechDurationMs = 0;
         this.idlePromptCount = 0;
-        this.extendedPauseCount = 0;
     }
 
     start() {
@@ -47,7 +45,7 @@ class TurnFinalizer {
         this.state = TurnFinalizerState.WAITING_FOR_SPEECH;
         this.startedAt = this._now();
         this._schedule(this.config.idlePromptMs, () => this._idlePrompt());
-        this._scheduleTurnDeadline(() => this.abort('max_turn'));
+        this._schedule(this.config.maxWaitForSpeechMs, () => this.abort('max_wait_for_speech'));
     }
 
     speechStart() {
@@ -55,7 +53,6 @@ class TurnFinalizer {
         if (this.firstSpeechAt === null) this.firstSpeechAt = this._now();
         this.state = TurnFinalizerState.CAPTURING;
         this._clearTimers();
-        this._scheduleTurnDeadline(() => this.commit('max_turn'));
     }
 
     speechEnd(audioDurationMs = 0) {
@@ -66,18 +63,8 @@ class TurnFinalizer {
         this.state = TurnFinalizerState.POST_SPEECH_PAUSE;
         this._clearTimers();
 
-        if (this.speechDurationMs >= this.config.maxSpeechAudioMs) {
-            this.commit('max_audio');
-            return;
-        }
-
-        const delay = this._postSpeechDelayMs();
-        if (delay > this.config.postSpeechGraceMs) {
-            this.extendedPauseCount += 1;
-        }
-        this._schedule(Math.min(this.config.postSpeechGraceMs, delay), () => this._postSpeechPrompt());
-        this._schedule(delay, () => this.commit(delay > this.config.postSpeechGraceMs ? 'extended_pause_elapsed' : 'pause_elapsed'));
-        this._scheduleTurnDeadline(() => this.commit('max_turn'));
+        this._schedule(this.config.postSpeechPromptMs, () => this._postSpeechPrompt());
+        this._schedule(this.config.postSpeechGraceMs, () => this.commit('pause_elapsed'));
     }
 
     commit(reason = 'pause_elapsed') {
@@ -111,7 +98,6 @@ class TurnFinalizer {
                 : Math.max(0, Math.round(now - this.lastSpeechEndAt)),
             turn_elapsed_ms: this.startedAt === null ? null : Math.max(0, Math.round(now - this.startedAt)),
             idle_prompt_count: this.idlePromptCount,
-            extended_pause_count: this.extendedPauseCount,
         };
     }
 
@@ -125,11 +111,6 @@ class TurnFinalizer {
     _postSpeechPrompt() {
         if (this.state !== TurnFinalizerState.POST_SPEECH_PAUSE) return;
         this.callbacks.onPostSpeechPrompt?.(this.snapshot('post_speech_grace_elapsed'));
-    }
-
-    _postSpeechDelayMs() {
-        const shouldExtend = this.segmentCount >= 2 || this.speechDurationMs < 1800;
-        return shouldExtend ? this.config.extendedPostSpeechGraceMs : this.config.postSpeechGraceMs;
     }
 
     _active() {
@@ -147,12 +128,6 @@ class TurnFinalizer {
         }, ms);
         this._timers.add(timer);
         return timer;
-    }
-
-    _scheduleTurnDeadline(fn) {
-        if (this.startedAt === null) return null;
-        const elapsed = this._now() - this.startedAt;
-        return this._schedule(Math.max(0, this.config.maxTurnMs - elapsed), fn);
     }
 
     _clearTimers() {

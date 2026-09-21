@@ -92,7 +92,7 @@ class App {
         });
 
         speechManager.on('listeningAborted', ({ reason } = {}) => {
-            if (reason === 'max_turn') {
+            if (reason === 'max_wait_for_speech') {
                 ui.setStatus('I paused listening so the microphone would not stay open too long. Tap the mic or type below when ready.');
             }
             ui.showIdle();

@@ -1,9 +1,9 @@
 // Turn-finalization thresholds for automatic, low-burden patient speech input.
 const TURN_IDLE_PROMPT_MS = 8000;
-const TURN_POST_SPEECH_GRACE_MS = 3800;
-const TURN_EXTENDED_POST_SPEECH_GRACE_MS = 6500;
-const TURN_MAX_SPEECH_AUDIO_MS = 28000;
-const TURN_MAX_TURN_MS = 65000;
+const TURN_POST_SPEECH_PROMPT_MS = 2500;
+// VAD contributes about 1.5 seconds, for roughly 8 seconds of total silence.
+const TURN_POST_SPEECH_GRACE_MS = 6500;
+const TURN_MAX_WAIT_FOR_SPEECH_MS = 65000;
 
 // Language config for speech recognition
 const LANG_CONFIG = {

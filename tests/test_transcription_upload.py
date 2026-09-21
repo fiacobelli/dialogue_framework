@@ -29,13 +29,13 @@ class TranscriptionUploadTests(unittest.TestCase):
             })
         return result, groq_post
 
-    def test_accepts_audio_over_previous_one_megabyte_limit(self):
-        result, groq_post = self._post_audio(2 * 1024 * 1024)
+    def test_accepts_long_audio_within_limit(self):
+        result, groq_post = self._post_audio(4 * 1024 * 1024)
 
         self.assertEqual(result.status_code, 200)
         groq_post.assert_called_once()
 
-    def test_rejects_audio_over_three_megabytes(self):
+    def test_rejects_audio_over_ten_megabytes(self):
         result, groq_post = self._post_audio(routes_transcribe.MAX_TRANSCRIBE_AUDIO_BYTES + 1)
 
         self.assertEqual(result.status_code, 413)
