@@ -231,9 +231,18 @@
                 <div class="hero-photo-picker" id="heroPhotoPicker" aria-label="Choose main photo"></div>
 
                 <div class="revision-request">
-                    <label for="revisionInstruction">Would you like me to modify anything?</label>
+                    <div class="revision-label">Change the writing style</div>
+                    <div class="revision-presets" aria-label="Change writing style">
+                        <button type="button" class="revision-preset"
+                                data-instruction="Make the wording warmer and more informal while preserving every fact.">Make More Informal</button>
+                        <button type="button" class="revision-preset"
+                                data-instruction="Make the wording more formal while preserving every fact.">Make More Formal</button>
+                        <button type="button" class="revision-preset"
+                                data-instruction="Make the wording more compelling while preserving every fact and avoiding exaggeration.">Make More Compelling</button>
+                    </div>
+                    <label for="revisionInstruction">Something else you would like changed?</label>
                     <textarea id="revisionInstruction" rows="3" maxlength="500"
-                              placeholder="For example: Make it more informal, more formal, or more compelling."></textarea>
+                              placeholder="Describe another change"></textarea>
                     <button id="reviseDraftBtn" type="button">Update Preview</button>
                 </div>
 

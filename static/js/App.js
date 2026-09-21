@@ -188,6 +188,9 @@ class App {
 
         const reviseDraftBtn = document.getElementById('reviseDraftBtn');
         if (reviseDraftBtn) reviseDraftBtn.addEventListener('click', () => this.reviseDraft());
+        document.querySelectorAll('.revision-preset').forEach((button) => {
+            button.addEventListener('click', () => this.reviseDraft(button.dataset.instruction));
+        });
 
         const copyBtn = document.getElementById('copyLinkBtn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyLink());
@@ -843,28 +846,30 @@ class App {
         }
     }
 
-    async reviseDraft() {
+    async reviseDraft(presetInstruction = '') {
         const input = document.getElementById('revisionInstruction');
         const btn = document.getElementById('reviseDraftBtn');
-        const instruction = input?.value.trim() || '';
+        const instruction = presetInstruction || input?.value.trim() || '';
         if (!instruction) {
             ui.setStatus('Please describe what you would like changed.');
             input?.focus();
             return;
         }
 
-        btn.disabled = true;
+        const controls = document.querySelectorAll('.revision-request button');
+        controls.forEach((button) => { button.disabled = true; });
         btn.textContent = 'Updating preview...';
         ui.setStatus('Updating your private preview...');
         try {
             const data = await conversationAPI.reviseMicrosite(instruction, ui.getDraftReviewEdits());
             ui.showDraftReview(data);
             ui.setStatus('Preview updated. Review it again before approving.');
+            document.getElementById('draftPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (err) {
             ui.setStatus(err.message || 'The preview could not be updated. Please try again.');
             console.error(err);
         } finally {
-            btn.disabled = false;
+            controls.forEach((button) => { button.disabled = false; });
             btn.textContent = 'Update Preview';
         }
     }

@@ -473,6 +473,8 @@ class UIController {
         if (editPanel) editPanel.open = false;
         const revisionInstruction = document.getElementById('revisionInstruction');
         if (revisionInstruction) revisionInstruction.value = '';
+        const publicationConsent = document.getElementById('publicationConsent');
+        if (publicationConsent) publicationConsent.checked = false;
     }
 
     showHeroPhotoPicker(data) {
