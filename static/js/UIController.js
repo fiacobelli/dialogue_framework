@@ -21,6 +21,7 @@ class UIController {
             beginBtn: document.getElementById('beginBtn'),
             micPreflightStatus: document.getElementById('micPreflightStatus'),
             conversationUI: document.getElementById('conversationUI'),
+            conversationToggleBtn: document.getElementById('conversationToggleBtn'),
             messageBubble: document.getElementById('messageBubble'),
             micBtn: document.getElementById('micBtn'),
             micHint: document.getElementById('micHint'),
@@ -96,11 +97,24 @@ class UIController {
         if (this.elements.conversationUI) {
             this.elements.conversationUI.style.display = 'flex';
         }
+        this.elements.conversationScreen?.classList.add('conversation-collapsed');
+        if (this.elements.conversationToggleBtn) {
+            this.elements.conversationToggleBtn.style.display = 'inline-flex';
+        }
     }
 
     hideConversation() {
         if (this.elements.conversationUI) {
             this.elements.conversationUI.style.display = 'none';
+        }
+    }
+
+    toggleConversationPanel() {
+        const collapsed = this.elements.conversationScreen?.classList.toggle('conversation-collapsed');
+        const button = this.elements.conversationToggleBtn;
+        if (button) {
+            button.textContent = collapsed ? 'Read conversation' : 'Focus on avatar';
+            button.setAttribute('aria-expanded', String(!collapsed));
         }
     }
 
@@ -301,6 +315,10 @@ class UIController {
 
     setPostInterviewMode(enabled) {
         this.elements.conversationScreen?.classList.toggle('post-interview-mode', Boolean(enabled));
+        if (enabled) {
+            this.elements.conversationScreen?.classList.remove('conversation-collapsed');
+            if (this.elements.conversationToggleBtn) this.elements.conversationToggleBtn.style.display = 'none';
+        }
         if (this.elements.hubBackBtn) {
             this.elements.hubBackBtn.style.display = enabled ? 'inline-flex' : 'none';
         }

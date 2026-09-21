@@ -88,6 +88,11 @@
 <body class="microsite-interview-page">
     <div id="conversation-screen">
         <div class="avatar-panel">
+            <div class="restart-row" id="restartRow" style="display:none;">
+                <button type="button" id="restartBtn">&#8634; Start over</button>
+            </div>
+            <button type="button" class="back-btn conversation-toggle-btn" id="conversationToggleBtn"
+                    aria-controls="conversationUI" aria-expanded="false">Read conversation</button>
             <div class="avatar-frame" id="avatarFrame">
                 <img id="avatarPreview" loading="eager"
                      src="{{ url_for('static', filename='photos/avatars/' ~ avatar_scene_id ~ '.png') }}"
@@ -95,7 +100,7 @@
                 <div id="avatar">
                     <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                     <script type="text/javascript">
-                        AC_VHost_Embed(8688641, 400, 533, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 0);
+                        AC_VHost_Embed(8688641, 400, 533, "", 1, 0, {{ avatar_scene_id }}, 0, 1, 0, "3epui05wd6TRKAR6VBtYFvm4cKrZMwVw", 0, 1);
                     </script>
                 </div>
             </div>
@@ -302,6 +307,16 @@
             </div>
         </div>
     </div>
+
+    <dialog class="restart-dialog" id="restartDialog" aria-labelledby="restartDialogTitle"
+            aria-describedby="restartDialogDescription">
+        <h2 id="restartDialogTitle">Start over?</h2>
+        <p id="restartDialogDescription">This will end the current interview and return to the home screen.</p>
+        <div class="restart-dialog-actions">
+            <button type="button" id="continueInterviewBtn" autofocus>Continue interview</button>
+            <button type="button" id="confirmRestartBtn">Start over</button>
+        </div>
+    </dialog>
 
     <script>
         window.APP_BASE_PATH = {{ request.script_root | tojson }};

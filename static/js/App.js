@@ -150,6 +150,16 @@ class App {
         const skipQuestionBtn = document.getElementById('skipQuestionBtn');
         if (skipQuestionBtn) skipQuestionBtn.addEventListener('click', () => this.skipCurrentQuestion());
 
+        document.getElementById('conversationToggleBtn')?.addEventListener('click', () => ui.toggleConversationPanel());
+
+        document.getElementById('restartBtn')?.addEventListener('click', () => this._openRestartDialog());
+        document.getElementById('continueInterviewBtn')?.addEventListener('click', () => this._closeRestartDialog());
+        document.getElementById('confirmRestartBtn')?.addEventListener('click', () => this._restartConversation());
+        document.getElementById('restartDialog')?.addEventListener('cancel', (event) => {
+            event.preventDefault();
+            this._closeRestartDialog();
+        });
+
         const photoInput = document.getElementById('photoInput');
         if (photoInput) photoInput.addEventListener('change', () => this.uploadPhoto());
         document.querySelectorAll('.photo-section .photo-slot').forEach(slot => {
@@ -325,6 +335,7 @@ class App {
             this.conversationActive = true;
             this._paused = false;
             ui.showConversation();
+            document.getElementById('restartRow').style.display = 'block';
             ui.setStatus('');
             await speechManager.speak(this._lastSpokenText);
         } catch (err) {
@@ -548,6 +559,12 @@ class App {
             ui.updateProgress(data.progress);
             ui.showMessage(data.prompt);
             ui.setStatus('');
+
+            if (document.getElementById('restartDialog')?.open) {
+                this._restartResumeMode = data.phase === 'PHOTOS' ? 'photos' : 'repeat';
+                turnManager.reset();
+                return;
+            }
 
             if (data.phase === 'PHOTOS') {
                 this.conversationActive = false;
@@ -863,6 +880,41 @@ class App {
             console.error('Repeat failed:', err);
             ui.showIdle();
         });
+    }
+
+    _restartConversation() {
+        speechManager.destroy();
+        sessionStorage.removeItem('participantCode');
+        window.location.assign(appUrl('/'));
+    }
+
+    _openRestartDialog() {
+        const state = turnManager.getState();
+        if (this._paused) this._restartResumeMode = 'paused';
+        else if (this._agentPaused) this._restartResumeMode = 'agent-paused';
+        else if (state === TurnState.SYSTEM_SPEAKING) this._restartResumeMode = 'repeat';
+        else if (state === TurnState.PROCESSING) this._restartResumeMode = 'pending';
+        else this._restartResumeMode = 'listen';
+        this._paused = true;
+        speechManager.pauseListening();
+        if (state === TurnState.SYSTEM_SPEAKING) speechManager.stopSpeaking();
+        document.getElementById('restartDialog')?.showModal();
+    }
+
+    _closeRestartDialog() {
+        document.getElementById('restartDialog')?.close();
+        this._paused = this._restartResumeMode === 'paused';
+        if (this._restartResumeMode === 'photos') {
+            this.conversationActive = false;
+            speechManager.speak(this._lastSpokenText).then(() => this.startPhotoFlow());
+        } else if (!this.conversationActive || ['paused', 'agent-paused', 'pending'].includes(this._restartResumeMode)) {
+            return;
+        } else if (this._restartResumeMode === 'repeat') {
+            speechManager.speak(this._lastSpokenText);
+        } else {
+            ui.showResumed();
+            speechManager.startListening();
+        }
     }
 }
 
