@@ -156,7 +156,7 @@
                         <a class="campaign-btn primary" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener">Facebook</a>
                         <a class="campaign-btn primary" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
                         <a class="campaign-btn primary" href="{{ campaign.share.email }}">Email</a>
-                        <button class="campaign-btn ghost" type="button" id="copyBtn" onclick="copyCampaignLink({{ url | tojson }})">Copy Link</button>
+                        <button class="campaign-btn ghost" type="button" id="copyBtn" onclick='copyCampaignLink({{ url | tojson }})'>Copy Link</button>
                     </div>
                 </div>
             </div>
