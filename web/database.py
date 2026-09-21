@@ -154,6 +154,7 @@ def init_db() -> None:
                 generation_latency_ms INTEGER,
                 published_url TEXT,
                 html_path TEXT,
+                rendered_html TEXT,
                 generated_at TEXT NOT NULL,
                 reviewed_at TEXT,
                 published_at TEXT,
@@ -244,6 +245,9 @@ def init_db() -> None:
         _ensure_columns(c, 'photos', {
             'photo_role': 'TEXT',
             'caption': 'TEXT',
+        })
+        _ensure_columns(c, 'donor_page_drafts', {
+            'rendered_html': 'TEXT',
         })
 
 
@@ -451,6 +455,27 @@ def is_microsite_published(session_id: str) -> bool:
         and row['publication_status'] == 'published'
         and row['draft_status'] == 'published'
     )
+
+
+def get_published_page(session_id: str) -> dict[str, Any] | None:
+    """Return the latest approved page only while its visit remains published."""
+    with _conn() as c:
+        row = c.execute(
+            """
+            SELECT d.rendered_html, d.published_url, d.html_path
+            FROM donor_page_drafts d
+            JOIN visits v ON v.id = d.visit_id
+            WHERE v.session_id = ?
+              AND v.deleted_at IS NULL
+              AND v.publication_status = 'published'
+              AND v.draft_status = 'published'
+              AND d.status = 'published'
+            ORDER BY d.version DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def is_photo_public(stored_filename: str) -> bool:
@@ -921,8 +946,9 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
             INSERT INTO donor_page_drafts(
                 id, visit_id, version, status, name, headline, my_story, my_struggle,
                 my_hope, content_json, raw_llm_output, llm_model, prompt_version,
-                generation_latency_ms, published_url, html_path, generated_at, reviewed_at, published_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                generation_latency_ms, published_url, html_path, rendered_html,
+                generated_at, reviewed_at, published_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 _uuid(),
@@ -941,6 +967,7 @@ def save_draft(visit_id: str | None, result: dict, *, status: str = 'draft',
                 generation_latency_ms,
                 result.get('microsite_absolute_url'),
                 result.get('microsite_url'),
+                result.get('rendered_html'),
                 now,
                 now if status in {'reviewed', 'published'} else None,
                 now if status == 'published' else None,

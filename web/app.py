@@ -1,6 +1,6 @@
 """Flask application entry point for the dialogue framework."""
 
-from flask import Flask, render_template, send_from_directory, request, abort, url_for
+from flask import Flask, Response, render_template, send_from_directory, request, abort, url_for
 from decouple import config
 import os
 from urllib.parse import quote
@@ -186,9 +186,14 @@ def mobile_upload(session_id):
 
 @app.route('/site/<session_id>')
 def serve_microsite(session_id):
-    """Serve generated microsite HTML only when the DB marks it published."""
-    if not db.is_microsite_published(session_id):
+    """Serve the approved donor page stored in the database."""
+    page = db.get_published_page(session_id)
+    if not page:
         abort(404)
+    if page.get('rendered_html'):
+        return Response(page['rendered_html'], mimetype='text/html')
+
+    # Compatibility for pages published before rendered HTML moved into SQLite.
     abs_microsites_dir = os.path.abspath(MICROSITES_DIR)
     return send_from_directory(abs_microsites_dir, f'{session_id}.html')
 

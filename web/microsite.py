@@ -1,7 +1,6 @@
 """Microsite generation logic."""
 import base64
 import io
-import os
 import re
 import json
 import hashlib
@@ -10,7 +9,6 @@ from urllib.parse import quote
 import qrcode
 from flask import render_template, url_for
 from .config import (
-    MICROSITES_DIR,
     MICROSITE_PROMPT_FILE,
     MICROSITE_IMPACT_ITEMS,
     MICROSITE_NEXT_STEPS,
@@ -437,7 +435,8 @@ def _photo_urls(
     return [item['url'] for item in _photo_items(photos, session_id, preview=preview, token=token)]
 
 
-def _render_and_save(session_id: str, name: str, content: dict, photo_items: list[dict], hero_choice: str | None = None) -> tuple[str, str]:
+def _render_public_page(session_id: str, name: str, content: dict,
+                        photo_items: list[dict], hero_choice: str | None = None) -> tuple[str, str, str]:
     microsite_url = url_for('serve_microsite', session_id=session_id, _external=True)
     microsite_path = url_for('serve_microsite', session_id=session_id)
     photo_urls = [item['url'] for item in photo_items]
@@ -453,13 +452,7 @@ def _render_and_save(session_id: str, name: str, content: dict, photo_items: lis
         **_share_context(name, content, microsite_url, photo_items, hero_choice),
     )
 
-    filepath = os.path.join(MICROSITES_DIR, f'{session_id}.html')
-    tmp_filepath = f"{filepath}.tmp"
-    with open(tmp_filepath, 'w', encoding='utf-8') as f:
-        f.write(html)
-    os.replace(tmp_filepath, filepath)
-
-    return microsite_path, microsite_url
+    return microsite_path, microsite_url, html
 
 
 def _render_preview_html(name: str, content: dict, photo_items: list[dict], url: str = '#share', hero_choice: str | None = None) -> str:
@@ -659,7 +652,9 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
     photo_items = _photo_items(photos)
     hero_choice = _clean_text(edits.get('hero_photo')) or _clean_text(draft.get('hero_photo'))
     hero_photo = _hero_photo_id(photo_items, hero_choice)
-    microsite_path, microsite_url = _render_and_save(session_id, name, content, photo_items, hero_photo)
+    microsite_path, microsite_url, rendered_html = _render_public_page(
+        session_id, name, content, photo_items, hero_photo
+    )
 
     result = _build_result(
         content,
@@ -679,14 +674,17 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
         result['evidence_snapshot'] = draft['evidence_snapshot']
     result['review_edits'] = _review_edit_summary(draft, edits, name, content)
 
+    stored_result = dict(result)
+    result['rendered_html'] = rendered_html
+
     if name != draft.get('name'):
         info_state.user.update('patient_name', name)
         info_state.user.update('patient_name_status', 'corrected')
         info_state.user.update('patient_name_source', 'review_edit')
 
-    info_state.user.update('microsite_draft', result)
+    info_state.user.update('microsite_draft', stored_result)
     info_state.user.update('microsite_draft_status', 'published')
-    info_state.user.update('microsite', result)
+    info_state.user.update('microsite', stored_result)
     info_state.user.update('interview_phase', 'COMPLETE')
     persist_session_state(session_id, session or {'info_state': info_state})
 

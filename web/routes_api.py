@@ -488,6 +488,7 @@ def publish_microsite():
             photo_count=len(result.get('photos') or []),
         )
         result['public_qr_image'] = microsite.qr_data_url(result['microsite_absolute_url'])
+        result.pop('rendered_html', None)
         return jsonify(result)
     except microsite.MicrositeGenerationError as e:
         log_event(logger, 'microsite_publish_failed', level=logging.WARNING, session_id=session_id, error=e.error)
