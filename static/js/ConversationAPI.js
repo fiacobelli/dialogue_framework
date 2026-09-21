@@ -30,13 +30,15 @@ class ConversationAPI {
     }
 
     /** Start new session and get opening prompt. */
-    async startSession(lang, avatarId, timeoutMs = 20000) {
-        const params = new URLSearchParams({ lang, avatar: avatarId });
+    async startSession(lang, avatarId, participantCode, timeoutMs = 20000) {
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
         let res;
         try {
-            res = await fetch(this._url(`/api/session?${params.toString()}`), {
+            res = await fetch(this._url('/api/session'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lang, avatar: avatarId, participant_code: participantCode }),
                 signal: controller?.signal
             });
         } catch (err) {

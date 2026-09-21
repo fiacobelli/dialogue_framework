@@ -71,7 +71,7 @@ def input_guard_decision(step: dict[str, str] | None, text: str, turn_meta: dict
 def build_interview_state() -> dict[str, Any]:
     """Initial state stored in info_state.user."""
     return {
-        'version': 3,
+        'version': 4,
         'step_index': 0,
         'phase': 'INTRO',
         'awaiting': 'name',
@@ -95,11 +95,11 @@ def normalize_state(state: dict[str, Any] | None) -> dict[str, Any]:
         return base
 
     base.update(state)
-    base['version'] = 3
-    if base.get('awaiting') in {'story_answer', 'readiness'}:
+    base['version'] = 4
+    if base.get('awaiting') == 'story_answer':
         base['awaiting'] = 'main_answer'
     if base.get('phase') in {'WELCOME', 'BEFORE', 'DURING', 'HOPE'}:
-        base['phase'] = 'INTRO' if base.get('awaiting') == 'name' else 'STORY'
+        base['phase'] = 'INTRO' if base.get('awaiting') in {'name', 'readiness'} else 'STORY'
     base.setdefault('story_evidence', {})
     base.setdefault('skipped_steps', {})
     return base

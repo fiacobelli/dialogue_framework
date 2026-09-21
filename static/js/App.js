@@ -240,9 +240,10 @@ class App {
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const avatarId = window.AVATAR_ID || urlParams.get('avatar') || 'black_female';
+            const participantCode = sessionStorage.getItem('participantCode');
             const startupTimeoutMs = 25000;
             const [data] = await Promise.all([
-                conversationAPI.startSession('en', avatarId, startupTimeoutMs),
+                conversationAPI.startSession('en', avatarId, participantCode, startupTimeoutMs),
                 this._waitForSitePal()
             ]);
             const elapsedMs = this._startupStartedAt === null ? null : Math.max(0, Math.round(performance.now() - this._startupStartedAt));

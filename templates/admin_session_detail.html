@@ -67,6 +67,7 @@
         <section>
             <h2>Session Summary</h2>
             <dl>
+                <div><dt>Participant</dt><dd>{{ visit.participant_code or 'Not recorded' }}</dd></div>
                 <div><dt>Phase</dt><dd>{{ visit.phase }}</dd></div>
                 <div><dt>Awaiting</dt><dd>{{ visit.awaiting or 'None' }}</dd></div>
                 <div><dt>Draft</dt><dd><span class="pill">{{ visit.draft_status }}</span></dd></div>

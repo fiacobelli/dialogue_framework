@@ -44,6 +44,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS visits (
                 id TEXT PRIMARY KEY,
                 session_id TEXT UNIQUE NOT NULL,
+                participant_code TEXT,
                 language TEXT,
                 avatar_id TEXT,
                 avatar_profile_json TEXT DEFAULT '{}',
@@ -232,6 +233,7 @@ def init_db() -> None:
             'answered_question_text': 'TEXT',
         })
         _ensure_columns(c, 'visits', {
+            'participant_code': 'TEXT',
             'photo_requirement_status': "TEXT DEFAULT 'pending'",
             'publication_status': "TEXT DEFAULT 'not_published'",
             'publication_consent_version': 'TEXT',
@@ -597,7 +599,7 @@ def list_admin_visits(limit: int = 50) -> list[dict[str, Any]]:
         rows = c.execute(
             """
             SELECT
-                id, session_id, phase, patient_display_name, draft_status,
+                id, session_id, participant_code, phase, patient_display_name, draft_status,
                 publication_status, photo_count, total_user_turns,
                 total_assistant_turns, publication_consented_at,
                 started_at, updated_at, completed_at, published_at, unpublished_at, deleted_at
@@ -687,7 +689,8 @@ def get_admin_visit(session_id: str) -> dict[str, Any] | None:
     }
 
 
-def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict, user_agent: str = '') -> str:
+def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile: dict,
+                 participant_code: str = '', user_agent: str = '') -> str:
     now = _now()
     visit_id = _uuid()
     with _conn() as c:
@@ -697,11 +700,11 @@ def create_visit(session_id: str, language: str, avatar_id: str, avatar_profile:
         c.execute(
             """
             INSERT INTO visits(
-                id, session_id, language, avatar_id, avatar_profile_json,
+                id, session_id, participant_code, language, avatar_id, avatar_profile_json,
                 phase, user_agent, started_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
-            (visit_id, session_id, language, avatar_id, _json(avatar_profile),
+            (visit_id, session_id, participant_code, language, avatar_id, _json(avatar_profile),
              'WELCOME', user_agent, now, now),
         )
     return visit_id

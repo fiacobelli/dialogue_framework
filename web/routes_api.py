@@ -175,17 +175,18 @@ def health():
 
 @api_bp.route('/session', methods=['GET', 'POST'])
 def new_session():
-    """Create or resume a session. Returns opening prompt and phase."""
-    patient_id = None
+    """Create a session. Returns opening prompt and phase."""
     lang = request.args.get('lang', 'en')
     avatar_id = request.args.get('avatar', DEFAULT_AVATAR_ID)
 
-    if request.method == 'POST' and request.json:
-        patient_id = request.json.get('patient_id')
-        lang = request.json.get('lang', lang)
-        avatar_id = request.json.get('avatar', avatar_id)
+    data = request.get_json(silent=True) or {}
+    participant_code = str(data.get('participant_code') or request.args.get('participant_code', '')).strip()
+    if not participant_code.isdigit():
+        return jsonify({'error': 'A numeric participant number is required'}), 400
+    lang = data.get('lang', lang)
+    avatar_id = data.get('avatar', avatar_id)
 
-    session_id = patient_id or str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
     set_session(session_id, create_session(session_id))
 
     s = get_session(session_id)
@@ -201,12 +202,14 @@ def new_session():
     info_state.user.update('language', lang)
     info_state.user.update('avatar', avatar_id)
     info_state.user.update('avatar_profile', avatar_profile)
+    info_state.user.update('participant_code', participant_code)
     patient_token = issue_patient_token(info_state)
     visit_id = db.create_visit(
         session_id,
         lang,
         avatar_id,
         avatar_profile,
+        participant_code=participant_code,
         user_agent=request.headers.get('User-Agent', ''),
     )
     info_state.user.update('visit_id', visit_id)

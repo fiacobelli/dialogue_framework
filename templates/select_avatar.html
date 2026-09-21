@@ -47,6 +47,11 @@
             max-width: 720px;
         }
 
+        .participant-entry {
+            max-width: 360px;
+            margin-bottom: 24px;
+        }
+
         @media (min-width: 600px) {
             .avatar-options {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -144,20 +149,43 @@
 
     <div class="avatar-options" id="avatarOptions"></div>
 
+    <div class="pin-prompt participant-entry">
+        <label for="participantCode">Participant number</label>
+        <input type="text" id="participantCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        <div class="pin-hint" id="participantHint"></div>
+    </div>
+
     <button class="start-btn" id="startBtn" disabled>Start Interview</button>
 
     <script>
         const appBasePath = {{ request.script_root | tojson }};
         const appUrl = (path) => `${appBasePath}${path.startsWith('/') ? path : '/' + path}`;
         const avatars = {{ avatars | tojson }};
+        const participantInput = document.getElementById('participantCode');
+        const participantHint = document.getElementById('participantHint');
+        const startBtn = document.getElementById('startBtn');
         let selectedAvatar = null;
+
+        function updateStartButton() {
+            startBtn.disabled = !selectedAvatar || !/^\d+$/.test(participantInput.value.trim());
+        }
 
         function selectAvatar(id) {
             selectedAvatar = id;
             document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
             document.querySelector(`[data-avatar="${id}"]`).classList.add('selected');
-            document.getElementById('startBtn').disabled = false;
+            updateStartButton();
         }
+
+        participantInput.addEventListener('input', () => {
+            participantHint.textContent = participantInput.value && !/^\d+$/.test(participantInput.value.trim())
+                ? 'Use numbers only'
+                : '';
+            updateStartButton();
+        });
+        participantInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !startBtn.disabled) startBtn.click();
+        });
 
         const entries = Object.entries(avatars);
         for (let i = entries.length - 1; i > 0; i--) {
@@ -179,8 +207,10 @@
             container.appendChild(card);
         });
 
-        document.getElementById('startBtn').onclick = () => {
-            if (!selectedAvatar) return;
+        startBtn.onclick = () => {
+            const participantCode = participantInput.value.trim();
+            if (!selectedAvatar || !/^\d+$/.test(participantCode)) return;
+            sessionStorage.setItem('participantCode', participantCode);
             const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
             interviewUrl.searchParams.set('avatar', selectedAvatar);
             window.location.href = interviewUrl.toString();

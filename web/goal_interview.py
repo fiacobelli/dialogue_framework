@@ -37,11 +37,13 @@ from .interview_state import (
     current_step,
     input_guard_decision,
     is_skip_intent,
+    normalize_answer,
     normalize_state,
 )
 
 LOGS_DIR = 'logs'
 NAME_QUESTION = 'What name would you like shown publicly on your donor page?'
+READINESS_QUESTION = 'Are you ready to begin?'
 # Tasks that move to a new section and therefore owe the patient that section's question.
 ADVANCE_TASKS = {'ask_main', 'ack_then_next', 'ask_final', 'recover_generation_evidence'}
 
@@ -140,7 +142,9 @@ def has_accepted(state: dict, step_id: str | None) -> bool:
 
 
 def nonstory_question(awaiting: str) -> str | None:
-    return NAME_QUESTION if awaiting == 'name' else None
+    if awaiting == 'name':
+        return NAME_QUESTION
+    return READINESS_QUESTION if awaiting == 'readiness' else None
 
 
 def _next_question(step_index: int) -> str | None:
@@ -152,6 +156,8 @@ def _post_question(state: dict) -> str:
     """The question we now expect an answer to (fallback reply only)."""
     if state.get('awaiting') == 'name':
         return NAME_QUESTION
+    if state.get('awaiting') == 'readiness':
+        return READINESS_QUESTION
     step = current_step(state)
     return step['question'] if step else ''
 
@@ -178,7 +184,7 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
     """
     if awaiting == 'name':
         return ('The patient just told you their name. Greet them warmly by name in one short sentence, '
-                'and do NOT ask any question; the system will ask the first question. '
+                'and do NOT ask any question; the system will explain the interview. '
                 'Put the name they gave in the "name" field.')
     next_q = _next_question(state.get('step_index') or 0)
     if can_probe and step:
@@ -235,9 +241,9 @@ def apply_turn(
         name = turn['name'] or (user_input or '').strip()[:80]
         state.update(patient_name=name or None,
                      patient_name_status='confirmed' if name else 'missing',
-                     patient_name_source='user_explicit', phase='STORY',
-                     awaiting='main_answer', step_index=0)
-        return 'ask_main', {'sufficient': bool(name), 'reason': 'intro_name'}
+                     patient_name_source='user_explicit', phase='INTRO',
+                     awaiting='readiness', step_index=0)
+        return 'ask_readiness', {'sufficient': bool(name), 'reason': 'intro_name'}
 
     if step:
         answer_kind = 'followup_answer' if awaiting == 'followup_answer' else 'main_answer'
@@ -332,8 +338,8 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     previous_state = dict(state)
     answered_turn = previous_state.get('current_outgoing_turn') or {}
     awaiting = state.get('awaiting')
-    if awaiting not in {'name', 'main_answer', 'followup_answer'}:
-        awaiting = 'main_answer'  # coerce legacy states (e.g. 'readiness') into the story
+    if awaiting not in {'name', 'readiness', 'main_answer', 'followup_answer'}:
+        awaiting = 'main_answer'
         state['awaiting'], state['phase'] = 'main_answer', 'STORY'
     step = current_step(state)
     _log(session_id, f"USER: {user_input}")
@@ -346,7 +352,18 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     can_probe = False
 
     # ---- deterministic floors (no LLM) ----
-    if story_phase and is_skip_intent(user_input, turn_meta):
+    if awaiting == 'readiness':
+        normalized = normalize_answer(user_input)
+        not_ready = bool(re.search(r"\b(no|wait|unsure)\b|\bnot\b.*\b(ready|sure|start|begin)\b|\bdo not\b|\bdon't\b", normalized))
+        ready = bool(re.search(r"\b(yes|yeah|yep|ready|okay|ok|sure|start|begin)\b", normalized))
+        if ready and not not_ready:
+            state['awaiting'], state['phase'] = 'main_answer', 'STORY'
+            reply = current_step(state)['question']
+            task_type, decision = 'ask_main', {'sufficient': True, 'reason': 'readiness_confirmed'}
+        else:
+            reply = "No problem. When you are ready, please say yes."
+            task_type, decision = 'wait_for_readiness', {'sufficient': False, 'reason': 'not_ready'}
+    elif story_phase and is_skip_intent(user_input, turn_meta):
         _record_skipped_step(state, step, user_input, awaiting)
         decision = {'sufficient': True, 'reason': 'skip_requested', 'skipped': True}
         task_type, _ = advance_and_maybe_close(state, '')
@@ -413,6 +430,10 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
         else:
             reply = turn.get('reply') or turn.get('ack') or ''
         task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=needs_followup)
+        if awaiting == 'name':
+            name = state.get('patient_name') or 'there'
+            reply = (f"Thank you, {name}. We are about to begin the interview. "
+                     f"I will ask you {len(INTERVIEW_STEPS)} main questions about your story. {READINESS_QUESTION}")
         if invalid:
             decision = {'sufficient': True, 'reason': 'invalid_llm_json'}
         if not reply:

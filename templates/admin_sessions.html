@@ -43,6 +43,7 @@
             <thead>
                 <tr>
                     <th>Session</th>
+                    <th>Participant</th>
                     <th>Name</th>
                     <th>Phase</th>
                     <th>Draft</th>
@@ -55,6 +56,7 @@
                 {% for visit in visits %}
                 <tr>
                     <td><a href="{{ url_for('admin.session_detail', session_id=visit.session_id) }}">{{ visit.session_id[:8] }}</a></td>
+                    <td>{{ visit.participant_code or 'Not recorded' }}</td>
                     <td>{{ visit.patient_display_name or 'Not captured' }}</td>
                     <td>{{ visit.phase }}</td>
                     <td><span class="pill">{{ visit.draft_status }}</span></td>
@@ -63,7 +65,7 @@
                     <td>{{ visit.updated_at }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7">No sessions found.</td></tr>
+                <tr><td colspan="8">No sessions found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
