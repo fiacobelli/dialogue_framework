@@ -1,0 +1,22 @@
+name: transplant_flutter
+description: "Ludi kidney donor interview — tablet kiosk wrapper."
+publish_to: 'none'
+
+version: 1.0.1+2
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_inappwebview: 6.1.5
+  permission_handler: 12.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true
