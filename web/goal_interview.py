@@ -190,10 +190,12 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
     if can_probe and step:
         example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
         section_q = step.get('question', 'the current question')
+        required = step.get('required', 'a concrete detail relevant to this section')
         return (f'The patient just answered: "{section_q}". '
-                f'Judge whether their answer gives a concrete, specific detail for this section. '
+                f'Judge their answer together with relevant details they already shared. '
+                f'The answer is adequate when it provides {required}. '
                 f'If it is adequate, write only a warm acknowledgement in ack, set needs_followup to false, '
-                f'and leave followup_question empty. '
+                f'and leave followup_question empty. Do not demand another example just to embellish it. '
                 f'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
                 f'needs_followup to true and put one gentle, open follow-up question in followup_question. '
                 f'The follow-up should invite a specific example, such as: {example}.')
