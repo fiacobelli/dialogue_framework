@@ -1,7 +1,7 @@
 import unittest
 
-from web.goal_interview import _required_followup_question
-from web.interview_flow_config import INTERVIEW_STEPS
+from web.goal_interview import _can_probe, _required_followup_question, instruction_for
+from web.interview_flow_config import INTERVIEW_STEPS, MAX_FOLLOWUPS_PER_SECTION
 from web.routes_api import _valid_participant_code
 
 
@@ -15,6 +15,20 @@ class MicrositeUpdateTests(unittest.TestCase):
         question = _required_followup_question(INTERVIEW_STEPS[3], 'It would be better.')
         self.assertIn('having more energy', question)
         self.assertEqual(_required_followup_question(INTERVIEW_STEPS[3], 'More energy.'), '')
+
+    def test_second_followup_is_selective_and_bounded(self):
+        step = INTERVIEW_STEPS[2]
+        state = {'followup_count': 1}
+
+        self.assertEqual(MAX_FOLLOWUPS_PER_SECTION, 2)
+        self.assertTrue(_can_probe(state, 'followup_answer', step, 'I feel tired after dialysis.'))
+        self.assertFalse(_can_probe(state, 'followup_answer', step, "I don't know."))
+        self.assertFalse(_can_probe({'followup_count': 2}, 'followup_answer', step, 'I feel tired.'))
+
+        directive = instruction_for(state, 'followup_answer', step, can_probe=True)
+        self.assertIn('useful concrete detail', directive)
+        self.assertIn('one important part unclear', directive)
+        self.assertNotIn('If it is still vague', directive)
 
 
 if __name__ == '__main__':

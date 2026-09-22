@@ -77,8 +77,8 @@ FOLLOWUP_EXAMPLES = {
     ),
 }
 
-# One optional probe can clarify a thin answer without making the interview repetitive.
-MAX_FOLLOWUPS_PER_SECTION = 1
+# Use one follow-up by default; allow one final clarification when it is still useful.
+MAX_FOLLOWUPS_PER_SECTION = 2
 
 GENERATION_REQUIRED_EVIDENCE_GROUPS = {
     'identity': ('personal_background',),

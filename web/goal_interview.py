@@ -189,6 +189,17 @@ def _required_followup_question(step: dict | None, answer: str) -> str:
     return ''
 
 
+def _can_probe(state: dict, awaiting: str, step: dict | None, answer: str) -> bool:
+    followup_count = int(state.get('followup_count') or 0)
+    return (
+        awaiting in {'main_answer', 'followup_answer'}
+        and step is not None
+        and bool(step.get('allow_follow_up'))
+        and followup_count < MAX_FOLLOWUPS_PER_SECTION
+        and not (awaiting == 'followup_answer' and normalize_answer(answer) in OBVIOUSLY_VAGUE_ANSWERS)
+    )
+
+
 def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False) -> str:
     """Build the per-turn instruction telling the LLM what to voice this turn.
 
@@ -205,13 +216,20 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
         example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
         section_q = step.get('question', 'the current question')
         required = step.get('required', 'a concrete detail relevant to this section')
+        probe_rule = (
+            'This is the answer to your first follow-up. Set needs_followup to true only if it contains '
+            'a useful concrete detail but leaves one important part unclear. Do not ask again if the patient '
+            'is unsure, cannot add detail, repeats a vague answer, or has adequately answered. '
+            if awaiting == 'followup_answer' else
+            'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
+            'needs_followup to true and put one gentle, open follow-up question in followup_question. '
+        )
         return (f'The patient just answered: "{section_q}". '
                 f'Judge their answer together with relevant details they already shared. '
                 f'The answer is adequate when it provides {required}. '
                 f'If it is adequate, write only a warm acknowledgement in ack, set needs_followup to false, '
                 f'and leave followup_question empty. Do not demand another example just to embellish it. '
-                f'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
-                f'needs_followup to true and put one gentle, open follow-up question in followup_question. '
+                f'{probe_rule}'
                 f'Use this topic-specific example as a guide: "{example}"')
     if next_q:
         return ('Warmly acknowledge what the patient just shared in one short sentence that shows you '
@@ -400,12 +418,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
 
     # ---- one LLM call (plain reply + name hint) ----
     if task_type is None:
-        can_probe = (
-            awaiting in {'main_answer', 'followup_answer'}
-            and step is not None
-            and bool(step.get('allow_follow_up'))
-            and int(state.get('followup_count') or 0) < MAX_FOLLOWUPS_PER_SECTION
-        )
+        can_probe = _can_probe(state, awaiting, step, user_input)
         prompt = system_prompt.replace('{avatar_name}', avatar) + '\n\n' + build_turn_directive(
             instruction_for(state, awaiting, step, can_probe=can_probe), offer_followup=can_probe)
         if language != 'en':
@@ -425,7 +438,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
             turn = validate_turn(parse_turn(raw))
         if can_probe and turn.get('valid') and turn.get('needs_followup') and not _text(turn.get('followup_question')):
             turn['followup_question'] = _fallback_followup_question(step)
-        required_followup = _required_followup_question(step, user_input) if can_probe else ''
+        required_followup = _required_followup_question(step, user_input) if can_probe and awaiting == 'main_answer' else ''
         if turn.get('valid') and required_followup:
             turn['needs_followup'] = True
             turn['followup_question'] = required_followup
