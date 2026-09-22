@@ -55,6 +55,11 @@ OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
 GROQ_API_URL = config('GROQ_API_URL', default='https://api.groq.com/openai/v1/chat/completions')
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_WHISPER_URL = config('GROQ_WHISPER_URL', default='https://api.groq.com/openai/v1/audio/transcriptions')
+AZURE_OPENAI_BASE_URL = config(
+    'AZURE_OPENAI_BASE_URL',
+    default='https://luc-research-ai-resource.services.ai.azure.com/openai/v1/',
+)
+AZURE_OPENAI_API_KEY = config('AZURE_OPENAI_API_KEY', default='')
 LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 
 # Provider + model. One model serves both the interview turns and the one-shot

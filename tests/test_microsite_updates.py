@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import Mock, patch
 
 from web.goal_interview import _can_probe, _required_followup_question, instruction_for
 from web.interview_flow_config import INTERVIEW_STEPS, MAX_FOLLOWUPS_PER_SECTION
+from web.llm_provider import AzureOpenAIProvider
 from web.routes_api import _valid_participant_code
 
 
@@ -29,6 +31,26 @@ class MicrositeUpdateTests(unittest.TestCase):
         self.assertIn('useful concrete detail', directive)
         self.assertIn('one important part unclear', directive)
         self.assertNotIn('If it is still vague', directive)
+
+    @patch('web.llm_provider.OpenAI')
+    def test_azure_provider_uses_responses_api(self, openai_client):
+        response = Mock(output_text='{"ack":"Thank you."}')
+        openai_client.return_value.responses.create.return_value = response
+        provider = AzureOpenAIProvider('gpt-6-astra', 'test-key', 'https://example.test/openai/v1/')
+
+        result = provider.generate(
+            [{'role': 'user', 'content': 'Hello'}],
+            system_prompt='Return JSON.',
+            json_mode=True,
+            temperature=0.4,
+        )
+
+        self.assertEqual(result, response.output_text)
+        request = openai_client.return_value.responses.create.call_args.kwargs
+        self.assertEqual(request['model'], 'gpt-6-astra')
+        self.assertEqual(request['instructions'], 'Return JSON.')
+        self.assertEqual(request['text'], {'format': {'type': 'json_object'}})
+        self.assertNotIn('temperature', request)
 
 
 if __name__ == '__main__':

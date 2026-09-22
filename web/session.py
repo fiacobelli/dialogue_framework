@@ -1,6 +1,5 @@
 """Session creation and management."""
 import os
-from decouple import config
 
 from information_state import InformationState
 from dialogue_manager_passive import DialogueManagerPassive
@@ -10,7 +9,18 @@ from rules import RuleManager
 from .goal_interview import InterviewGoalManager
 from .llm_provider import get_provider
 from strings import BELSTR
-from .config import KB_FILE, USER_MODELS_DIR, SYSTEM_PROMPT_FILE, LLM_MODEL, LLM_FALLBACK_MODEL, load_prompt
+from .config import (
+    AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_BASE_URL,
+    GROQ_API_KEY,
+    KB_FILE,
+    LLM_FALLBACK_MODEL,
+    LLM_MODEL,
+    LLM_PROVIDER,
+    SYSTEM_PROMPT_FILE,
+    USER_MODELS_DIR,
+    load_prompt,
+)
 
 
 def create_session(session_id: str) -> dict:
@@ -21,13 +31,16 @@ def create_session(session_id: str) -> dict:
     info_state.bel.add(BELSTR.DONE, False)
     info_state.user.update('session_id', session_id)
 
-    provider_name = config('LLM_PROVIDER', default='ollama')
-    default_model = 'openai/gpt-oss-120b' if provider_name == 'groq' else 'mistral:7b-instruct'
+    provider_name = LLM_PROVIDER
+    default_model = {'groq': 'openai/gpt-oss-120b', 'azure_openai': 'gpt-6-astra'}.get(
+        provider_name, 'mistral:7b-instruct')
     provider_kwargs = {'model': LLM_MODEL or default_model}
     if provider_name == 'groq':
-        provider_kwargs['api_key'] = config('GROQ_API_KEY')
+        provider_kwargs['api_key'] = GROQ_API_KEY
         if LLM_FALLBACK_MODEL:
             provider_kwargs['fallback_model'] = LLM_FALLBACK_MODEL
+    elif provider_name == 'azure_openai':
+        provider_kwargs.update(api_key=AZURE_OPENAI_API_KEY, base_url=AZURE_OPENAI_BASE_URL)
     provider = get_provider(provider_name, **provider_kwargs)
 
     nlu = NLUWeb(info_state, provider)

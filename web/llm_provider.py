@@ -1,9 +1,10 @@
 """LLM provider abstraction layer.
 
-Supports multiple backends (Ollama, Groq) with a common interface.
+Supports multiple backends (Ollama, Groq, Azure OpenAI) with a common interface.
 """
 import logging
 import requests
+from openai import OpenAI
 from .config import OLLAMA_BASE_URL, GROQ_API_URL, LLM_ERROR_MESSAGE
 
 logger = logging.getLogger(__name__)
@@ -77,9 +78,29 @@ class GroqProvider:
             return LLM_ERROR_MESSAGE
 
 
+class AzureOpenAIProvider:
+    """Azure-hosted OpenAI model using the Responses API."""
+
+    def __init__(self, model: str, api_key: str, base_url: str):
+        self.model = model
+        self.client = OpenAI(base_url=base_url, api_key=api_key)
+
+    def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
+        request = {'model': self.model, 'input': messages}
+        if system_prompt:
+            request['instructions'] = system_prompt
+        if json_mode:
+            request['text'] = {'format': {'type': 'json_object'}}
+        try:
+            return self.client.responses.create(**request).output_text
+        except Exception as exc:
+            logger.warning("Azure OpenAI call failed for model %s: %s", self.model, exc)
+            return LLM_ERROR_MESSAGE
+
+
 def get_provider(name: str, **kwargs):
     """Factory function to get configured LLM provider."""
-    providers = {"ollama": OllamaProvider, "groq": GroqProvider}
+    providers = {"ollama": OllamaProvider, "groq": GroqProvider, "azure_openai": AzureOpenAIProvider}
     if name not in providers:
         raise ValueError(f"Unknown provider: {name}")
     return providers[name](**kwargs)

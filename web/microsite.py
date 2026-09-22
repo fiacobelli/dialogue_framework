@@ -17,6 +17,8 @@ from .config import (
     LLM_PROVIDER,
     GROQ_API_KEY,
     OLLAMA_BASE_URL,
+    AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_BASE_URL,
     clean_text as _clean_text,
     load_prompt,
 )
@@ -88,7 +90,8 @@ def _generation_provider(fallback):
     """Build the config-driven model for the one-shot generation call.
     Falls back to the interview provider if it cannot be constructed."""
     try:
-        default_model = 'openai/gpt-oss-120b' if LLM_PROVIDER == 'groq' else 'mistral:7b-instruct'
+        default_model = {'groq': 'openai/gpt-oss-120b', 'azure_openai': 'gpt-6-astra'}.get(
+            LLM_PROVIDER, 'mistral:7b-instruct')
         kwargs = {'model': LLM_MODEL or default_model}
         if LLM_PROVIDER == 'groq':
             kwargs['api_key'] = GROQ_API_KEY
@@ -96,6 +99,8 @@ def _generation_provider(fallback):
                 kwargs['fallback_model'] = LLM_FALLBACK_MODEL
         elif LLM_PROVIDER == 'ollama':
             kwargs['base_url'] = OLLAMA_BASE_URL
+        elif LLM_PROVIDER == 'azure_openai':
+            kwargs.update(api_key=AZURE_OPENAI_API_KEY, base_url=AZURE_OPENAI_BASE_URL)
         return get_provider(LLM_PROVIDER, **kwargs)
     except Exception:
         return fallback

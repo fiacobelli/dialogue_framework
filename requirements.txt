@@ -29,5 +29,6 @@ python-decouple
 gensim
 flask>=3.0.0
 requests>=2.31.0
+openai>=2.3.0
 qrcode[pil]>=7.4
 Pillow>=10.0.0
