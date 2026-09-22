@@ -3,6 +3,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
+import re
 import subprocess
 import uuid
 
@@ -18,6 +19,10 @@ from .structured_logging import log_event
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 logger = logging.getLogger(__name__)
+
+
+def _valid_participant_code(value: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9]+', value or ''))
 
 
 def _turn_meta(data: dict) -> dict:
@@ -181,8 +186,8 @@ def new_session():
 
     data = request.get_json(silent=True) or {}
     participant_code = str(data.get('participant_code') or request.args.get('participant_code', '')).strip()
-    if not participant_code.isdigit():
-        return jsonify({'error': 'A numeric participant number is required'}), 400
+    if not _valid_participant_code(participant_code):
+        return jsonify({'error': 'A participant ID using letters or numbers only is required'}), 400
     lang = data.get('lang', lang)
     avatar_id = data.get('avatar', avatar_id)
 

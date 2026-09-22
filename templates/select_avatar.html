@@ -150,8 +150,8 @@
     <div class="avatar-options" id="avatarOptions"></div>
 
     <div class="pin-prompt participant-entry">
-        <label for="participantCode">Participant number</label>
-        <input type="text" id="participantCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        <label for="participantCode">Participant ID</label>
+        <input type="text" id="participantCode" inputmode="text" pattern="[A-Za-z0-9]+" autocomplete="off">
         <div class="pin-hint" id="participantHint"></div>
     </div>
 
@@ -165,9 +165,10 @@
         const participantHint = document.getElementById('participantHint');
         const startBtn = document.getElementById('startBtn');
         let selectedAvatar = null;
+        const validParticipantId = (value) => /^[A-Za-z0-9]+$/.test(value.trim());
 
         function updateStartButton() {
-            startBtn.disabled = !selectedAvatar || !/^\d+$/.test(participantInput.value.trim());
+            startBtn.disabled = !selectedAvatar || !validParticipantId(participantInput.value);
         }
 
         function selectAvatar(id) {
@@ -178,8 +179,8 @@
         }
 
         participantInput.addEventListener('input', () => {
-            participantHint.textContent = participantInput.value && !/^\d+$/.test(participantInput.value.trim())
-                ? 'Use numbers only'
+            participantHint.textContent = participantInput.value && !validParticipantId(participantInput.value)
+                ? 'Use letters and numbers only'
                 : '';
             updateStartButton();
         });
@@ -209,7 +210,7 @@
 
         startBtn.onclick = () => {
             const participantCode = participantInput.value.trim();
-            if (!selectedAvatar || !/^\d+$/.test(participantCode)) return;
+            if (!selectedAvatar || !validParticipantId(participantCode)) return;
             sessionStorage.setItem('participantCode', participantCode);
             const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
             interviewUrl.searchParams.set('avatar', selectedAvatar);

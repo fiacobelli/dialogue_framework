@@ -44,6 +44,12 @@ from .interview_state import (
 LOGS_DIR = 'logs'
 NAME_QUESTION = 'What name would you like shown publicly on your donor page?'
 READINESS_QUESTION = 'Are you ready to begin?'
+OBVIOUSLY_VAGUE_ANSWERS = {
+    'yes', 'yeah', 'yep', 'it is bad', "it's bad", 'it is hard', "it's hard",
+    'it would be better', 'it will be better', "it'll be better", 'it would make it better',
+    'it will make it better', "it'll make it better", 'i am a good person', "i'm a good person",
+    'i do not know', "i don't know", 'not sure',
+}
 # Tasks that move to a new section and therefore owe the patient that section's question.
 ADVANCE_TASKS = {'ask_main', 'ack_then_next', 'ask_final', 'recover_generation_evidence'}
 
@@ -171,8 +177,16 @@ def _join_reply(ack: str, question: str) -> str:
 
 
 def _fallback_followup_question(step: dict | None) -> str:
-    focus = (step or {}).get('focus') or 'what matters most in this part of your story'
-    return f'Could you tell me a little more about {focus}, with one specific example?'
+    return FOLLOWUP_EXAMPLES.get(
+        (step or {}).get('id'),
+        'Could you tell me a little more, with one specific example?',
+    )
+
+
+def _required_followup_question(step: dict | None, answer: str) -> str:
+    if normalize_answer(answer) in OBVIOUSLY_VAGUE_ANSWERS:
+        return _fallback_followup_question(step)
+    return ''
 
 
 def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False) -> str:
@@ -198,7 +212,7 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
                 f'and leave followup_question empty. Do not demand another example just to embellish it. '
                 f'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
                 f'needs_followup to true and put one gentle, open follow-up question in followup_question. '
-                f'The follow-up should invite a specific example, such as: {example}.')
+                f'Use this topic-specific example as a guide: "{example}"')
     if next_q:
         return ('Warmly acknowledge what the patient just shared in one short sentence that shows you '
                 'truly heard them, and do NOT ask any question; the system will ask the next question.')
@@ -411,6 +425,10 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
             turn = validate_turn(parse_turn(raw))
         if can_probe and turn.get('valid') and turn.get('needs_followup') and not _text(turn.get('followup_question')):
             turn['followup_question'] = _fallback_followup_question(step)
+        required_followup = _required_followup_question(step, user_input) if can_probe else ''
+        if turn.get('valid') and required_followup:
+            turn['needs_followup'] = True
+            turn['followup_question'] = required_followup
         latency = int((time.perf_counter() - t0) * 1000)
 
         invalid = not _probe_contract_valid(turn, can_probe)

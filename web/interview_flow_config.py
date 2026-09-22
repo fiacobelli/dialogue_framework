@@ -61,19 +61,19 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
 
 FOLLOWUP_EXAMPLES = {
     'personal_background': (
-        'for example, family roles, work, hobbies, faith or community, or what people close to you value about you'
+        'Could you tell me a little more, such as what you do, who matters most to you, or a hobby you enjoy?'
     ),
     'daily_life': (
-        'for example, some people get very tired, have trouble exercising, work around dialysis, or struggle with fluid limits'
+        'Could you give me an example, such as feeling tired, missing an activity, or planning your day around dialysis?'
     ),
     'transplant_hope': (
-        'for example, having more energy, traveling, going back to work, or spending more time with family'
+        'What would you be able to do, such as having more energy, returning to work, enjoying a hobby, or spending time with family?'
     ),
     'donor_message': (
-        'for example, what you hope a donor understands about you, your family, or why this help would matter'
+        'Could you share an example of a value, family story, or reason this help would matter to you?'
     ),
     'support_network': (
-        'for example, a spouse, children, friends, church, community group, or whether you are mostly managing on your own'
+        'Who is there for you, such as a spouse, children, friends, a church, or a community group?'
     ),
 }
 
