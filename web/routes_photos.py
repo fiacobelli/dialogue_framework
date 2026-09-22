@@ -197,7 +197,6 @@ def upload_photo():
         info_state.user.update('interview_phase', 'COMPLETE')
         info_state.user.update('photo_requirement_status', 'complete')
         persist_session_state(session_id, s)
-        db.revoke_upload_tokens(visit_id, reason='photo_requirement_complete')
     db.update_visit_from_info_state(visit_id, info_state)
 
     return jsonify({
