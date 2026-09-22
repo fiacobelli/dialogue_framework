@@ -64,8 +64,8 @@ LLM_ERROR_MESSAGE = "I'm having trouble responding right now."
 
 # Provider + model. One model serves both the interview turns and the one-shot
 # microsite generation.
-LLM_PROVIDER = config('LLM_PROVIDER', default='ollama')
-LLM_MODEL = config('LLM_MODEL', default='')
+LLM_PROVIDER = config('LLM_PROVIDER', default='azure_openai')
+LLM_MODEL = config('LLM_MODEL', default='gpt-6-astra')
 LLM_FALLBACK_MODEL = config('LLM_FALLBACK_MODEL', default='')
 
 # Interview Settings

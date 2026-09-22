@@ -26,10 +26,11 @@ A voice-enabled web application that interviews kidney transplant patients and g
 2. **Configure environment:**
    Create a `.env` file with:
    ```
-   LLM_PROVIDER=groq
-   LLM_MODEL=openai/gpt-oss-120b
-   LLM_FALLBACK_MODEL=openai/gpt-oss-20b
-   GROQ_API_KEY=your_api_key_here
+   LLM_PROVIDER=azure_openai
+   LLM_MODEL=gpt-6-astra
+   AZURE_OPENAI_BASE_URL=https://luc-research-ai-resource.services.ai.azure.com/openai/v1/
+   AZURE_OPENAI_API_KEY=your_azure_openai_key
+   GROQ_API_KEY=your_groq_key_for_whisper
    FLASK_SECRET_KEY=your_secret_key
    ```
 
@@ -51,7 +52,7 @@ web/                  # Flask application
 ├── session.py        # Session management
 ├── microsite.py      # Microsite generation
 ├── goal_interview.py # Interview goal logic
-└── llm_provider.py   # LLM abstraction (Ollama/Groq)
+└── llm_provider.py   # LLM provider integration
 
 templates/            # HTML templates
 static/               # CSS, JS, images
