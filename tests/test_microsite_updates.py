@@ -49,6 +49,7 @@ class MicrositeUpdateTests(unittest.TestCase):
         request = openai_client.return_value.responses.create.call_args.kwargs
         self.assertEqual(request['model'], 'gpt-6-astra')
         self.assertEqual(request['instructions'], 'Return JSON.')
+        self.assertEqual(request['input'][0], {'role': 'system', 'content': 'Return valid JSON.'})
         self.assertEqual(request['text'], {'format': {'type': 'json_object'}})
         self.assertNotIn('temperature', request)
 

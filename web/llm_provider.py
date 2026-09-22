@@ -86,9 +86,16 @@ class AzureOpenAIProvider:
         self.client = OpenAI(base_url=base_url, api_key=api_key)
 
     def generate(self, messages: list, system_prompt: str = None, json_mode: bool = False, temperature: float = None) -> str:
-        request = {'model': self.model, 'input': messages}
+        input_messages = list(messages)
         if system_prompt:
-            request['instructions'] = system_prompt
+            instructions = system_prompt
+        else:
+            instructions = None
+        if json_mode:
+            input_messages.insert(0, {'role': 'system', 'content': 'Return valid JSON.'})
+        request = {'model': self.model, 'input': input_messages}
+        if instructions:
+            request['instructions'] = instructions
         if json_mode:
             request['text'] = {'format': {'type': 'json_object'}}
         try:
