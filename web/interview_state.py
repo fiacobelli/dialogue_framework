@@ -12,6 +12,9 @@ from typing import Any
 
 from .config import clean_text as _clean_text
 from .interview_flow_config import (
+    DECLINE_FOLLOWUP_REPLIES,
+    DECLINE_MAX_WORDS,
+    DECLINE_PATTERNS,
     GENERATION_REQUIRED_EVIDENCE_GROUPS,
     INTERVIEW_STEPS,
     NO_RESPONSE_SENTINEL,
@@ -39,6 +42,16 @@ def normalize_answer(text: str) -> str:
 def is_skip_intent(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
     """Only an explicit UI skip event can skip a required story section."""
     return bool((turn_meta or {}).get('skip_requested'))
+
+
+def is_decline_answer(text: str, awaiting: str | None = None) -> bool:
+    """A short "I don't know / rather not / nothing more" reply: the patient must not be probed."""
+    normalized = normalize_answer(text)
+    if awaiting == 'followup_answer' and normalized in DECLINE_FOLLOWUP_REPLIES:
+        return True
+    if len(normalized.split()) > DECLINE_MAX_WORDS:
+        return False
+    return any(re.search(pattern, normalized) for pattern in DECLINE_PATTERNS)
 
 
 def _crisis_detected(text: str, turn_meta: dict[str, Any] | None = None) -> bool:
@@ -76,6 +89,7 @@ def build_interview_state() -> dict[str, Any]:
         'phase': 'INTRO',
         'awaiting': 'name',
         'followup_count': 0,
+        'followup_question': None,
         'last_task': 'opening',
         'last_step_id': None,
         'complete': False,
@@ -151,6 +165,7 @@ def progress_snapshot(state: dict[str, Any] | None, phase: str | None = None, ph
 def _advance_step(state: dict[str, Any]) -> dict[str, str] | None:
     state['step_index'] = int(state.get('step_index') or 0) + 1
     state['followup_count'] = 0
+    state['followup_question'] = None
     return current_step(state)
 
 
@@ -208,10 +223,12 @@ def _record_story_evidence(
     user_input: str,
     decision: dict[str, Any],
     answer_kind: str = 'main_answer',
+    question: str | None = None,
 ) -> None:
     if not step:
         return
     entry = {
+        'question': question or step.get('question'),
         'answer': user_input,
         'sufficiency': decision,
         'followup_count': state.get('followup_count', 0),

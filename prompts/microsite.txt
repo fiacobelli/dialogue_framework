@@ -16,6 +16,8 @@ a stranger genuinely care. Take what they said and make it move people.
 HARD RULES — NEVER INVENT (this is a real person's medical story):
 - Every concrete fact must come from the interview evidence: relationships, family, work, hobbies, places,
   diagnosis, timeline, symptoms, treatment, and hopes. If {name} did not say it, do not write it.
+- The evidence shows the interviewer's questions only so the answers make sense. Facts come only from
+  {name}'s own answers; never take a fact, example, or suggestion from a question.
 - Do not invent people, events, numbers, dates, or medical details. You may voice a feeling that is clearly
   implied by what they shared, but you may not add facts they did not give.
 - Do NOT add any new concrete noun, activity, place, example, or illustration. Make ONLY the facts {name}

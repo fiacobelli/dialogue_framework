@@ -26,6 +26,7 @@ from .interview_flow_config import (
     FOLLOWUP_EXAMPLES,
     INTERVIEW_STEPS,
     MAX_FOLLOWUPS_PER_SECTION,
+    VAGUE_ANSWERS,
 )
 from .interview_state import (
     _advance_step,
@@ -36,6 +37,7 @@ from .interview_state import (
     build_interview_state,
     current_step,
     input_guard_decision,
+    is_decline_answer,
     is_skip_intent,
     normalize_answer,
     normalize_state,
@@ -44,12 +46,6 @@ from .interview_state import (
 LOGS_DIR = 'logs'
 NAME_QUESTION = 'What name would you like shown publicly on your donor page?'
 READINESS_QUESTION = 'Are you ready to begin?'
-OBVIOUSLY_VAGUE_ANSWERS = {
-    'yes', 'yeah', 'yep', 'it is bad', "it's bad", 'it is hard', "it's hard",
-    'it would be better', 'it will be better', "it'll be better", 'it would make it better',
-    'it will make it better', "it'll make it better", 'i am a good person', "i'm a good person",
-    'i do not know', "i don't know", 'not sure',
-}
 # Tasks that move to a new section and therefore owe the patient that section's question.
 ADVANCE_TASKS = {'ask_main', 'ack_then_next', 'ask_final', 'recover_generation_evidence'}
 
@@ -184,7 +180,7 @@ def _fallback_followup_question(step: dict | None) -> str:
 
 
 def _required_followup_question(step: dict | None, answer: str) -> str:
-    if normalize_answer(answer) in OBVIOUSLY_VAGUE_ANSWERS:
+    if normalize_answer(answer) in VAGUE_ANSWERS:
         return _fallback_followup_question(step)
     return ''
 
@@ -196,7 +192,7 @@ def _can_probe(state: dict, awaiting: str, step: dict | None, answer: str) -> bo
         and step is not None
         and bool(step.get('allow_follow_up'))
         and followup_count < MAX_FOLLOWUPS_PER_SECTION
-        and not (awaiting == 'followup_answer' and normalize_answer(answer) in OBVIOUSLY_VAGUE_ANSWERS)
+        and not is_decline_answer(answer, awaiting)
     )
 
 
@@ -216,21 +212,13 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
         example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
         section_q = step.get('question', 'the current question')
         required = step.get('required', 'a concrete detail relevant to this section')
-        probe_rule = (
-            'This is the answer to your first follow-up. Set needs_followup to true only if it contains '
-            'a useful concrete detail but leaves one important part unclear. Do not ask again if the patient '
-            'is unsure, cannot add detail, repeats a vague answer, or has adequately answered. '
-            if awaiting == 'followup_answer' else
-            'If it is still vague, a yes/no, or generic (for example "I am a good person"), set '
-            'needs_followup to true and put one gentle, open follow-up question in followup_question. '
-        )
-        return (f'The patient just answered: "{section_q}". '
-                f'Judge their answer together with relevant details they already shared. '
-                f'The answer is adequate when it provides {required}. '
-                f'If it is adequate, write only a warm acknowledgement in ack, set needs_followup to false, '
-                f'and leave followup_question empty. Do not demand another example just to embellish it. '
-                f'{probe_rule}'
-                f'Use this topic-specific example as a guide: "{example}"')
+        # Step facts only; the follow-up rules themselves live in prompts/interviewer.txt.
+        stage = ('your first follow-up question, so a further follow-up would be the second and last'
+                 if awaiting == 'followup_answer' else 'the main question')
+        return (f'The current section asks: "{section_q}". The patient just answered {stage}. '
+                f'This section has enough detail when the patient has given {required}. '
+                f'Apply the follow-up rules above to decide needs_followup. '
+                f'A follow-up that fits this section, if you need one: "{example}"')
     if next_q:
         return ('Warmly acknowledge what the patient just shared in one short sentence that shows you '
                 'truly heard them, and do NOT ask any question; the system will ask the next question.')
@@ -281,17 +269,19 @@ def apply_turn(
 
     if step:
         answer_kind = 'followup_answer' if awaiting == 'followup_answer' else 'main_answer'
+        asked = state.get('followup_question') if awaiting == 'followup_answer' else None
         if asked_followup:
             # Still thin: keep probing this section (bounded by MAX_FOLLOWUPS_PER_SECTION via can_probe).
             decision = {'sufficient': False, 'reason': 'needs_elaboration'}
-            _record_story_evidence(state, step, user_input, decision, answer_kind)
+            _record_story_evidence(state, step, user_input, decision, answer_kind, asked)
             state['followup_count'] = int(state.get('followup_count') or 0) + 1
+            state['followup_question'] = _text(turn.get('followup_question'), 500)
             state['awaiting'] = 'followup_answer'
             state['phase'] = step.get('phase') or 'STORY'
             return 'ask_followup', decision
 
         reason = 'followup_answered' if awaiting == 'followup_answer' else 'answered'
-        _record_story_evidence(state, step, user_input, {'sufficient': True, 'reason': reason}, answer_kind)
+        _record_story_evidence(state, step, user_input, {'sufficient': True, 'reason': reason}, answer_kind, asked)
 
     task_type, _reply = advance_and_maybe_close(state, turn['reply'])
     return task_type, {'sufficient': True, 'reason': 'followup_answered' if awaiting == 'followup_answer' else 'answered'}

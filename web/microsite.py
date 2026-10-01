@@ -175,30 +175,38 @@ def format_conversation(history: list) -> str:
 
 
 def format_story_evidence(state: dict) -> str:
-    """Format accepted story evidence as a generation transcript."""
+    """Format every story answer, with the question it answered, as a generation transcript.
+
+    Answers that led to a follow-up are included too: the follow-up answer often only makes
+    sense next to them ("my wife and kids" -> "they drive me to dialysis").
+    """
     evidence = (state or {}).get('story_evidence') or {}
     if not isinstance(evidence, dict):
         return ''
 
     lines = []
+    answered = set()
     for step_id, entries in evidence.items():
         if isinstance(entries, dict):
             entries = [entries]
         if not isinstance(entries, list):
             continue
-        accepted_answers = [
-            (entry or {}).get('answer', '').strip()
-            for entry in entries
-            if isinstance(entry, dict) and entry.get('accepted') and (entry.get('answer') or '').strip()
-        ]
-        if not accepted_answers:
-            continue
         label = step_id.replace('_', ' ').title()
-        for answer in accepted_answers:
-            lines.append(f"{label}: {answer}")
+        for entry in entries:
+            answer = (entry.get('answer') or '').strip() if isinstance(entry, dict) else ''
+            if not answer:
+                continue
+            answered.add(step_id)
+            question = (entry.get('question') or '').strip()
+            if question:
+                lines.append(f"{label}\nInterviewer asked: {question}\nPatient answered: {answer}")
+            else:
+                lines.append(f"{label}: {answer}")
     skipped = (state or {}).get('skipped_steps') or {}
     if isinstance(skipped, dict):
         for step_id in skipped:
+            if step_id in answered:
+                continue
             label = step_id.replace('_', ' ').title()
             lines.append(f"{label}: The patient chose to skip this section.")
     return "\n\n".join(lines)

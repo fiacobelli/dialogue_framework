@@ -4,9 +4,11 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
     {
         'id': 'personal_background',
         'phase': 'STORY',
-        'question': 'Can you tell me a little about yourself and the roles or relationships that matter most in your life?',
+        'question': 'Can you tell me about yourself and the roles or relationships that matter most in your life?',
         'focus': 'who the patient is as a person, including family, work, community, hobbies, values, or identity',
-        'required': 'one concrete identity detail such as family role, work, community, hobby, value, or place',
+        'required': ('who or what matters most to them plus at least one specific thing about it, such as what a '
+                     'family member is like, what they do or did for work, or what they enjoy; naming people or '
+                     'roles alone is not enough'),
         'allow_follow_up': True,
     },
     {
@@ -22,7 +24,9 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'phase': 'STORY',
         'question': 'How has kidney failure affected your daily life, physically or emotionally?',
         'focus': 'dialysis, symptoms, daily limits, emotional burden, and what has changed',
-        'required': 'a concrete daily-life impact such as schedule, fatigue, activity limits, emotions, work, family, or independence',
+        'required': ('at least one specific example of how life has changed, such as what a dialysis day is like, '
+                     'something they can no longer do, or how it feels; a general statement like "it is hard" '
+                     'alone is not enough'),
         'allow_follow_up': True,
     },
     {
@@ -30,7 +34,8 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'phase': 'STORY',
         'question': 'How would receiving a kidney transplant change your life?',
         'focus': 'specific hopes, activities, family moments, work, travel, energy, or independence',
-        'required': 'a concrete life change, future goal, family moment, work, travel, activity, energy, or independence',
+        'required': ('at least one specific thing they would do or get back, with enough detail to picture it; '
+                     '"spend more time" or "feel better" alone is not enough'),
         'allow_follow_up': True,
     },
     {
@@ -38,15 +43,18 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
         'phase': 'STORY',
         'question': 'What would you want a potential donor to know about you as a person?',
         'focus': 'a direct message to potential donors and what makes the story personal',
-        'required': 'a direct message, personal value, reason to consider donation, or explicit request for help',
+        'required': ('something personal a donor could connect with, such as a value they live by with an example, '
+                     'what they give to others, or why this help would matter; a general trait like "good person" '
+                     'alone is not enough'),
         'allow_follow_up': True,
     },
     {
         'id': 'support_network',
         'phase': 'STORY',
-        'question': 'Do you have family, friends, or a community supporting you through this?',
+        'question': 'Who, if anyone, is supporting you through this?',
         'focus': 'support network, community ties, and people who may be part of the story',
-        'required': 'support people, support community, or an explicit statement that support is limited',
+        'required': ('who supports them and at least one thing those people do or mean to them, or an explicit '
+                     'statement that support is limited; naming people alone is not enough'),
         'allow_follow_up': True,
     },
     {
@@ -59,26 +67,39 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
     },
 ]
 
+# Fallback follow-up per section: spoken as-is when the model gives none, and never a repeat of
+# the main question. Open prompts only; option lists lead patients to echo an option.
 FOLLOWUP_EXAMPLES = {
-    'personal_background': (
-        'Could you tell me a little more, such as what you do, who matters most to you, or a hobby you enjoy?'
-    ),
-    'daily_life': (
-        'Could you give me an example, such as feeling tired, missing an activity, or planning your day around dialysis?'
-    ),
-    'transplant_hope': (
-        'What would you be able to do, such as having more energy, returning to work, enjoying a hobby, or spending time with family?'
-    ),
-    'donor_message': (
-        'Could you share an example of a value, family story, or reason this help would matter to you?'
-    ),
-    'support_network': (
-        'Who is there for you, such as a spouse, children, friends, a church, or a community group?'
-    ),
+    'personal_background': 'What is one thing you would want people to know about you or the people closest to you?',
+    'daily_life': 'Can you walk me through a recent day that was hard because of your kidney disease?',
+    'transplant_hope': 'What is one thing you would love to do again, or do for the first time, after a transplant?',
+    'donor_message': 'What is something the people close to you would say about you?',
+    'support_network': 'What is one thing the people around you do that helps you get through this?',
 }
 
-# Use one follow-up by default; allow one final clarification when it is still useful.
+# One follow-up, then a second, easier one if the answer is still thin.
 MAX_FOLLOWUPS_PER_SECTION = 2
+
+# Exact (normalized) main answers that always get a follow-up, whatever the model decides.
+VAGUE_ANSWERS = {
+    'yes', 'yeah', 'yep', 'it is bad', "it's bad", 'it is hard', "it's hard",
+    'it would be better', 'it will be better', "it'll be better", 'it would make it better',
+    'it will make it better', "it'll make it better", 'i am a good person', "i'm a good person",
+}
+
+# A short answer matching one of these means the patient is unsure or declining: never probe.
+DECLINE_MAX_WORDS = 8
+DECLINE_PATTERNS = (
+    r"\b(do not|don'?t|don t) know\b",
+    r"\bnot sure\b",
+    r"\brather not\b",
+    r"\b(do not|don'?t|don t) want to (say|talk|answer|share)\b",
+    r"\bnothing (else|more)\b",
+    r"\b(that's|that s|that is) (it|all)\b",
+    r"\bskip\b",
+)
+# As the whole reply to a follow-up question, these also mean "no more to add".
+DECLINE_FOLLOWUP_REPLIES = {'no', 'nope', 'nah', 'no thanks', 'no thank you'}
 
 GENERATION_REQUIRED_EVIDENCE_GROUPS = {
     'identity': ('personal_background',),
