@@ -68,13 +68,28 @@ INTERVIEW_STEPS: list[dict[str, object]] = [
 ]
 
 # Fallback follow-up per section: spoken as-is when the model gives none, and never a repeat of
-# the main question. Open prompts only; option lists lead patients to echo an option.
+# the main question. Each gives two examples of what other people say, then asks the patient.
 FOLLOWUP_EXAMPLES = {
-    'personal_background': 'What is one thing you would want people to know about you or the people closest to you?',
-    'daily_life': 'Can you walk me through a recent day that was hard because of your kidney disease?',
-    'transplant_hope': 'What is one thing you would love to do again, or do for the first time, after a transplant?',
-    'donor_message': 'What is something the people close to you would say about you?',
-    'support_network': 'What is one thing the people around you do that helps you get through this?',
+    'personal_background': (
+        'Some people talk about their work, and others about their family or a hobby they love. '
+        'What would you want people to know about you?'
+    ),
+    'daily_life': (
+        'Some people feel very tired after dialysis, and others have had to give up work or activities they enjoy. '
+        'What has changed for you?'
+    ),
+    'transplant_hope': (
+        'Some people look forward to more time with their family, and others to getting back to work or a hobby. '
+        'What would you be able to do?'
+    ),
+    'donor_message': (
+        'Some people are known for helping others, and some for how much they care for their family. '
+        'What would the people close to you say about you?'
+    ),
+    'support_network': (
+        'Some people have a spouse or children who help, and others lean on friends or a church. '
+        'What do the people around you do to help?'
+    ),
 }
 
 # One follow-up, then a second, easier one if the answer is still thin.
