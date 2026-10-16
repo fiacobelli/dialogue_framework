@@ -9,40 +9,58 @@ DB_PATH = config('DB_PATH', default='db/transplant.db')
 SYSTEM_PROMPT_FILE = config('SYSTEM_PROMPT_FILE', default='prompts/interviewer.txt')
 MICROSITE_PROMPT_FILE = config('MICROSITE_PROMPT_FILE', default='prompts/microsite.txt')
 KB_FILE = config('KB_FILE', default='domains/interview.json')
+STRINGS_FILE = config('STRINGS_FILE', default='domains/interview_strings.json')
 
 # Language names for LLM instruction
-LANGUAGE_NAMES = {'en': 'English'} #, 'es': 'Spanish', 'ar': 'Arabic'}
+LANGUAGE_NAMES = {'en': 'English', 'es': 'Spanish'}
 
 # Avatar profiles for SitePal assistant
 DEFAULT_AVATAR_ID = 'black_female'
 
 AVATAR_PROFILES = {
     # Race mapping provided by Prof (W=White, L=Latino, B=Black)
+    # Speech per language: SitePal engine 11 (Google), language 1 = English, 2 = Spanish.
+    # Spanish voices are the same Google Chirp3-HD voice in es-US until native voices are chosen.
     'black_female': {
-        'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 202,
+        'name': 'Ludi', 'scene_id': 2756814, 'gender': 'female', 'race': 'B',
+        'en': {'engine': 11, 'language': 1, 'voice': 202},
+        'es': {'engine': 11, 'language': 2, 'voice': 106},
     },
     'latina_female': {
-        'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 189,
+        'name': 'Ludi', 'scene_id': 2756815, 'gender': 'female', 'race': 'L',
+        'en': {'engine': 11, 'language': 1, 'voice': 189},
+        'es': {'engine': 11, 'language': 2, 'voice': 93},
     },
     'white_male': {
-        'name': 'Ludi', 'scene_id': 2774645, 'gender': 'male', 'lang': 'en',
-        'race': 'W', 'engine': 11, 'language': 1, 'voice': 192,
+        'name': 'Ludi', 'scene_id': 2774645, 'gender': 'male', 'race': 'W',
+        'en': {'engine': 11, 'language': 1, 'voice': 192},
+        'es': {'engine': 11, 'language': 2, 'voice': 96},
     },
     'black_male': {
-        'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'lang': 'en',
-        'race': 'B', 'engine': 11, 'language': 1, 'voice': 196,
+        'name': 'Ludi', 'scene_id': 2774646, 'gender': 'male', 'race': 'B',
+        'en': {'engine': 11, 'language': 1, 'voice': 196},
+        'es': {'engine': 11, 'language': 2, 'voice': 100},
     },
     'latino_male': {
-        'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'lang': 'en',
-        'race': 'L', 'engine': 11, 'language': 1, 'voice': 188,
+        'name': 'Ludi', 'scene_id': 2774647, 'gender': 'male', 'race': 'L',
+        'en': {'engine': 11, 'language': 1, 'voice': 188},
+        'es': {'engine': 11, 'language': 2, 'voice': 92},
     },
     'white_female': {
-        'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'lang': 'en',
-        'race': 'W', 'engine': 11, 'language': 1, 'voice': 187,
+        'name': 'Ludi', 'scene_id': 2774648, 'gender': 'female', 'race': 'W',
+        'en': {'engine': 11, 'language': 1, 'voice': 187},
+        'es': {'engine': 11, 'language': 2, 'voice': 91},
     },
 }
+
+
+def avatar_profile_for(avatar_id: str, lang: str) -> dict:
+    """Flat profile for one avatar in one language: name, scene, plus that language's speech settings."""
+    profile = AVATAR_PROFILES.get(avatar_id) or AVATAR_PROFILES[DEFAULT_AVATAR_ID]
+    lang = lang if lang in LANGUAGE_NAMES else 'en'
+    base = {k: v for k, v in profile.items() if k not in LANGUAGE_NAMES}
+    return {**base, 'lang': lang, **profile[lang]}
+
 
 # Server Configuration
 FLASK_PORT = config('FLASK_PORT', default=5000, cast=int)

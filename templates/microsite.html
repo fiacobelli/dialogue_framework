@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang or 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +33,7 @@
     </script>
 </head>
 <body class="campaign-page">
-    <a class="skip-link" href="#main-content">Skip to story</a>
+    <a class="skip-link" href="#main-content">{{ t('Skip to story') }}</a>
     {% include "_donor_campaign_body.html" %}
 
     <script>

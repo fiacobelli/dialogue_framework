@@ -14,7 +14,9 @@ from .config import (
     FLASK_DEBUG,
     AVATAR_PROFILES,
     DEFAULT_AVATAR_ID,
+    avatar_profile_for,
 )
+from .i18n import supported_lang, template_context, translator
 from .routes_api import api_bp
 from .routes_admin import admin_bp
 from .routes_photos import photos_bp
@@ -28,6 +30,7 @@ from .database import configure as db_configure, init_db
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = config('FLASK_SECRET_KEY', default='dev-secret')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.jinja_env.globals['t'] = translator('en')  # pages rendered without a language stay English
 
 app.register_blueprint(api_bp)
 app.register_blueprint(admin_bp)
@@ -45,7 +48,8 @@ init_db()
 @app.route('/')
 def index():
     """Render avatar selection page."""
-    return render_template('select_avatar.html', avatars=AVATAR_PROFILES)
+    lang = supported_lang(request.args.get('lang'))
+    return render_template('select_avatar.html', avatars=AVATAR_PROFILES, **template_context(lang))
 
 
 @app.route('/interview')
@@ -54,9 +58,11 @@ def interview():
     avatar_id = request.args.get('avatar', DEFAULT_AVATAR_ID)
     if avatar_id not in AVATAR_PROFILES:
         avatar_id = DEFAULT_AVATAR_ID
-    avatar_profile = AVATAR_PROFILES[avatar_id]
+    lang = supported_lang(request.args.get('lang'))
+    avatar_profile = avatar_profile_for(avatar_id, lang)
     return render_template(
         'interview.html',
+        **template_context(lang),
         avatar_scene_id=avatar_profile['scene_id'],
         avatar_id=avatar_id,
         avatar_profile=avatar_profile,
@@ -181,7 +187,8 @@ def mobile_upload(session_id):
     visit_id = info_state.user.query('visit_id')
     if not db.validate_upload_token(visit_id, token, mark_used=False):
         abort(404)
-    return render_template('upload_mobile.html', session_id=session_id, upload_token=token)
+    return render_template('upload_mobile.html', session_id=session_id, upload_token=token,
+                           **template_context(info_state.user.query('language')))
 
 
 @app.route('/site/<session_id>')

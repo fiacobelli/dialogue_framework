@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from .config import clean_text as _clean_text
+from .i18n import fold_accents
 from .interview_flow_config import (
     DECLINE_FOLLOWUP_REPLIES,
     DECLINE_MAX_WORDS,
@@ -30,11 +31,19 @@ CRISIS_PATTERNS = (
     r'\bsuicidal\b',
     r'\bdo not want to live\b',
     r"\bdon't want to live\b",
+    # Spanish (matched after accents are dropped)
+    r'\bmatarme\b',
+    r'\bquitarme la vida\b',
+    r'\b(?:terminar|acabar) con mi vida\b',
+    r'\bhacerme dano\b',
+    r'\bsuicid',
+    r'\bquiero morir',
+    r'\bno quiero vivir\b',
 )
 
 
 def normalize_answer(text: str) -> str:
-    text = (text or '').lower().strip()
+    text = fold_accents((text or '').lower().strip())
     text = re.sub(r"[^a-z0-9'\s-]", ' ', text)
     return re.sub(r'\s+', ' ', text).strip()
 

@@ -64,7 +64,7 @@ class UIController {
             btn.textContent = label;
             return;
         }
-        btn.textContent = isLoading ? 'Getting Ludi ready...' : 'Begin interview';
+        btn.textContent = isLoading ? T('Getting Ludi ready...') : T('Begin interview');
     }
 
     showMicPreflight(status, message, detail = '') {
@@ -113,7 +113,7 @@ class UIController {
         const collapsed = this.elements.conversationScreen?.classList.toggle('conversation-collapsed');
         const button = this.elements.conversationToggleBtn;
         if (button) {
-            button.textContent = collapsed ? 'Read conversation' : 'Focus on avatar';
+            button.textContent = collapsed ? T('Read conversation') : T('Focus on avatar');
             button.setAttribute('aria-expanded', String(!collapsed));
         }
     }
@@ -185,7 +185,7 @@ class UIController {
 
     showIdle() {
         this.elements.micBtn.classList.remove('listening', 'disabled', 'paused');
-        this.elements.micHint.textContent = 'Speak when ready';
+        this.elements.micHint.textContent = T('Speak when ready');
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
     }
@@ -193,7 +193,7 @@ class UIController {
     showListening() {
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled', 'paused');
-        this.elements.micHint.textContent = 'Listening. Take your time.';
+        this.elements.micHint.textContent = T('Listening. Take your time.');
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
     }
@@ -201,21 +201,21 @@ class UIController {
     showListeningIdle() {
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled', 'paused');
-        this.elements.micHint.textContent = 'Still listening. Take your time, or type your answer below.';
+        this.elements.micHint.textContent = T('Still listening. Take your time, or type your answer below.');
         this.elements.waveform?.classList.add('hidden');
     }
 
     showPostSpeechPause() {
         this.elements.micBtn.classList.add('listening');
         this.elements.micBtn.classList.remove('disabled', 'paused');
-        this.elements.micHint.textContent = 'I heard you. Keep going if you need a moment.';
+        this.elements.micHint.textContent = T('I heard you. Keep going if you need a moment.');
         this.elements.waveform?.classList.add('hidden');
     }
 
     showProcessing() {
         this.elements.micBtn.classList.remove('listening', 'paused');
         this.elements.micBtn.classList.add('disabled');
-        this.elements.micHint.textContent = 'Processing...';
+        this.elements.micHint.textContent = T('Processing...');
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
         this.elements.messageBubble?.classList.add('pulsing');
@@ -225,16 +225,16 @@ class UIController {
     showTranscribing() {
         this.elements.micBtn.classList.remove('listening', 'paused');
         this.elements.micBtn.classList.add('disabled');
-        this.elements.micHint.textContent = 'Processing what you said...';
+        this.elements.micHint.textContent = T('Processing what you said...');
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
         this.elements.messageBubble?.classList.add('pulsing');
-        this.setStatus('Processing what you said...');
+        this.setStatus(T('Processing what you said...'));
     }
 
     showSpeaking() {
         this.elements.micBtn.classList.remove('listening', 'disabled', 'paused');
-        this.elements.micHint.textContent = 'Tap to pause';
+        this.elements.micHint.textContent = T('Tap to pause');
         this.elements.avatarFrame?.classList.add('speaking');
         this.elements.waveform?.classList.remove('hidden');
     }
@@ -242,13 +242,13 @@ class UIController {
     showPaused() {
         this.elements.micBtn.classList.add('paused');
         this.elements.micBtn.classList.remove('listening', 'disabled');
-        this.elements.micHint.textContent = 'Tap mic to resume';
+        this.elements.micHint.textContent = T('Tap mic to resume');
         this.elements.waveform?.classList.add('hidden');
     }
 
     showResumed() {
         this.elements.micBtn.classList.remove('paused');
-        this.elements.micHint.textContent = 'Speak when ready';
+        this.elements.micHint.textContent = T('Speak when ready');
     }
 
     showTranscript(text, isInterim = false) {
@@ -289,10 +289,9 @@ class UIController {
         if (this.elements.progressText) {
             const current = Number(progress.current_step || 0);
             const total = Number(progress.total_steps || 0);
-            const stepText = current > 0 && total > 0 ? `Step ${current} of ${total}` : progress.label;
-            this.elements.progressText.textContent = stepText === progress.label
-                ? (progress.label || 'Interview')
-                : `${progress.label || 'Interview'} · ${stepText}`;
+            const label = T(progress.label || 'Interview');
+            const stepText = current > 0 && total > 0 ? T('Step {current} of {total}', { current, total }) : label;
+            this.elements.progressText.textContent = stepText === label ? label : `${label} · ${stepText}`;
             this.elements.progressText.classList.remove('hidden');
         }
 
@@ -363,7 +362,7 @@ class UIController {
             } else if (safeCount > 0) {
                 el.textContent = `${safeCount} of ${safeMax} photos received`;
             } else {
-                el.textContent = `Waiting for photos from phone or this device`;
+                el.textContent = T('Waiting for photos from phone or this device');
             }
         }
         this.updateContinueWithPhotos(count, max);
@@ -384,29 +383,29 @@ class UIController {
         const role = escapeHtml(item.photo_role || 'general');
         const guidance = {
             before: {
-                label: 'Photo 1',
-                description: 'Who I am'
+                label: T('Photo 1'),
+                description: T('Who I am')
             },
             during: {
-                label: 'Photo 2',
-                description: 'My kidney journey'
+                label: T('Photo 2'),
+                description: T('My kidney journey')
             },
             hope: {
-                label: 'Photo 3',
-                description: 'Hope after transplant'
+                label: T('Photo 3'),
+                description: T('Hope after transplant')
             },
             general: {
-                label: 'Story photo',
-                description: 'A photo chosen to help tell this story.'
+                label: T('Story photo'),
+                description: T('A photo chosen to help tell this story.')
             }
         };
         const details = guidance[item.photo_role || 'general'] || guidance.general;
         slot.classList.add('filled');
         slot.dataset.filename = item.stored_filename || '';
         slot.dataset.role = item.photo_role || 'general';
-        slot.title = 'Photo uploaded. Click to replace this photo.';
+        slot.title = T('Photo uploaded. Click to replace this photo.');
         slot.innerHTML = `
-            <img src="${url}" alt="Uploaded photo">
+            <img src="${url}" alt="${T('Uploaded photo')}">
             <div class="photo-slot-caption" data-filename="${filename}" data-role="${role}">
                 <strong>${escapeHtml(details.label)}</strong>
                 <small>${escapeHtml(details.description)}</small>
@@ -420,7 +419,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Preview My Donor Page';
+            btn.textContent = T('Preview My Donor Page');
         }
     }
 
@@ -431,8 +430,8 @@ class UIController {
         btn.style.display = hasPartialPhotos ? 'block' : 'none';
         btn.disabled = !hasPartialPhotos;
         btn.textContent = hasPartialPhotos
-            ? `Continue with ${count} uploaded photo${count === 1 ? '' : 's'}`
-            : 'Continue with these photos';
+            ? T(count === 1 ? 'Continue with {count} uploaded photo' : 'Continue with {count} uploaded photos', { count })
+            : T('Continue with these photos');
     }
 
     showGenerating() {
@@ -441,7 +440,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Preparing your preview...';
+            btn.textContent = T('Preparing your preview...');
         }
     }
 
@@ -509,7 +508,7 @@ class UIController {
                 ${photos.map((photo, index) => `
                     <label class="hero-photo-option${photo.stored_filename === selected ? ' is-selected' : ''}">
                         <input type="radio" name="heroPhoto" value="${escapeHtml(photo.stored_filename)}" ${photo.stored_filename === selected ? 'checked' : ''}>
-                        <img src="${escapeHtml(photo.url)}" alt="Photo option ${index + 1}">
+                        <img src="${escapeHtml(photo.url)}" alt="${T('Photo option {number}', { number: index + 1 })}">
                     </label>
                 `).join('')}
             </div>
@@ -565,7 +564,7 @@ class UIController {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Creating public page...';
+            btn.textContent = T('Creating public page...');
         }
         this.setStatus('');
     }
@@ -575,7 +574,7 @@ class UIController {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Approve and Create Public Page';
+            btn.textContent = T('Approve and Create Public Page');
         }
         if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
     }
@@ -584,17 +583,17 @@ class UIController {
         const btn = document.getElementById('unpublishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Page Unpublished';
+            btn.textContent = T('Page Unpublished');
         }
         const viewBtn = document.getElementById('viewBtn');
         if (viewBtn) {
             viewBtn.removeAttribute('href');
-            viewBtn.textContent = 'Page Unpublished';
+            viewBtn.textContent = T('Page Unpublished');
         }
         const cta = document.getElementById('viewPageCTA');
         if (cta) {
             cta.removeAttribute('href');
-            cta.textContent = 'Page Unpublished';
+            cta.textContent = T('Page Unpublished');
         }
     }
 
@@ -646,11 +645,11 @@ const ui = new UIController();
 window.copyCampaignLink = function copyCampaignLink(url) {
     const write = navigator.clipboard
         ? navigator.clipboard.writeText(url)
-        : Promise.resolve(window.prompt('Copy this link:', url));
+        : Promise.resolve(window.prompt(T('Copy this link:'), url));
     write.then(() => {
         const btn = document.getElementById('copyBtn');
         if (!btn) return;
-        btn.textContent = 'Copied';
-        setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+        btn.textContent = T('Copied');
+        setTimeout(() => { btn.textContent = T('Copy Link'); }, 2000);
     });
 };

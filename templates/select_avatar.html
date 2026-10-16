@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang or 'en' }}">
 <head>
-    <title>Choose Your Assistant</title>
+    <script>window.APP_LANG = {{ (lang or 'en') | tojson }}; window.I18N = {{ i18n | default({}) | tojson }};</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <title>{{ t('Choose Your Assistant') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <style>
@@ -139,23 +141,30 @@
             box-shadow: none;
             cursor: not-allowed;
         }
+        .lang-toggle { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+        .lang-toggle a { padding: 8px 18px; border: 2px solid currentColor; border-radius: 999px; text-decoration: none; color: inherit; font-weight: 600; }
+        .lang-toggle a[aria-current="true"] { background: #E86F2C; border-color: #E86F2C; color: #fff; }
     </style>
 </head>
 <body>
     <div class="selection-header">
-        <h1>Choose Your Guide</h1>
-        <p>Select who you'd like to help create your donor page</p>
+        <nav class="lang-toggle" aria-label="{{ t('Language') }}">
+            <a href="?lang=en" lang="en"{% if lang == 'en' %} aria-current="true"{% endif %}>English</a>
+            <a href="?lang=es" lang="es"{% if lang == 'es' %} aria-current="true"{% endif %}>Español</a>
+        </nav>
+        <h1>{{ t('Choose Your Guide') }}</h1>
+        <p>{{ t('Select who you\'d like to help create your donor page') }}</p>
     </div>
 
     <div class="avatar-options" id="avatarOptions"></div>
 
     <div class="pin-prompt participant-entry">
-        <label for="participantCode">Participant ID</label>
+        <label for="participantCode">{{ t('Participant ID') }}</label>
         <input type="text" id="participantCode" inputmode="text" pattern="[A-Za-z0-9]+" autocomplete="off">
         <div class="pin-hint" id="participantHint"></div>
     </div>
 
-    <button class="start-btn" id="startBtn" disabled>Start Interview</button>
+    <button class="start-btn" id="startBtn" disabled>{{ t('Start Interview') }}</button>
 
     <script>
         const appBasePath = {{ request.script_root | tojson }};
@@ -180,7 +189,7 @@
 
         participantInput.addEventListener('input', () => {
             participantHint.textContent = participantInput.value && !validParticipantId(participantInput.value)
-                ? 'Use letters and numbers only'
+                ? T('Use letters and numbers only')
                 : '';
             updateStartButton();
         });
@@ -199,10 +208,10 @@
             const card = document.createElement('div');
             card.className = 'avatar-option';
             card.dataset.avatar = id;
-            card.setAttribute('aria-label', `Select ${profile.name} avatar`);
+            card.setAttribute('aria-label', T('Select {name} avatar', { name: profile.name }));
             card.innerHTML = `
                 <div class="avatar-thumb">
-                    <img src="${appUrl(`/static/photos/avatars/${profile.scene_id}.png`)}" alt="${profile.name} avatar"${index > 0 ? ' loading="lazy"' : ''}>
+                    <img src="${appUrl(`/static/photos/avatars/${profile.scene_id}.png`)}" alt="${T('{name} avatar', { name: profile.name })}"${index > 0 ? ' loading="lazy"' : ''}>
                 </div>`;
             card.onclick = () => selectAvatar(id);
             container.appendChild(card);
@@ -214,6 +223,7 @@
             sessionStorage.setItem('participantCode', participantCode);
             const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
             interviewUrl.searchParams.set('avatar', selectedAvatar);
+            interviewUrl.searchParams.set('lang', window.APP_LANG);
             window.location.href = interviewUrl.toString();
         };
     </script>

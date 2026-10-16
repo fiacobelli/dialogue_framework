@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .i18n import fold_accents
+
 
 EMAIL_RE = re.compile(r'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b', re.I)
 PHONE_RE = re.compile(r'(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}')
@@ -16,6 +18,10 @@ PATTERNS = {
         r'\bend my life\b',
         r'\bhurt myself\b',
         r'\bsuicidal\b',
+        r'\bmatarme\b',
+        r'\b(?:terminar|acabar) con mi vida\b',
+        r'\bhacerme dano\b',
+        r'\bsuicid',
     ),
     'medical_advice_claim': (
         r'\byou should (?:take|stop|start|change)\b',
@@ -23,6 +29,8 @@ PATTERNS = {
         r'\bthis will cure\b',
         r'\bguaranteed (?:cure|transplant|match)\b',
         r'\bdonor eligibility\b',
+        r'\besto (?:va a curar|cura)\b',
+        r'\bcura garantizada\b',
     ),
     'coercive_donor_language': (
         r'\byou must donate\b',
@@ -30,6 +38,9 @@ PATTERNS = {
         r'\bonly you can save\b',
         r'\bif you do not donate\b',
         r'\bdonate or\b',
+        r'\b(?:debes|debe|tienes que|tiene que) donar\b',
+        r'\bsolo (?:tu|usted) puede',
+        r'\bsi no (?:donas|dona)\b',
     ),
 }
 
@@ -57,7 +68,7 @@ def public_content_issues(content: dict[str, Any]) -> list[dict[str, str]]:
         if URL_RE.search(text):
             issues.append(_issue('contact_information', field, 'Remove direct links unless they are approved.'))
 
-        normalized = text.lower()
+        normalized = fold_accents(text.lower())
         for code, patterns in PATTERNS.items():
             if any(re.search(pattern, normalized) for pattern in patterns):
                 issues.append(_issue(code, field, f'Review {code.replace("_", " ")} before publishing.'))

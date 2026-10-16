@@ -4,7 +4,7 @@
     {% if campaign.preview %}
     <div class="campaign-preview-banner" role="status">
         <span class="campaign-preview-dot"></span>
-        This is what your public donor page will look like &mdash; it is not live yet.
+        {{ t('This is what your public donor page will look like — it is not live yet.') }}
     </div>
     {% endif %}
 
@@ -14,11 +14,11 @@
                 <strong>{{ name }}</strong>
             </div>
             <div class="campaign-topbar-actions">
-                <span>Help share this story</span>
-                <a class="campaign-share-icon" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener" aria-label="Share on Facebook">FB</a>
-                <a class="campaign-share-icon" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp">WA</a>
-                <a class="campaign-share-icon" href="{{ campaign.share.email }}" aria-label="Share by email">Email</a>
-                <a class="campaign-btn primary" href="#share">How to help</a>
+                <span>{{ t('Help share this story') }}</span>
+                <a class="campaign-share-icon" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener" aria-label="{{ t('Share on Facebook') }}">FB</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener" aria-label="{{ t('Share on WhatsApp') }}">WA</a>
+                <a class="campaign-share-icon" href="{{ campaign.share.email }}" aria-label="{{ t('Share by email') }}">{{ t('Email') }}</a>
+                <a class="campaign-btn primary" href="#share">{{ t('How to help') }}</a>
             </div>
         </div>
     </header>
@@ -28,12 +28,12 @@
             <div class="campaign-shell campaign-profile-grid">
             {% if photos.hero %}
                 <figure class="campaign-profile-photo reveal">
-                    <img src="{{ photos.hero.url }}" alt="Photo of {{ name }}">
+                    <img src="{{ photos.hero.url }}" alt="{{ t('Photo of {name}', name=name) }}">
                 </figure>
             {% endif %}
 
                 <div class="campaign-profile-copy reveal">
-                    <p class="campaign-mini-label">Who am I?</p>
+                    <p class="campaign-mini-label">{{ t('Who am I?') }}</p>
                     <h1>{{ content.headline }}</h1>
                     <p class="campaign-profile-lead">{{ content.short_intro }}</p>
                     <p>{{ content.personal_identity }}</p>
@@ -45,17 +45,17 @@
             <div class="campaign-shell campaign-story-grid">
                 <div class="campaign-story-stack reveal">
                     <article class="campaign-story-card campaign-story-card--lead" aria-labelledby="why-kidney">
-                        <p class="campaign-mini-label">Why I need a kidney</p>
-                        <h2 id="why-kidney">My kidney journey</h2>
+                        <p class="campaign-mini-label">{{ t('Why I need a kidney') }}</p>
+                        <h2 id="why-kidney">{{ t('My kidney journey') }}</h2>
                         <p>{{ content.kidney_journey }}</p>
                         {% if content.daily_impact %}
                         <div class="campaign-daily-impact">
-                            <p class="campaign-mini-label">How this affects my daily life</p>
+                            <p class="campaign-mini-label">{{ t('How this affects my daily life') }}</p>
                             <p>{{ content.daily_impact }}</p>
                         </div>
                         {% endif %}
 
-                        <h3>What a transplant could make possible</h3>
+                        <h3>{{ t('What a transplant could make possible') }}</h3>
                         <p>{{ content.transplant_hope }}</p>
                         {% if campaign.pull_quote %}
                         <blockquote class="campaign-inline-quote">{{ campaign.pull_quote }}</blockquote>
@@ -63,46 +63,46 @@
                     </article>
                 </div>
 
-                <aside class="campaign-help-card reveal" aria-label="How to help">
-                    <p class="campaign-mini-label">How you can help</p>
-                    <h2>Share {{ name }}'s story</h2>
+                <aside class="campaign-help-card reveal" aria-label="{{ t('How to help') }}">
+                    <p class="campaign-mini-label">{{ t('How you can help') }}</p>
+                    <h2>{{ t("Share {name}'s story", name=name) }}</h2>
                     <p>{{ campaign.donor_callout }}</p>
-                    <p class="campaign-help-note">One share could help this page reach someone who can learn, ask questions, or pass it along.</p>
-                    <a class="campaign-btn primary" href="#share">Share this page</a>
-                    <a class="campaign-help-link" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">Learn about living donation</a>
+                    <p class="campaign-help-note">{{ t('One share could help this page reach someone who can learn, ask questions, or pass it along.') }}</p>
+                    <a class="campaign-btn primary" href="#share">{{ t('Share this page') }}</a>
+                    <a class="campaign-help-link" href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">{{ t('Learn about living donation') }}</a>
                 </aside>
             </div>
 
             {% if photos.before or photos.during or photos.after %}
             <div class="campaign-shell campaign-photo-story-heading reveal">
-                <p class="campaign-mini-label">Before, during, and after</p>
-                <h3>My kidney journey in three moments</h3>
-                <p>These photos help show the person behind the diagnosis, what life is like now, and what a transplant could make possible.</p>
+                <p class="campaign-mini-label">{{ t('Before, during, and after') }}</p>
+                <h3>{{ t('My kidney journey in three moments') }}</h3>
+                <p>{{ t('These photos help show the person behind the diagnosis, what life is like now, and what a transplant could make possible.') }}</p>
             </div>
-            <div class="campaign-shell campaign-photo-story reveal" aria-label="{{ name }}'s kidney journey in photos">
+            <div class="campaign-shell campaign-photo-story reveal" aria-label="{{ t("{name}'s kidney journey in photos", name=name) }}">
                 {% if photos.before %}
                 <figure>
-                    <img src="{{ photos.before.url }}" alt="Photo showing {{ name }} before kidney disease took center stage" loading="lazy">
+                    <img src="{{ photos.before.url }}" alt="{{ t('Photo showing {name} before kidney disease took center stage', name=name) }}" loading="lazy">
                     <figcaption>
-                        <strong>Before kidney disease took center stage</strong>
+                        <strong>{{ t('Before kidney disease took center stage') }}</strong>
                         <span>{{ content.personal_identity }}</span>
                     </figcaption>
                 </figure>
                 {% endif %}
                 {% if photos.during %}
                 <figure>
-                    <img src="{{ photos.during.url }}" alt="Photo showing {{ name }} during treatment or daily life with kidney disease" loading="lazy">
+                    <img src="{{ photos.during.url }}" alt="{{ t('Photo showing {name} during treatment or daily life with kidney disease', name=name) }}" loading="lazy">
                     <figcaption>
-                        <strong>During treatment and daily life now</strong>
+                        <strong>{{ t('During treatment and daily life now') }}</strong>
                         <span>{{ content.daily_impact or content.kidney_journey }}</span>
                     </figcaption>
                 </figure>
                 {% endif %}
                 {% if photos.after %}
                 <figure>
-                    <img src="{{ photos.after.url }}" alt="Photo showing what life after transplant could make possible for {{ name }}" loading="lazy">
+                    <img src="{{ photos.after.url }}" alt="{{ t('Photo showing what life after transplant could make possible for {name}', name=name) }}" loading="lazy">
                     <figcaption>
-                        <strong>After transplant, what I hope for</strong>
+                        <strong>{{ t('After transplant, what I hope for') }}</strong>
                         <span>{{ content.transplant_hope }}</span>
                     </figcaption>
                 </figure>
@@ -113,8 +113,8 @@
 
         <section class="campaign-impact" aria-labelledby="impact-title">
             <div class="campaign-shell">
-                <p class="campaign-mini-label campaign-impact-eyebrow">For anyone considering donation</p>
-                <h2 id="impact-title">Support and protections for living donors</h2>
+                <p class="campaign-mini-label campaign-impact-eyebrow">{{ t('For anyone considering donation') }}</p>
+                <h2 id="impact-title">{{ t('Support and protections for living donors') }}</h2>
                 <div class="campaign-impact-grid reveal">
                     {% for it in campaign.impact_items %}
                     <div class="campaign-impact-card">
@@ -130,8 +130,8 @@
         <section class="campaign-help-panel" id="share" aria-labelledby="help-title">
             <div class="campaign-shell">
                 <div class="campaign-help-intro reveal">
-                    <p class="campaign-mini-label">Share this story</p>
-                    <h2 id="help-title">How you can help {{ name }}</h2>
+                    <p class="campaign-mini-label">{{ t('Share this story') }}</p>
+                    <h2 id="help-title">{{ t('How you can help {name}', name=name) }}</h2>
                     <p>{{ campaign.donor_callout }}</p>
                 </div>
 
@@ -149,14 +149,14 @@
 
                 <div class="campaign-share-card reveal">
                     <div>
-                        <p class="campaign-mini-label">One simple action</p>
-                        <h3>Share {{ name }}'s page</h3>
+                        <p class="campaign-mini-label">{{ t('One simple action') }}</p>
+                        <h3>{{ t("Share {name}'s page", name=name) }}</h3>
                     </div>
                     <div class="campaign-share-actions">
                         <a class="campaign-btn primary" href="{{ campaign.share.facebook }}" target="_blank" rel="noopener">Facebook</a>
                         <a class="campaign-btn primary" href="{{ campaign.share.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
-                        <a class="campaign-btn primary" href="{{ campaign.share.email }}">Email</a>
-                        <button class="campaign-btn ghost" type="button" id="copyBtn" onclick='copyCampaignLink({{ url | tojson }})'>Copy Link</button>
+                        <a class="campaign-btn primary" href="{{ campaign.share.email }}">{{ t('Email') }}</a>
+                        <button class="campaign-btn ghost" type="button" id="copyBtn" onclick='copyCampaignLink({{ url | tojson }})'>{{ t('Copy Link') }}</button>
                     </div>
                 </div>
             </div>
@@ -167,11 +167,11 @@
         <div class="campaign-shell">
             <div class="campaign-trust-grid">
                 <p>
-                    This page shares a personal story and is not medical advice. Living donation decisions should be discussed with qualified transplant professionals.
+                    {{ t('This page shares a personal story and is not medical advice. Living donation decisions should be discussed with qualified transplant professionals.') }}
                 </p>
-                <div class="campaign-trust-links" aria-label="Living donation resources">
+                <div class="campaign-trust-links" aria-label="{{ t('Living donation resources') }}">
                     <a href="https://www.kidney.org/kidney-topics/living-donation" target="_blank" rel="noopener">National Kidney Foundation</a>
-                    <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">UNOS living donation</a>
+                    <a href="https://unos.org/transplant/living-donation/" target="_blank" rel="noopener">{{ t('UNOS living donation') }}</a>
                 </div>
             </div>
         </div>

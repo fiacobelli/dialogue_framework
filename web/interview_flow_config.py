@@ -100,6 +100,8 @@ VAGUE_ANSWERS = {
     'yes', 'yeah', 'yep', 'it is bad', "it's bad", 'it is hard', "it's hard",
     'it would be better', 'it will be better', "it'll be better", 'it would make it better',
     'it will make it better', "it'll make it better", 'i am a good person', "i'm a good person",
+    # Spanish (accents dropped)
+    'si', 'es malo', 'es dificil', 'es duro', 'seria mejor', 'estaria mejor', 'soy buena persona',
 }
 
 # A short answer matching one of these means the patient is unsure or declining: never probe.
@@ -112,9 +114,26 @@ DECLINE_PATTERNS = (
     r"\bnothing (else|more)\b",
     r"\b(that's|that s|that is) (it|all)\b",
     r"\bskip\b",
+    # Spanish (accents dropped)
+    r"\bno (lo )?se\b",
+    r"\bno estoy segur[oa]\b",
+    r"\bprefiero no\b",
+    r"\bno quiero (decir|hablar|contestar|responder|compartir)\b",
+    r"\bnada (mas|bueno)\b",
+    r"\b(eso es todo|es todo)\b",
+    r"\bsaltar\b",
 )
 # As the whole reply to a follow-up question, these also mean "no more to add".
-DECLINE_FOLLOWUP_REPLIES = {'no', 'nope', 'nah', 'no thanks', 'no thank you'}
+DECLINE_FOLLOWUP_REPLIES = {'no', 'nope', 'nah', 'no thanks', 'no thank you', 'no gracias'}
+
+# Readiness check before the first question: (ready, not ready) patterns per language, matched on
+# normalized text (accents dropped). Spanish does not use a bare "no" so "si, no hay problema" is ready.
+READINESS_PATTERNS = {
+    'en': (r"\b(yes|yeah|yep|ready|okay|ok|sure|start|begin)\b",
+           r"\b(no|wait|unsure)\b|\bnot\b.*\b(ready|sure|start|begin)\b|\bdo not\b|\bdon't\b"),
+    'es': (r"\b(si|listo|lista|claro|vamos|empecemos|comencemos|empezar|comenzar|adelante|vale|bueno|de acuerdo|dale|ok|okay)\b",
+           r"^no\b(?!.*\b(si|listo|lista|problema)\b)|\b(todavia|aun) no\b|\bespere?\b|\bno estoy\b"),
+}
 
 GENERATION_REQUIRED_EVIDENCE_GROUPS = {
     'identity': ('personal_background',),

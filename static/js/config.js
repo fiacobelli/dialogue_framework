@@ -8,7 +8,7 @@ const TURN_MAX_WAIT_FOR_SPEECH_MS = 65000;
 // Language config for speech recognition
 const LANG_CONFIG = {
     'en': { recognition: 'en-US', voicePrefix: 'en' },
-    'es': { recognition: 'es-ES', voicePrefix: 'es' },
+    'es': { recognition: 'es-US', voicePrefix: 'es' },
     'ar': { recognition: 'ar-SA', voicePrefix: 'ar' }
 };
 

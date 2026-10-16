@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang or 'en' }}">
 <head>
-    <title>Upload Photos - Donor Page</title>
+    <script>window.APP_LANG = {{ (lang or 'en') | tojson }}; window.I18N = {{ i18n | default({}) | tojson }};</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <title>{{ t('Upload Photos - Donor Page') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/interview.css') }}">
     <style>
@@ -44,42 +46,42 @@
 <body>
     <div class="upload-container">
         <div class="card">
-            <h2>Add Photos</h2>
+            <h2>{{ t('Add Photos') }}</h2>
             <p class="upload-prompt">
-                Add up to three photos for the donor page. Tap a photo slot to replace it.
+                {{ t('Add up to three photos for the donor page. Tap a photo slot to replace it.') }}
             </p>
 
             <div class="photo-grid">
                 <div class="photo-slot" id="photo0">
                     <span class="plus">+</span>
-                    <strong>Photo 1</strong>
-                    <small>Who I am</small>
+                    <strong>{{ t('Photo 1') }}</strong>
+                    <small>{{ t('Who I am') }}</small>
                 </div>
                 <div class="photo-slot" id="photo1">
                     <span class="plus">+</span>
-                    <strong>Photo 2</strong>
-                    <small>My kidney journey</small>
+                    <strong>{{ t('Photo 2') }}</strong>
+                    <small>{{ t('My kidney journey') }}</small>
                 </div>
                 <div class="photo-slot" id="photo2">
                     <span class="plus">+</span>
-                    <strong>Photo 3</strong>
-                    <small>Hope after transplant</small>
+                    <strong>{{ t('Photo 3') }}</strong>
+                    <small>{{ t('Hope after transplant') }}</small>
                 </div>
             </div>
 
             <input type="file" id="libraryInput" accept="image/*" multiple>
             <input type="file" id="cameraInput" accept="image/*" capture="environment">
             <button class="submit-btn" type="button" onclick="selectPhoto('library')">
-                Choose Photos
+                {{ t('Choose Photos') }}
             </button>
             <button class="submit-btn" type="button" onclick="selectPhoto('camera')">
-                Take a New Photo
+                {{ t('Take a New Photo') }}
             </button>
 
             <div class="status" id="status"></div>
 
             <button class="submit-btn" id="submitBtn" disabled>
-                Done - Return to Main Page
+                {{ t('Done - Return to Main Page') }}
             </button>
         </div>
     </div>
@@ -107,14 +109,14 @@
                 formData.append('replace_index', String(replaceIndex));
             }
 
-            setStatus('Uploading...', '');
+            setStatus(T('Uploading...'), '');
 
             try {
                 const res = await fetch(appUrl('/api/upload'), { method: 'POST', body: formData });
                 const data = await res.json();
 
                 if (data.error) {
-                    setStatus(data.error, 'error');
+                    setStatus(T(data.error), 'error');
                     return;
                 }
 
@@ -122,22 +124,22 @@
                 const slot = document.getElementById(`photo${slotIndex}`);
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    slot.innerHTML = `<img src="${e.target.result}" alt="Uploaded photo">`;
+                    slot.innerHTML = `<img src="${e.target.result}" alt="{{ t('Uploaded photo') }}">`;
                     slot.classList.add('filled');
                 };
                 reader.readAsDataURL(file);
 
                 uploadedCount = data.photo_count;
-                const action = data.replaced ? 'Photo replaced' : `${uploadedCount}/3 photos uploaded`;
-                setStatus(`${action}. The desktop page should update automatically.`, 'success');
+                const action = data.replaced ? T('Photo replaced') : T('{count}/3 photos uploaded', { count: uploadedCount });
+                setStatus(T('{action}. The desktop page should update automatically.', { action }), 'success');
 
                 if (data.ready) {
                     document.getElementById('submitBtn').disabled = false;
-                    setStatus('All photos uploaded. Return to the desktop page to review and generate.', 'success');
+                    setStatus(T('All photos uploaded. Return to the desktop page to review and generate.'), 'success');
                 }
                 return data;
             } catch (err) {
-                setStatus('Upload failed. Try again, or use the desktop upload button.', 'error');
+                setStatus(T('Upload failed. Try again, or use the desktop upload button.'), 'error');
                 throw err;
             }
         }
@@ -171,7 +173,7 @@
                 return;
             }
             window.close();
-            setStatus('Return to the main interview page to continue.', 'success');
+            setStatus(T('Return to the main interview page to continue.'), 'success');
         }
 
         document.getElementById('submitBtn').addEventListener('click', returnToMainPage);
@@ -194,18 +196,18 @@
                 (data.photos || []).forEach((url, index) => {
                     const slot = document.getElementById(`photo${index}`);
                     if (slot) {
-                        slot.innerHTML = `<img src="${url}" alt="Uploaded photo">`;
+                        slot.innerHTML = `<img src="${url}" alt="{{ t('Uploaded photo') }}">`;
                         slot.classList.add('filled');
                     }
                 });
                 if (uploadedCount > 0) {
-                    setStatus(`${uploadedCount}/3 photos already uploaded`, 'success');
+                    setStatus(T('{count}/3 photos already uploaded', { count: uploadedCount }), 'success');
                 }
                 if (data.ready) {
                     document.getElementById('submitBtn').disabled = false;
                 }
             })
-            .catch(err => setStatus(err.message, 'error'));
+            .catch(err => setStatus(T(err.message), 'error'));
     </script>
 </body>
 </html>

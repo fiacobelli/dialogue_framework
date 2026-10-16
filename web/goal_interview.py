@@ -21,11 +21,13 @@ from typing import Any
 from goal import Goal
 from strings import MSG, BELSTR
 from .config import LANGUAGE_NAMES
+from .i18n import tr
 from .interview_flow_config import (
     FINAL_PHOTOS_PROMPT,
     FOLLOWUP_EXAMPLES,
     INTERVIEW_STEPS,
     MAX_FOLLOWUPS_PER_SECTION,
+    READINESS_PATTERNS,
     VAGUE_ANSWERS,
 )
 from .interview_state import (
@@ -154,14 +156,14 @@ def _next_question(step_index: int) -> str | None:
     return INTERVIEW_STEPS[nxt]['question'] if nxt < len(INTERVIEW_STEPS) else None
 
 
-def _post_question(state: dict) -> str:
+def _post_question(state: dict, lang: str = 'en') -> str:
     """The question we now expect an answer to (fallback reply only)."""
     if state.get('awaiting') == 'name':
-        return NAME_QUESTION
+        return tr(NAME_QUESTION, lang)
     if state.get('awaiting') == 'readiness':
-        return READINESS_QUESTION
+        return tr(READINESS_QUESTION, lang)
     step = current_step(state)
-    return step['question'] if step else ''
+    return tr(step['question'], lang) if step else ''
 
 
 def _join_reply(ack: str, question: str) -> str:
@@ -172,16 +174,16 @@ def _join_reply(ack: str, question: str) -> str:
     return f'{ack} {question}'.strip() if ack else question
 
 
-def _fallback_followup_question(step: dict | None) -> str:
-    return FOLLOWUP_EXAMPLES.get(
+def _fallback_followup_question(step: dict | None, lang: str = 'en') -> str:
+    return tr(FOLLOWUP_EXAMPLES.get(
         (step or {}).get('id'),
         'Could you tell me a little more, with one specific example?',
-    )
+    ), lang)
 
 
-def _required_followup_question(step: dict | None, answer: str) -> str:
+def _required_followup_question(step: dict | None, answer: str, lang: str = 'en') -> str:
     if normalize_answer(answer) in VAGUE_ANSWERS:
-        return _fallback_followup_question(step)
+        return _fallback_followup_question(step, lang)
     return ''
 
 
@@ -196,7 +198,8 @@ def _can_probe(state: dict, awaiting: str, step: dict | None, answer: str) -> bo
     )
 
 
-def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False) -> str:
+def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bool = False,
+                    lang: str = 'en') -> str:
     """Build the per-turn instruction telling the LLM what to voice this turn.
 
     Code owns the section questions: the LLM only acknowledges (and, on probe turns, asks
@@ -209,8 +212,9 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
                 'Put the name they gave in the "name" field.')
     next_q = _next_question(state.get('step_index') or 0)
     if can_probe and step:
-        example = FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story'))
-        section_q = step.get('question', 'the current question')
+        # Quoted in the patient's language so the model does not copy English text into its reply.
+        example = tr(FOLLOWUP_EXAMPLES.get(step.get('id'), step.get('focus', 'what matters most in their story')), lang)
+        section_q = tr(step.get('question', 'the current question'), lang)
         required = step.get('required', 'a concrete detail relevant to this section')
         # Step facts only; the follow-up rules themselves live in prompts/interviewer.txt.
         stage = ('your first follow-up question, so a further follow-up would be the second and last'
@@ -290,8 +294,9 @@ def apply_turn(
 def emit(msg, info_state, state, previous_state, answered_turn, task_type, decision,
          reply, latency, history, user_input, store_user) -> str:
     """Build the outgoing-turn + analytics contract and persist state. Returns final reply."""
+    lang = info_state.user.query('language') or 'en'
     if task_type == 'close_to_photos':
-        reply = FINAL_PHOTOS_PROMPT
+        reply = tr(FINAL_PHOTOS_PROMPT, lang)
         info_state.user.update('interview_phase', 'PHOTOS')
 
     asked_step = current_step(state) if state.get('awaiting') in {'main_answer', 'followup_answer'} else None
@@ -300,7 +305,7 @@ def emit(msg, info_state, state, previous_state, answered_turn, task_type, decis
     # model's acknowledgement (drop any question it voiced on its own) and append the
     # canonical next question verbatim, so a chatty model can never skip or substitute it.
     if task_type in ADVANCE_TASKS and asked_step:
-        question = asked_step['question']
+        question = tr(asked_step['question'], lang)
         norm_reply = (reply or '').strip().lower()
         norm_user = (user_input or '').strip().lower()
         echoed = bool(norm_reply) and (norm_reply in norm_user or norm_user in norm_reply)
@@ -378,31 +383,34 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     # ---- deterministic floors (no LLM) ----
     if awaiting == 'readiness':
         normalized = normalize_answer(user_input)
-        not_ready = bool(re.search(r"\b(no|wait|unsure)\b|\bnot\b.*\b(ready|sure|start|begin)\b|\bdo not\b|\bdon't\b", normalized))
-        ready = bool(re.search(r"\b(yes|yeah|yep|ready|okay|ok|sure|start|begin)\b", normalized))
+        ready_re, not_ready_re = READINESS_PATTERNS.get(language, READINESS_PATTERNS['en'])
+        not_ready = bool(re.search(not_ready_re, normalized))
+        ready = bool(re.search(ready_re, normalized))
         if ready and not not_ready:
             state['awaiting'], state['phase'] = 'main_answer', 'STORY'
             reply = current_step(state)['question']
             task_type, decision = 'ask_main', {'sufficient': True, 'reason': 'readiness_confirmed'}
         else:
-            reply = "No problem. When you are ready, please say yes."
+            reply = tr("No problem. When you are ready, please say yes.", language)
             task_type, decision = 'wait_for_readiness', {'sufficient': False, 'reason': 'not_ready'}
     elif story_phase and is_skip_intent(user_input, turn_meta):
         _record_skipped_step(state, step, user_input, awaiting)
         decision = {'sufficient': True, 'reason': 'skip_requested', 'skipped': True}
         task_type, _ = advance_and_maybe_close(state, '')
         nxt = current_step(state)
-        reply = '' if task_type == 'close_to_photos' else (
-            f"No problem, we can skip that. {nxt['question']}" if nxt else "No problem, we can skip that.")
+        skipped = tr("No problem, we can skip that.", language)
+        # emit() appends the next section question in the patient's language.
+        reply = '' if task_type == 'close_to_photos' else (f"{skipped} {nxt['question']}" if nxt else skipped)
         store_user = False
     elif story_phase and _crisis_detected(user_input, turn_meta):
-        reply = ("I'm really sorry you're feeling this. This tool cannot provide crisis support. "
-                 "If you might hurt yourself, please call or text 988 now, or tell someone near you. "
-                 "Would you like to pause here?")
+        reply = tr("I'm really sorry you're feeling this. This tool cannot provide crisis support. "
+                   "If you might hurt yourself, please call or text 988 now, or tell someone near you. "
+                   "Would you like to pause here?", language)
         task_type, decision, store_user = 'safety_response', {'sufficient': False, 'reason': 'safety_crisis'}, False
         state['awaiting'], state['phase'] = awaiting, (step['phase'] if step else 'STORY')
     elif story_phase and input_guard_decision(step, user_input, turn_meta)['repair']:
-        reply = f"I did not catch that clearly. {step['question'] if step else ''}".strip()
+        reply = tr("I did not catch that clearly. {question}", language,
+                   question=tr(step['question'], language) if step else '').strip()
         task_type, decision, store_user = 'repair_answer', {'sufficient': False, 'reason': 'empty_or_no_response'}, False
         state['awaiting'], state['phase'] = awaiting, (step['phase'] if step else 'STORY')
 
@@ -410,7 +418,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
     if task_type is None:
         can_probe = _can_probe(state, awaiting, step, user_input)
         prompt = system_prompt.replace('{avatar_name}', avatar) + '\n\n' + build_turn_directive(
-            instruction_for(state, awaiting, step, can_probe=can_probe), offer_followup=can_probe)
+            instruction_for(state, awaiting, step, can_probe=can_probe, lang=language), offer_followup=can_probe)
         if language != 'en':
             prompt += f"\n\nIMPORTANT: Respond entirely in {LANGUAGE_NAMES.get(language, 'English')}."
         llm_history = history + ([{'role': 'user', 'content': user_input}] if store_user else [])
@@ -427,8 +435,8 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
             _log(session_id, f"LLM_RAW_RETRY: {raw[:600]}")
             turn = validate_turn(parse_turn(raw))
         if can_probe and turn.get('valid') and turn.get('needs_followup') and not _text(turn.get('followup_question')):
-            turn['followup_question'] = _fallback_followup_question(step)
-        required_followup = _required_followup_question(step, user_input) if can_probe and awaiting == 'main_answer' else ''
+            turn['followup_question'] = _fallback_followup_question(step, language)
+        required_followup = _required_followup_question(step, user_input, language) if can_probe and awaiting == 'main_answer' else ''
         if turn.get('valid') and required_followup:
             turn['needs_followup'] = True
             turn['followup_question'] = required_followup
@@ -447,7 +455,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
         needs_followup = can_probe and bool(turn.get('needs_followup')) and bool(_text(turn.get('followup_question')))
         if can_probe:
             if needs_followup:
-                reply = _join_reply(turn.get('ack'), turn.get('followup_question') or _fallback_followup_question(step))
+                reply = _join_reply(turn.get('ack'), turn.get('followup_question') or _fallback_followup_question(step, language))
             else:
                 reply = _text(turn.get('ack')) or _text(turn.get('reply'))
         else:
@@ -455,12 +463,13 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
         task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=needs_followup)
         if awaiting == 'name':
             name = state.get('patient_name') or 'there'
-            reply = (f"Thank you, {name}. We are about to begin the interview. "
-                     f"I will ask you {len(INTERVIEW_STEPS)} main questions about your story. {READINESS_QUESTION}")
+            reply = tr("Thank you, {name}. We are about to begin the interview. "
+                       "I will ask you {count} main questions about your story. {readiness}", language,
+                       name=name, count=len(INTERVIEW_STEPS), readiness=tr(READINESS_QUESTION, language))
         if invalid:
             decision = {'sufficient': True, 'reason': 'invalid_llm_json'}
         if not reply:
-            reply = _post_question(state)
+            reply = _post_question(state, language)
         _log(session_id, f"TURN: task={task_type} awaiting={state.get('awaiting')} step={state.get('step_index')} "
                          f"can_probe={can_probe} needs_followup={needs_followup} "
                          f"followup_question={bool(_text(turn.get('followup_question')))}")
@@ -510,17 +519,19 @@ class InterviewGoalManager:
         """Return a deterministic opening greeting and seed the interview state."""
         state = build_interview_state()
         if is_returning:
-            opening = (
-                f"Welcome back, I'm {avatar_name}. "
+            opening = tr(
+                "Welcome back, I'm {avatar_name}. "
                 "I'm glad you're here again. "
-                "Let's continue telling your story together. What name would you like shown publicly on your donor page?"
+                "Let's continue telling your story together. What name would you like shown publicly on your donor page?",
+                lang, avatar_name=avatar_name,
             )
         else:
-            opening = (
-                f"Hi there, I'm {avatar_name}. "
+            opening = tr(
+                "Hi there, I'm {avatar_name}. "
                 "I'm here to help create a donor page by learning your story in your own words. "
                 "You can skip anything or correct me at any point. "
-                "What name would you like shown publicly on your donor page? You can give your full name or just your first name."
+                "What name would you like shown publicly on your donor page? You can give your full name or just your first name.",
+                lang, avatar_name=avatar_name,
             )
 
         state['current_outgoing_turn'] = {

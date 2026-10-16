@@ -8,7 +8,8 @@ import subprocess
 import uuid
 
 from strings import MSG
-from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS
+from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS, avatar_profile_for
+from .i18n import supported_lang, tr
 from .session import create_session
 from .session_store import ensure_session, get_session, persist_session_state, set_session
 from .interview_state import progress_snapshot
@@ -146,7 +147,7 @@ def validate_publication_consent(info_state, request_data: dict, user_agent: str
         'publication',
         PUBLICATION_CONSENT_VERSION,
         True,
-        consent_text=PUBLICATION_CONSENT_TEXT,
+        consent_text=tr(PUBLICATION_CONSENT_TEXT, info_state.user.query('language')),
         actor='patient',
         user_agent=user_agent,
     )
@@ -188,7 +189,7 @@ def new_session():
     participant_code = str(data.get('participant_code') or request.args.get('participant_code', '')).strip()
     if not _valid_participant_code(participant_code):
         return jsonify({'error': 'A participant ID using letters or numbers only is required'}), 400
-    lang = data.get('lang', lang)
+    lang = supported_lang(data.get('lang', lang))
     avatar_id = data.get('avatar', avatar_id)
 
     session_id = str(uuid.uuid4())
@@ -200,9 +201,7 @@ def new_session():
 
     if avatar_id not in AVATAR_PROFILES:
         avatar_id = DEFAULT_AVATAR_ID
-    avatar_profile = AVATAR_PROFILES[avatar_id]
-    if lang == 'en' and avatar_profile['lang'] != 'en':
-        lang = avatar_profile['lang']
+    avatar_profile = avatar_profile_for(avatar_id, lang)
 
     info_state.user.update('language', lang)
     info_state.user.update('avatar', avatar_id)

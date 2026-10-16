@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang or 'en' }}">
 <head>
-    <title>Create Your Donor Page</title>
+    <script>window.APP_LANG = {{ (lang or 'en') | tojson }}; window.I18N = {{ i18n | default({}) | tojson }};</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <title>{{ t('Create Your Donor Page') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -54,6 +56,7 @@
             } else {
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.rate = 1.05;
+                utterance.lang = (LANG_CONFIG[window.APP_LANG] || LANG_CONFIG.en).recognition;
                 utterance.onend = () => document.dispatchEvent(new Event('sitePalTalkEnded'));
                 if (window.speechSynthesis && typeof window.speechSynthesis.speak === 'function') {
                     window.speechSynthesis.speak(utterance);
@@ -89,14 +92,14 @@
     <div id="conversation-screen">
         <div class="avatar-panel">
             <div class="restart-row" id="restartRow" style="display:none;">
-                <button type="button" id="restartBtn">&#8634; Start over</button>
+                <button type="button" id="restartBtn">&#8634; {{ t('Start over') }}</button>
             </div>
             <button type="button" class="back-btn conversation-toggle-btn" id="conversationToggleBtn"
-                    aria-controls="conversationUI" aria-expanded="false">Read conversation</button>
+                    aria-controls="conversationUI" aria-expanded="false">{{ t('Read conversation') }}</button>
             <div class="avatar-frame" id="avatarFrame">
                 <img id="avatarPreview" loading="eager"
                      src="{{ url_for('static', filename='photos/avatars/' ~ avatar_scene_id ~ '.png') }}"
-                     alt="Your donor page guide">
+                     alt="{{ t('Your donor page guide') }}">
                 <div id="avatar">
                     <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                     <script type="text/javascript">
@@ -107,17 +110,16 @@
         </div>
 
         <div class="interaction-panel">
-            <a class="hub-back-btn" id="hubBackBtn" href="{{ url_for('index') }}">Back to avatar hub</a>
+            <a class="hub-back-btn" id="hubBackBtn" href="{{ url_for('index') }}">{{ t('Back to avatar hub') }}</a>
 
             <div class="begin-overlay" id="beginOverlay" style="display:flex;">
-                <p class="eyebrow">Donor page interview</p>
-                <h2>Tell your story with Ludi</h2>
+                <p class="eyebrow">{{ t('Donor page interview') }}</p>
+                <h2>{{ t('Tell your story with Ludi') }}</h2>
                 <p class="begin-copy">
-                    Ludi will ask a few questions, listen to your answers, then help you add photos for your donor page.
-                    You can speak or type, skip anything, and correct details at any time.
+                    {{ t('Ludi will ask a few questions, listen to your answers, then help you add photos for your donor page. You can speak or type, skip anything, and correct details at any time.') }}
                 </p>
                 <div class="mic-preflight" id="micPreflightStatus" aria-live="polite"></div>
-                <button type="button" class="begin-btn" id="beginBtn" disabled>Loading Ludi...</button>
+                <button type="button" class="begin-btn" id="beginBtn" disabled>{{ t('Loading Ludi...') }}</button>
             </div>
 
             <div id="conversationUI" style="display:none;">
@@ -126,14 +128,14 @@
                         <div id="progress-bar-fill"></div>
                     </div>
                     <div id="progressText" class="progress-text hidden"></div>
-                    <div class="message-bubble" id="messageBubble">Loading...</div>
-                    <button type="button" id="repeatBtn" style="display:none;">&#8635; Repeat</button>
+                    <div class="message-bubble" id="messageBubble">{{ t('Loading...') }}</div>
+                    <button type="button" id="repeatBtn" style="display:none;">&#8635; {{ t('Repeat') }}</button>
                 </div>
 
                 <div class="convo-bottom">
                     <div class="mic-container">
                         <div class="mic-wrapper">
-                            <button id="micBtn" type="button" aria-label="Toggle microphone">
+                            <button id="micBtn" type="button" aria-label="{{ t('Toggle microphone') }}">
                                 <svg class="mic-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <rect x="9" y="2" width="6" height="13" rx="3" fill="white"/>
                                     <path d="M5 11a7 7 0 0 0 14 0" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
@@ -154,17 +156,17 @@
                             <span class="wave-bar"></span>
                             <span class="wave-bar"></span>
                         </div>
-                        <span class="mic-hint" id="micHint">Speak when ready</span>
+                        <span class="mic-hint" id="micHint">{{ t('Speak when ready') }}</span>
                     </div>
 
                     <div class="input-row">
-                        <span class="input-row-label">Or type your answer</span>
+                        <span class="input-row-label">{{ t('Or type your answer') }}</span>
                         <div class="input-row-controls">
-                            <input type="text" id="input" placeholder="Type here...">
-                            <button id="sendBtn" type="button">Send</button>
+                            <input type="text" id="input" placeholder="{{ t('Type here...') }}">
+                            <button id="sendBtn" type="button">{{ t('Send') }}</button>
                         </div>
                         <button class="skip-question-btn" type="button" id="skipQuestionBtn">
-                            Skip this question
+                            {{ t('Skip this question') }}
                         </button>
                     </div>
                     <div id="status"></div>
@@ -172,116 +174,114 @@
             </div>
 
             <div class="photo-section" id="photoSection">
-                <p class="eyebrow">Story complete</p>
-                <h2>Add Photos</h2>
-                <p>Add up to three public photos for the donor page.</p>
+                <p class="eyebrow">{{ t('Story complete') }}</p>
+                <h2>{{ t('Add Photos') }}</h2>
+                <p>{{ t('Add up to three public photos for the donor page.') }}</p>
                 <p class="photo-consent-note">
-                    Only choose photos you are comfortable sharing publicly.
+                    {{ t('Only choose photos you are comfortable sharing publicly.') }}
                 </p>
 
                 <div id="qrSection" class="qr-section" style="display:none;">
-                    <p>Scan to add photos from your phone.</p>
-                    <img id="qrCode" alt="Mobile upload QR code">
-                    <p class="upload-link-line">Or open: <a id="uploadLink" href="#" target="_blank"></a></p>
-                    <p id="photoProgress">0/3 photos uploaded</p>
+                    <p>{{ t('Scan to add photos from your phone.') }}</p>
+                    <img id="qrCode" alt="{{ t('Mobile upload QR code') }}">
+                    <p class="upload-link-line">{{ t('Or open:') }} <a id="uploadLink" href="#" target="_blank"></a></p>
+                    <p id="photoProgress">{{ t('{count}/3 photos uploaded', count=0) }}</p>
                 </div>
 
                 <div class="photo-grid">
-                    <div class="photo-slot" id="photo0" role="button" tabindex="0" title="Choose photo" data-role="before">
+                    <div class="photo-slot" id="photo0" role="button" tabindex="0" title="{{ t('Choose photo') }}" data-role="before">
                         <span class="photo-slot-plus">+</span>
-                        <strong>Photo 1</strong>
-                        <small>Who I am</small>
+                        <strong>{{ t('Photo 1') }}</strong>
+                        <small>{{ t('Who I am') }}</small>
                     </div>
-                    <div class="photo-slot" id="photo1" role="button" tabindex="0" title="Choose photo" data-role="during">
+                    <div class="photo-slot" id="photo1" role="button" tabindex="0" title="{{ t('Choose photo') }}" data-role="during">
                         <span class="photo-slot-plus">+</span>
-                        <strong>Photo 2</strong>
-                        <small>My kidney journey</small>
+                        <strong>{{ t('Photo 2') }}</strong>
+                        <small>{{ t('My kidney journey') }}</small>
                     </div>
-                    <div class="photo-slot" id="photo2" role="button" tabindex="0" title="Choose photo" data-role="hope">
+                    <div class="photo-slot" id="photo2" role="button" tabindex="0" title="{{ t('Choose photo') }}" data-role="hope">
                         <span class="photo-slot-plus">+</span>
-                        <strong>Photo 3</strong>
-                        <small>My hope after transplant</small>
+                        <strong>{{ t('Photo 3') }}</strong>
+                        <small>{{ t('My hope after transplant') }}</small>
                     </div>
                 </div>
                 <div id="photoStatus" class="photo-status" aria-live="polite"></div>
                 <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
-                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">Choose Photos</button>
+                <button class="upload-btn" type="button" onclick="document.getElementById('photoInput').click()">{{ t('Choose Photos') }}</button>
                 <button class="secondary-action-btn" type="button" id="continueWithPhotosBtn" disabled>
-                    Continue with these photos
+                    {{ t('Continue with these photos') }}
                 </button>
             </div>
 
             <div id="generateSection" class="generate-section" style="display:none;">
                 <div class="name-input">
-                    <label for="patientName">Name to show on the donor page</label>
-                    <input type="text" id="patientName" placeholder="Use the name you gave Ludi">
+                    <label for="patientName">{{ t('Name to show on the donor page') }}</label>
+                    <input type="text" id="patientName" placeholder="{{ t('Use the name you gave Ludi') }}">
                 </div>
-                <button id="generateBtn" type="button">Preview My Donor Page</button>
+                <button id="generateBtn" type="button">{{ t('Preview My Donor Page') }}</button>
             </div>
 
             <div class="review-section" id="reviewSection" style="display:none;">
-                <p class="eyebrow">Private preview</p>
-                <h2>Preview Your Donor Page</h2>
+                <p class="eyebrow">{{ t('Private preview') }}</p>
+                <h2>{{ t('Preview Your Donor Page') }}</h2>
                 <p class="review-copy">
-                    This preview is private. Review the page below, make corrections if needed,
-                    then approve it when it looks right.
+                    {{ t('This preview is private. Review the page below, make corrections if needed, then approve it when it looks right.') }}
                 </p>
 
                 <div class="donor-page-preview" id="draftPreview"></div>
-                <div class="hero-photo-picker" id="heroPhotoPicker" aria-label="Choose main photo"></div>
+                <div class="hero-photo-picker" id="heroPhotoPicker" aria-label="{{ t('Choose main photo') }}"></div>
 
                 <div class="revision-request">
-                    <div class="revision-label">Change the writing style</div>
-                    <div class="revision-presets" aria-label="Change writing style">
+                    <div class="revision-label">{{ t('Change the writing style') }}</div>
+                    <div class="revision-presets" aria-label="{{ t('Change writing style') }}">
                         <button type="button" class="revision-preset"
-                                data-instruction="Make the wording warmer and more informal while preserving every fact.">Make More Informal</button>
+                                data-instruction="Make the wording warmer and more informal while preserving every fact.">{{ t('Make More Informal') }}</button>
                         <button type="button" class="revision-preset"
-                                data-instruction="Make the wording more formal while preserving every fact.">Make More Formal</button>
+                                data-instruction="Make the wording more formal while preserving every fact.">{{ t('Make More Formal') }}</button>
                         <button type="button" class="revision-preset"
-                                data-instruction="Make the wording more compelling while preserving every fact and avoiding exaggeration.">Make More Compelling</button>
+                                data-instruction="Make the wording more compelling while preserving every fact and avoiding exaggeration.">{{ t('Make More Compelling') }}</button>
                     </div>
-                    <label for="revisionInstruction">Something else you would like changed?</label>
+                    <label for="revisionInstruction">{{ t('Something else you would like changed?') }}</label>
                     <textarea id="revisionInstruction" rows="3" maxlength="500"
-                              placeholder="Describe another change"></textarea>
-                    <button id="reviseDraftBtn" type="button">Update Preview</button>
+                              placeholder="{{ t('Describe another change') }}"></textarea>
+                    <button id="reviseDraftBtn" type="button">{{ t('Update Preview') }}</button>
                 </div>
 
                 <details class="edit-story-panel" id="editStoryPanel">
-                    <summary>Edit story details</summary>
+                    <summary>{{ t('Edit story details') }}</summary>
                     <p>
-                        Use this only if something is inaccurate or private. These fields update the page
-                        when you approve it.
+                        {{ t('Use this only if something is inaccurate or private. These fields update the page when you approve it.') }}
                     </p>
                     <div class="review-field">
-                        <label for="reviewName">Name shown on the page</label>
+                        <label for="reviewName">{{ t('Name shown on the page') }}</label>
                         <input type="text" id="reviewName">
                     </div>
                     <div class="review-field">
-                        <label for="reviewHeadline">Main headline</label>
+                        <label for="reviewHeadline">{{ t('Main headline') }}</label>
                         <input type="text" id="reviewHeadline">
                     </div>
                     <div class="review-field">
-                        <label for="reviewShortIntro">Opening summary</label>
+                        <label for="reviewShortIntro">{{ t('Opening summary') }}</label>
                         <textarea id="reviewShortIntro" rows="4"></textarea>
                     </div>
                     <div class="review-field">
-                        <label for="reviewPersonalIdentity">Who I am</label>
+                        <label for="reviewPersonalIdentity">{{ t('Who I am') }}</label>
                         <textarea id="reviewPersonalIdentity" rows="5"></textarea>
                     </div>
                     <div class="review-field">
-                        <label for="reviewKidneyJourney">Why I need a kidney</label>
+                        <label for="reviewKidneyJourney">{{ t('Why I need a kidney') }}</label>
                         <textarea id="reviewKidneyJourney" rows="5"></textarea>
                     </div>
                     <div class="review-field">
-                        <label for="reviewDailyImpact">How kidney disease affects my life</label>
+                        <label for="reviewDailyImpact">{{ t('How kidney disease affects my life') }}</label>
                         <textarea id="reviewDailyImpact" rows="5"></textarea>
                     </div>
                     <div class="review-field">
-                        <label for="reviewTransplantHope">What transplant could make possible</label>
+                        <label for="reviewTransplantHope">{{ t('What transplant could make possible') }}</label>
                         <textarea id="reviewTransplantHope" rows="5"></textarea>
                     </div>
                     <div class="review-field">
-                        <label for="reviewDonorMessage">What I want donors to know</label>
+                        <label for="reviewDonorMessage">{{ t('What I want donors to know') }}</label>
                         <textarea id="reviewDonorMessage" rows="5"></textarea>
                     </div>
                 </details>
@@ -289,23 +289,22 @@
                 <label class="publication-consent" for="publicationConsent">
                     <input type="checkbox" id="publicationConsent">
                     <span>
-                        I understand that approving this will create a public donor page using the name,
-                        story, and photos I reviewed here.
+                        {{ t('I understand that approving this will create a public donor page using the name, story, and photos I reviewed here.') }}
                     </span>
                 </label>
-                <button id="publishBtn" type="button">Approve and Create Public Page</button>
+                <button id="publishBtn" type="button">{{ t('Approve and Create Public Page') }}</button>
             </div>
 
             <div class="celebration-section" id="celebrationSection" style="display:none;">
-                <h2>Your Page is Ready</h2>
+                <h2>{{ t('Your Page is Ready') }}</h2>
                 <a href="javascript:void(0)" target="_blank" class="view-page-cta" id="viewPageCTA">
-                    View Your Donor Page
+                    {{ t('View Your Donor Page') }}
                 </a>
                 <div class="public-page-qr">
-                    <p>Scan to open or share your donor page.</p>
-                    <img id="publicPageQr" alt="QR code for the public donor page">
+                    <p>{{ t('Scan to open or share your donor page.') }}</p>
+                    <img id="publicPageQr" alt="{{ t('QR code for the public donor page') }}">
                 </div>
-                <p class="cta-hint">Opens in a new tab</p>
+                <p class="cta-hint">{{ t('Opens in a new tab') }}</p>
             </div>
 
             <div class="microsite-preview" id="micrositePreview">
@@ -314,14 +313,14 @@
                 <div class="microsite-content" id="siteContent"></div>
                 <div class="microsite-url" id="micrositeUrl"></div>
                 <div class="share-section">
-                    <h3>Share Your Page</h3>
+                    <h3>{{ t('Share Your Page') }}</h3>
                     <div class="share-buttons">
-                        <a href="#" target="_blank" class="share-btn view" id="viewBtn">View Full Page</a>
+                        <a href="#" target="_blank" class="share-btn view" id="viewBtn">{{ t('View Full Page') }}</a>
                         <a href="#" target="_blank" class="share-btn fb" id="shareFb">Facebook</a>
                         <a href="#" target="_blank" class="share-btn wa" id="shareWa">WhatsApp</a>
-                        <a href="#" class="share-btn email" id="shareEmail">Email</a>
-                        <button class="share-btn copy" type="button" id="copyLinkBtn">Copy Link</button>
-                        <button class="share-btn danger" type="button" id="unpublishBtn">Unpublish Page</button>
+                        <a href="#" class="share-btn email" id="shareEmail">{{ t('Email') }}</a>
+                        <button class="share-btn copy" type="button" id="copyLinkBtn">{{ t('Copy Link') }}</button>
+                        <button class="share-btn danger" type="button" id="unpublishBtn">{{ t('Unpublish Page') }}</button>
                     </div>
                 </div>
             </div>
@@ -330,11 +329,11 @@
 
     <dialog class="restart-dialog" id="restartDialog" aria-labelledby="restartDialogTitle"
             aria-describedby="restartDialogDescription">
-        <h2 id="restartDialogTitle">Start over?</h2>
-        <p id="restartDialogDescription">This will end the current interview and return to the home screen.</p>
+        <h2 id="restartDialogTitle">{{ t('Start over?') }}</h2>
+        <p id="restartDialogDescription">{{ t('This will end the current interview and return to the home screen.') }}</p>
         <div class="restart-dialog-actions">
-            <button type="button" id="continueInterviewBtn" autofocus>Continue interview</button>
-            <button type="button" id="confirmRestartBtn">Start over</button>
+            <button type="button" id="continueInterviewBtn" autofocus>{{ t('Continue interview') }}</button>
+            <button type="button" id="confirmRestartBtn">{{ t('Start over') }}</button>
         </div>
     </dialog>
 

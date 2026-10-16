@@ -74,7 +74,7 @@ class App {
             } else {
                 this._emptyCount = 0;
                 const message = reason === 'audio_too_large'
-                    ? 'That answer was longer than this recorder can send at once. Please try again in a shorter response, or type your answer.'
+                    ? T('That answer was longer than this recorder can send at once. Please try again in a shorter response, or type your answer.')
                     : "I didn't catch that clearly. Please try speaking again, or type your answer.";
                 ui.setStatus(message);
                 ui.showIdle();
@@ -83,17 +83,17 @@ class App {
 
         speechManager.on('listeningIdle', () => {
             ui.showListeningIdle();
-            ui.setStatus('Still listening. Take your time.');
+            ui.setStatus(T('Still listening. Take your time.'));
         });
 
         speechManager.on('postSpeechPause', () => {
             ui.showPostSpeechPause();
-            ui.setStatus('I am listening in case you want to add more.');
+            ui.setStatus(T('I am listening in case you want to add more.'));
         });
 
         speechManager.on('listeningAborted', ({ reason } = {}) => {
             if (reason === 'max_wait_for_speech') {
-                ui.setStatus('I paused listening so the microphone would not stay open too long. Tap the mic or type below when ready.');
+                ui.setStatus(T('I paused listening so the microphone would not stay open too long. Tap the mic or type below when ready.'));
             }
             ui.showIdle();
         });
@@ -240,17 +240,17 @@ class App {
         this._startupInProgress = true;
         this._startupReady = false;
         const avatarProfile = window.AVATAR_PROFILE || {};
-        speechManager.setLanguage('en-US');
+        speechManager.setLanguage((LANG_CONFIG[window.APP_LANG] || LANG_CONFIG.en).recognition);
         speechManager.setVoiceConfig({
-            lang: avatarProfile.lang || 'en',
+            lang: window.APP_LANG,
             gender: avatarProfile.gender || 'female'
         });
 
         ui.hideConversation();
         ui.showBeginOverlay();
-        ui.setBeginLoading(true, 'Loading Ludi...');
-        ui.showMicPreflight('checking', 'Getting Ludi ready...', 'Connecting to your interview session and avatar.');
-        ui.setStatus('Loading...');
+        ui.setBeginLoading(true, T('Loading Ludi...'));
+        ui.showMicPreflight('checking', T('Getting Ludi ready...'), T('Connecting to your interview session and avatar.'));
+        ui.setStatus(T('Loading...'));
         this._startupStartedAt = performance.now();
 
         try {
@@ -259,7 +259,7 @@ class App {
             const participantCode = sessionStorage.getItem('participantCode');
             const startupTimeoutMs = 25000;
             const [data] = await Promise.all([
-                conversationAPI.startSession('en', avatarId, participantCode, startupTimeoutMs),
+                conversationAPI.startSession(window.APP_LANG, avatarId, participantCode, startupTimeoutMs),
                 this._waitForSitePal()
             ]);
             const elapsedMs = this._startupStartedAt === null ? null : Math.max(0, Math.round(performance.now() - this._startupStartedAt));
@@ -271,8 +271,8 @@ class App {
             this._startupReady = true;
             ui.updateProgress(data.progress);
             ui.clearMessage();
-            ui.showMicPreflight('ready', 'Ludi is ready.', 'Tap begin interview when you are ready.');
-            ui.setBeginLoading(false, 'Begin interview');
+            ui.showMicPreflight('ready', T('Ludi is ready.'), T('Tap begin interview when you are ready.'));
+            ui.setBeginLoading(false, T('Begin interview'));
             ui.showBeginOverlay();
             ui.setStatus('');
 
@@ -285,13 +285,13 @@ class App {
             const elapsedMs = this._startupStartedAt === null ? null : Math.max(0, Math.round(performance.now() - this._startupStartedAt));
             console.warn('[microsite] startup failed', { elapsedMs, error: err?.message || String(err) });
             this._startupReady = false;
-            ui.setBeginLoading(false, 'Retry loading Ludi');
+            ui.setBeginLoading(false, T('Retry loading Ludi'));
             ui.showMicPreflight(
                 'error',
-                'Could not load Ludi.',
+                T('Could not load Ludi.'),
                 err?.message === 'Session loading timed out.'
-                    ? 'The server took too long to respond. Check the connection and tap retry.'
-                    : 'Check the connection and tap retry.'
+                    ? T('The server took too long to respond. Check the connection and tap retry.')
+                    : T('Check the connection and tap retry.')
             );
             ui.setStatus('');
             console.error(err);
@@ -312,10 +312,10 @@ class App {
         }
         if (this._speechActivated) return;
         this._speechActivated = true;
-        ui.setBeginLoading(true, 'Checking microphone...');
+        ui.setBeginLoading(true, T('Checking microphone...'));
         ui.clearMessage();
         ui.setStatus('');
-        ui.showMicPreflight('checking', 'Checking microphone...', 'Please allow microphone access if your browser asks.');
+        ui.showMicPreflight('checking', T('Checking microphone...'), T('Please allow microphone access if your browser asks.'));
 
         try {
             await this._recordClientEvents([{ type: 'mic_preflight_started', ts: Math.round(performance.now()) }]);
@@ -331,7 +331,7 @@ class App {
                 throw this._microphonePreflightError(preflight.metadata);
             }
 
-            ui.showMicPreflight('ready', 'Microphone ready.', this._microphoneReadyDetail(preflight.metadata));
+            ui.showMicPreflight('ready', T('Microphone ready.'), this._microphoneReadyDetail(preflight.metadata));
             console.info('[microsite] initializing VAD', {
                 preflight_status: preflight.metadata?.status,
                 track_state: preflight.metadata?.active_track_state,
@@ -355,8 +355,8 @@ class App {
             ui.setBeginLoading(false);
             ui.showMicPreflight(
                 'error',
-                err.userMessage || 'Microphone is not ready.',
-                err.userDetail || 'You can fix microphone access and try again, or type your answers after starting.'
+                err.userMessage || T('Microphone is not ready.'),
+                err.userDetail || T('You can fix microphone access and try again, or type your answers after starting.')
             );
             ui.setStatus('');
         }
@@ -372,9 +372,9 @@ class App {
 
     _microphoneReadyDetail(metadata = {}) {
         const parts = [];
-        if (metadata.active_track_label) parts.push(`Using: ${metadata.active_track_label}`);
+        if (metadata.active_track_label) parts.push(T('Using: {label}', { label: metadata.active_track_label }));
         if (metadata.audioinput_count !== undefined) parts.push(`${metadata.audioinput_count} audio input(s) found`);
-        if (metadata.bluetooth_input_detected) parts.push('Bluetooth input detected');
+        if (metadata.bluetooth_input_detected) parts.push(T('Bluetooth input detected'));
         return parts.join(' · ');
     }
 
@@ -383,26 +383,26 @@ class App {
         const name = metadata.error_name || metadata.status || 'microphone_preflight_failed';
         const messages = {
             insecure_context: [
-                'Microphone requires the secure site.',
-                'Open the HTTPS version of the page, then try again.'
+                T('Microphone requires the secure site.'),
+                T('Open the HTTPS version of the page, then try again.')
             ],
             speech_recognition_unsupported: [
-                'Speech recognition is not supported in this browser.',
-                'Use Chrome on the tablet, or type answers instead.'
+                T('Speech recognition is not supported in this browser.'),
+                T('Use Chrome on the tablet, or type answers instead.')
             ],
             get_user_media_unsupported: [
-                'This browser cannot request microphone access.',
-                'Use Chrome on the tablet, or type answers instead.'
+                T('This browser cannot request microphone access.'),
+                T('Use Chrome on the tablet, or type answers instead.')
             ],
             no_live_audio_track: [
-                'No active microphone was detected.',
-                'Check that the tablet or Bluetooth microphone is connected, then try again.'
+                T('No active microphone was detected.'),
+                T('Check that the tablet or Bluetooth microphone is connected, then try again.')
             ],
             failed: [
-                name === 'NotAllowedError' ? 'Microphone permission is blocked.' : 'Microphone check failed.',
+                name === 'NotAllowedError' ? T('Microphone permission is blocked.') : T('Microphone check failed.'),
                 name === 'NotAllowedError'
-                    ? 'Allow microphone access for this site in the browser settings, then try again.'
-                    : `${metadata.error_message || 'Check the microphone connection and try again.'}${metadata.error_name ? ` (${metadata.error_name})` : ''}`
+                    ? T('Allow microphone access for this site in the browser settings, then try again.')
+                    : `${metadata.error_message || T('Check the microphone connection and try again.')}${metadata.error_name ? ` (${metadata.error_name})` : ''}`
             ]
         };
         const [userMessage, userDetail] = messages[metadata.status] || messages.failed;
@@ -468,13 +468,13 @@ class App {
         if (!text) return;
 
         if (!conversationAPI.getSessionId()) {
-            ui.setStatus('No active session. Please refresh.');
+            ui.setStatus(T('No active session. Please refresh.'));
             return;
         }
 
         const state = turnManager.getState();
         if ([TurnState.PROCESSING, TurnState.SYSTEM_SPEAKING].includes(state)) {
-            ui.setStatus('Please wait for Ludi to finish.');
+            ui.setStatus(T('Please wait for Ludi to finish.'));
             return;
         }
         if (state === TurnState.USER_SPEAKING) speechManager.pauseListening();
@@ -487,7 +487,7 @@ class App {
 
     async skipCurrentQuestion() {
         if (!this.conversationActive || !conversationAPI.getSessionId()) return;
-        if (!window.confirm('Skip this question and move to the next part of your story?')) return;
+        if (!window.confirm(T('Skip this question and move to the next part of your story?'))) return;
 
         const state = turnManager.getState();
         if ([TurnState.PROCESSING, TurnState.SYSTEM_SPEAKING].includes(state)) return;
@@ -561,7 +561,7 @@ class App {
 
     async _processUserInput(text, inputModality = 'unknown', metadataExtra = {}) {
         if (!conversationAPI.getSessionId()) {
-            ui.setStatus('No active session.');
+            ui.setStatus(T('No active session.'));
             ui.showIdle();
             return;
         }
@@ -592,7 +592,7 @@ class App {
 
             await speechManager.speak(data.prompt);
         } catch (err) {
-            ui.setStatus('Failed to send. Please try again.');
+            ui.setStatus(T('Failed to send. Please try again.'));
             console.error(err);
             ui.showIdle();
             turnManager.reset();
@@ -607,11 +607,11 @@ class App {
             const qrData = await conversationAPI.getQRCode();
             ui.setQRCode(qrData.qr_image, qrData.upload_url);
             ui.updatePhotoProgress(0, 3);
-            ui.setPhotoStatus('Scan the QR code with your phone, or upload photos from this device. This page will update automatically.', 'info');
+            ui.setPhotoStatus(T('Scan the QR code with your phone, or upload photos from this device. This page will update automatically.'), 'info');
             this.startPhotoPolling();
         } catch (err) {
             console.error('Failed to get QR code:', err);
-            ui.setPhotoStatus('Could not create the phone upload link. You can still upload photos from this device.', 'error');
+            ui.setPhotoStatus(T('Could not create the phone upload link. You can still upload photos from this device.'), 'error');
         }
     }
 
@@ -630,23 +630,23 @@ class App {
                 if (status.ready) {
                     this.stopPhotoPolling();
                     ui.showGenerateSection();
-                    ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
-                    ui.setStatus('Review the photo slots, then draft your donor page.');
+                    ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
+                    ui.setStatus(T('Review the photo slots, then draft your donor page.'));
                 } else if ((status.photo_count || 0) > this.lastPhotoCount) {
-                    ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. You can add more or continue with fewer.`, 'success');
+                    ui.setPhotoStatus(T(status.photo_count === 1 ? '{count} photo received. You can add more or continue with fewer.' : '{count} photos received. You can add more or continue with fewer.', { count: status.photo_count }), 'success');
                 } else if ((status.photo_count || 0) === 0) {
-                    ui.setPhotoStatus('Waiting for photos. If you uploaded from your phone, keep this desktop page open.', 'info');
+                    ui.setPhotoStatus(T('Waiting for photos. If you uploaded from your phone, keep this desktop page open.'), 'info');
                 } else {
-                    ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'info');
+                    ui.setPhotoStatus(T(status.photo_count === 1 ? '{count} photo received. Add more photos or continue with the uploaded photos.' : '{count} photos received. Add more photos or continue with the uploaded photos.', { count: status.photo_count }), 'info');
                 }
                 this.lastPhotoCount = status.photo_count || 0;
             } catch (err) {
                 console.error('Photo polling error:', err);
                 this.photoPollingErrors += 1;
                 if (this.photoPollingErrors >= 3) {
-                    ui.setPhotoStatus('I cannot check for new phone uploads right now. You can still upload from this device, or refresh the page if needed.', 'error');
+                    ui.setPhotoStatus(T('I cannot check for new phone uploads right now. You can still upload from this device, or refresh the page if needed.'), 'error');
                 } else {
-                    ui.setPhotoStatus('Still checking for phone uploads...', 'info');
+                    ui.setPhotoStatus(T('Still checking for phone uploads...'), 'info');
                 }
             }
         }, 3000);
@@ -666,11 +666,11 @@ class App {
             if (status.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
-                ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
-                ui.setStatus('Review the photo slots, then draft your donor page.');
+                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
+                ui.setStatus(T('Review the photo slots, then draft your donor page.'));
             } else if ((status.photo_count || 0) > 0) {
                 this.startPhotoPolling();
-                ui.setPhotoStatus(`${status.photo_count} photo${status.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'info');
+                ui.setPhotoStatus(T(status.photo_count === 1 ? '{count} photo received. Add more photos or continue with the uploaded photos.' : '{count} photos received. Add more photos or continue with the uploaded photos.', { count: status.photo_count }), 'info');
             }
             this.lastPhotoCount = status.photo_count || 0;
         } catch (err) {
@@ -695,7 +695,7 @@ class App {
         try {
             let latest = null;
             for (const [index, file] of selectedFiles.entries()) {
-                const action = replaceFilename ? 'Replacing photo' : `Uploading photo ${index + 1} of ${selectedFiles.length}`;
+                const action = replaceFilename ? T('Replacing photo') : T('Uploading photo {number} of {total}', { number: index + 1, total: selectedFiles.length });
                 ui.setPhotoStatus(`${action}...`, 'info');
                 latest = await conversationAPI.uploadPhoto(file, 'desktop', { replaceFilename });
                 if (latest.status === 'ok') {
@@ -712,16 +712,16 @@ class App {
             if (latest?.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
-                ui.setPhotoStatus('All photos are received. Review each photo slot, then draft the donor page.', 'success');
-                ui.setStatus('Review the photo slots, then draft your donor page.');
+                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
+                ui.setStatus(T('Review the photo slots, then draft your donor page.'));
             } else if (latest?.replaced) {
-                ui.setPhotoStatus('Photo replaced. Review the photo slots before drafting the donor page.', 'success');
+                ui.setPhotoStatus(T('Photo replaced. Review the photo slots before drafting the donor page.'), 'success');
             } else if (latest?.photo_count) {
-                ui.setPhotoStatus(`${latest.photo_count} photo${latest.photo_count === 1 ? '' : 's'} received. Add more photos or continue with the uploaded photos.`, 'success');
+                ui.setPhotoStatus(T(latest.photo_count === 1 ? '{count} photo received. Add more photos or continue with the uploaded photos.' : '{count} photos received. Add more photos or continue with the uploaded photos.', { count: latest.photo_count }), 'success');
             }
         } catch (err) {
-            ui.setPhotoStatus(`Upload failed: ${err.message}`, 'error');
-            ui.setStatus(`Upload failed: ${err.message}`);
+            ui.setPhotoStatus(T('Upload failed: {error}', { error: T(err.message) }), 'error');
+            ui.setStatus(T('Upload failed: {error}', { error: T(err.message) }));
             console.error(err);
         }
         fileInput.value = '';
@@ -747,7 +747,7 @@ class App {
             photoItems.forEach((item, index) => ui.showPhotoSlot(index, item));
             return data;
         } catch (err) {
-            ui.setStatus(`Could not save photo details: ${err.message}`);
+            ui.setStatus(T('Could not save photo details: {error}', { error: T(err.message) }));
             console.error(err);
             return null;
         }
@@ -762,8 +762,8 @@ class App {
             await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite('');
             ui.showDraftReview(data);
-            ui.setStatus('Review the private preview, then approve it when it looks right.');
-            this._lastSpokenText = `I prepared a private preview of your donor page, ${data.name}. Please review it before approving the public page.`;
+            ui.setStatus(T('Review the private preview, then approve it when it looks right.'));
+            this._lastSpokenText = T('I prepared a private preview of your donor page, {name}. Please review it before approving the public page.', { name: data.name });
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
@@ -777,7 +777,7 @@ class App {
         const status = await conversationAPI.getPhotoStatus();
         const count = status.photo_count || 0;
         if (count <= 0) {
-            ui.setStatus('Please upload at least one photo before continuing.');
+            ui.setStatus(T('Please upload at least one photo before continuing.'));
             return;
         }
         if (count >= (status.max_photos || 3)) {
@@ -786,7 +786,7 @@ class App {
         }
 
         const ok = window.confirm(
-            `You uploaded ${count} photo${count === 1 ? '' : 's'}. Three photos are recommended, but you can continue with fewer. Continue now?`
+            T(count === 1 ? 'You uploaded {count} photo. Three photos are recommended, but you can continue with fewer. Continue now?' : 'You uploaded {count} photos. Three photos are recommended, but you can continue with fewer. Continue now?', { count })
         );
         if (!ok) return;
 
@@ -800,14 +800,14 @@ class App {
         const name = document.getElementById('patientName').value || 'Patient';
         ui.showGenerating();
         ui.setStatus(allowPartialPhotos
-            ? 'Preparing your donor page preview with the photos uploaded so far...'
-            : 'Preparing your donor page preview...');
+            ? T('Preparing your donor page preview with the photos uploaded so far...')
+            : T('Preparing your donor page preview...'));
 
         try {
             await this.savePhotoMetadata();
             const data = await conversationAPI.generateMicrosite(name, { allowPartialPhotos });
             ui.showDraftReview(data);
-            ui.setStatus('Review the private preview, then approve it when it looks right.');
+            ui.setStatus(T('Review the private preview, then approve it when it looks right.'));
         } catch (err) {
             const message = this._generationErrorMessage(err);
             ui.showGenerateSection();
@@ -822,7 +822,7 @@ class App {
     async publish() {
         const consent = ui.getPublicationConsent();
         if (!consent.accepted) {
-            ui.setStatus('Please confirm that you understand this page may become public before approving it.');
+            ui.setStatus(T('Please confirm that you understand this page may become public before approving it.'));
             return;
         }
         ui.showPublishing();
@@ -834,14 +834,14 @@ class App {
             ui.showPublished();
             ui.showCelebration(fullUrl, data.public_qr_image);
             ui.showMicrositePreview(data);
-            ui.setStatus('Published.');
+            ui.setStatus(T('Published.'));
         } catch (err) {
-            ui.setStatus('Publish failed. Please try again.');
+            ui.setStatus(T('Publish failed. Please try again.'));
             console.error(err);
             const btn = document.getElementById('publishBtn');
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = 'Approve and Create Public Page';
+                btn.textContent = T('Approve and Create Public Page');
             }
         }
     }
@@ -851,69 +851,69 @@ class App {
         const btn = document.getElementById('reviseDraftBtn');
         const instruction = presetInstruction || input?.value.trim() || '';
         if (!instruction) {
-            ui.setStatus('Please describe what you would like changed.');
+            ui.setStatus(T('Please describe what you would like changed.'));
             input?.focus();
             return;
         }
 
         const controls = document.querySelectorAll('.revision-request button');
         controls.forEach((button) => { button.disabled = true; });
-        btn.textContent = 'Updating preview...';
-        ui.setStatus('Updating your private preview...');
+        btn.textContent = T('Updating preview...');
+        ui.setStatus(T('Updating your private preview...'));
         try {
             const data = await conversationAPI.reviseMicrosite(instruction, ui.getDraftReviewEdits());
             ui.showDraftReview(data);
-            ui.setStatus('Preview updated. Review it again before approving.');
+            ui.setStatus(T('Preview updated. Review it again before approving.'));
             document.getElementById('draftPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (err) {
-            ui.setStatus(err.message || 'The preview could not be updated. Please try again.');
+            ui.setStatus(T(err.message || 'The preview could not be updated. Please try again.'));
             console.error(err);
         } finally {
             controls.forEach((button) => { button.disabled = false; });
-            btn.textContent = 'Update Preview';
+            btn.textContent = T('Update Preview');
         }
     }
 
     _generationErrorMessage(err) {
         const detail = err?.detail || {};
         if (detail.error === 'generation_not_ready' && Array.isArray(detail.missing_story_sections)) {
-            const sections = detail.missing_story_sections.join(', ');
+            const sections = detail.missing_story_sections.map((section) => T(section)).join(', ');
             return sections
-                ? `I need one more detail before I can draft the page. Missing section: ${sections}.`
-                : detail.message || 'The donor page is not ready to generate yet.';
+                ? T('I need one more detail before I can draft the page. Missing section: {sections}.', { sections })
+                : T(detail.message || 'The donor page is not ready to generate yet.');
         }
         if (detail.error === 'invalid_draft_json' || detail.error === 'draft_content_incomplete') {
-            return detail.message || 'The draft was incomplete. Please try generating again.';
+            return T(detail.message || 'The draft was incomplete. Please try generating again.');
         }
-        return err?.message || 'Generation failed. Please try again.';
+        return T(err?.message || 'Generation failed. Please try again.');
     }
 
     copyLink() {
         navigator.clipboard.writeText(this.micrositeUrl).then(() => {
             const btn = document.getElementById('copyLinkBtn');
-            btn.textContent = 'Copied!';
-            setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+            btn.textContent = T('Copied!');
+            setTimeout(() => { btn.textContent = T('Copy Link'); }, 2000);
         });
     }
 
     async unpublish() {
-        const ok = window.confirm('Unpublish this donor page? The public link will stop working.');
+        const ok = window.confirm(T('Unpublish this donor page? The public link will stop working.'));
         if (!ok) return;
         const btn = document.getElementById('unpublishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = 'Unpublishing...';
+            btn.textContent = T('Unpublishing...');
         }
         try {
             await conversationAPI.unpublishMicrosite();
             ui.showUnpublished();
-            ui.setStatus('The donor page is no longer public.');
+            ui.setStatus(T('The donor page is no longer public.'));
         } catch (err) {
             console.error(err);
-            ui.setStatus('Unpublish failed. Please try again.');
+            ui.setStatus(T('Unpublish failed. Please try again.'));
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = 'Unpublish Page';
+                btn.textContent = T('Unpublish Page');
             }
         }
     }
