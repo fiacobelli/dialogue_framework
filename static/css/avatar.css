@@ -45,7 +45,7 @@
     display: none;
     align-self: flex-start;
     color: #78716C;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 700;
     margin-bottom: 24px;
     text-decoration: none;
@@ -241,7 +241,7 @@
 
 .progress-text {
     color: #78716C;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: 0.02em;
     margin-top: 8px;
@@ -266,12 +266,12 @@
 }
 
 .message-bubble.long-message {
-    font-size: clamp(16px, 1.8vw, 19px);
+    font-size: clamp(20px, 1.8vw, 22px);
     line-height: 1.42;
 }
 
 .message-bubble.very-long-message {
-    font-size: clamp(15px, 1.55vw, 17px);
+    font-size: clamp(19px, 1.55vw, 21px);
     line-height: 1.36;
 }
 
@@ -282,7 +282,7 @@
     border: 1.5px solid #E7DDD5;
     border-radius: 20px;
     padding: 7px 18px;
-    font-size: 14px;
+    font-size: 18px;
     color: #78716C;
     display: none;
 }
@@ -386,7 +386,7 @@
 }
 
 .mic-hint {
-    font-size: clamp(15px, 2vw, 18px);
+    font-size: clamp(19px, 2vw, 21px);
     color: #78716C;
     font-weight: 500;
     text-align: center;
@@ -475,14 +475,14 @@
 }
 .begin-overlay .eyebrow {
     color: #E86F2C;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 .begin-copy {
     color: #78716C;
-    font-size: clamp(15px, 2vw, 18px);
+    font-size: clamp(19px, 2vw, 21px);
     line-height: 1.65;
     max-width: 420px;
     text-align: center;
@@ -491,7 +491,7 @@
     display: none;
     width: 100%;
     border-radius: 12px;
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1.45;
     padding: 12px 14px;
     text-align: left;
@@ -526,7 +526,7 @@
 }
 .begin-btn {
     padding: clamp(15px, 2.2vw, 19px) clamp(36px, 5vw, 52px);
-    font-size: clamp(17px, 2.2vw, 21px);
+    font-size: clamp(20px, 2.2vw, 22px);
     font-weight: 600;
     background: #E86F2C;
     color: white;
@@ -569,13 +569,13 @@
 }
 
 .thankyou-screen p {
-    font-size: clamp(15px, 2vw, 18px);
+    font-size: clamp(19px, 2vw, 21px);
     color: #78716C;
     line-height: 1.6;
     max-width: 360px;
 }
 .thankyou-screen .thankyou-sub {
-    font-size: clamp(13px, 1.6vw, 15px);
+    font-size: clamp(18px, 1.6vw, 20px);
     color: #A8A29E;
     margin-top: -8px;
 }
@@ -604,7 +604,7 @@
     max-width: 420px;
 }
 .input-row-label {
-    font-size: 13px;
+    font-size: 18px;
     color: #78716C;
     font-weight: 500;
     text-align: center;
@@ -612,7 +612,7 @@
 .input-row-controls { display: flex; gap: 10px; width: 100%; }
 #input {
     flex: 1;
-    font-size: clamp(15px, 1.8vw, 17px);
+    font-size: clamp(19px, 1.8vw, 21px);
     padding: 12px 16px;
     border: 2px solid #E7DDD5;
     border-radius: 10px;
@@ -624,7 +624,7 @@
 
 #sendBtn {
     padding: 10px 22px;
-    font-size: clamp(14px, 1.8vw, 16px);
+    font-size: clamp(18px, 1.8vw, 20px);
     font-weight: 500;
     background: #E86F2C;
     color: white;
@@ -639,7 +639,7 @@
     border: 0;
     color: #78716C;
     display: none;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 700;
     padding: 4px 8px;
     text-decoration: underline;
@@ -651,7 +651,7 @@
 }
 
 #status {
-    font-size: 14px;
+    font-size: 18px;
     color: #9E8F87;
     min-height: 18px;
     text-align: center;
@@ -675,7 +675,7 @@
     background: rgba(255,255,255,0.85);
     border: 1.5px solid #E7DDD5;
     color: #78716C;
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 600;
     cursor: pointer;
     padding: 9px 16px;
@@ -723,7 +723,7 @@
     min-height: 52px;
     border-radius: 8px;
     padding: 10px 18px;
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 700;
 }
 
@@ -795,7 +795,7 @@
 
 .review-section .eyebrow {
     color: #E86F2C;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 800;
     letter-spacing: 0.08em;
     margin-bottom: 8px;
@@ -804,7 +804,7 @@
 
 .photo-section .eyebrow {
     color: #E86F2C;
-    font-size: 13px;
+    font-size: 18px;
     font-weight: 800;
     letter-spacing: 0.08em;
     margin-bottom: 8px;
@@ -907,12 +907,12 @@
 
 .hero-photo-picker-copy strong {
     color: #1C1712;
-    font-size: 16px;
+    font-size: 20px;
 }
 
 .hero-photo-picker-copy span {
     color: #78716C;
-    font-size: 14px;
+    font-size: 18px;
 }
 
 .hero-photo-options {
@@ -958,7 +958,7 @@
 .edit-story-panel summary {
     color: #C45D20;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 19px;
     font-weight: 800;
     padding: 16px 18px;
 }
@@ -985,7 +985,7 @@
 
 .review-field label {
     color: #78716C;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 700;
 }
 
@@ -1014,16 +1014,9 @@
     border: 1px solid #FED7AA;
     border-radius: 14px;
     color: #44403C;
-    display: flex;
-    gap: 12px;
     line-height: 1.45;
     margin: 18px 0;
     padding: 14px 16px;
-}
-
-.publication-consent input {
-    flex: 0 0 auto;
-    margin-top: 4px;
 }
 
 .qr-section {
@@ -1043,7 +1036,7 @@
 }
 
 .upload-link-line {
-    font-size: 13px;
+    font-size: 18px;
     word-break: break-all;
 }
 
@@ -1058,7 +1051,7 @@
     border: 1px solid #FED7AA;
     border-radius: 12px;
     color: #7C2D12;
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1.45;
     margin: 12px auto 16px;
     max-width: 560px;
@@ -1091,7 +1084,7 @@
     border: 1px solid #BFDBFE;
     border-radius: 12px;
     color: #1E3A8A !important;
-    font-size: 14px;
+    font-size: 18px;
     margin: 10px auto 0;
     max-width: 520px;
     padding: 10px 12px;
@@ -1126,13 +1119,13 @@
 
 .photo-slot strong {
     color: #1C1917;
-    font-size: 15px;
+    font-size: 19px;
     line-height: 1.2;
 }
 
 .photo-slot small {
     color: #78716C;
-    font-size: 12px;
+    font-size: 16px;
     line-height: 1.25;
 }
 
@@ -1175,7 +1168,7 @@
     background: #4CAF7D;
     color: white;
     border-radius: 12px;
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 600;
 }
 
@@ -1248,7 +1241,7 @@
 .cta-hint {
     margin-top: 12px;
     color: #A8A29E;
-    font-size: 14px;
+    font-size: 18px;
 }
 
 .public-page-qr {
@@ -1273,7 +1266,7 @@
     border: 1px solid #F0E9E2;
     border-radius: 10px;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 14px;
+    font-size: 18px;
     word-break: break-all;
 }
 
@@ -1284,7 +1277,7 @@
 }
 
 .share-section h3 {
-    font-size: 17px;
+    font-size: 20px;
     color: #78716C;
     margin-bottom: 14px;
 }
@@ -1301,7 +1294,7 @@
     justify-content: center;
     padding: 11px 16px;
     border-radius: 10px;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 600;
     text-decoration: none;
     color: white;

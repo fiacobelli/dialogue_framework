@@ -31,7 +31,7 @@ def unpublish_microsite():
         return jsonify({'error': 'unauthorized_session'}), 403
     ok = db.unpublish_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not ok:
-        return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
+        return jsonify({'error': 'not_found', 'message': 'No session was found.'}), 404
 
     info_state.user.update('publication_status', 'unpublished')
     info_state.user.update('microsite_draft_status', 'unpublished')
@@ -39,7 +39,7 @@ def unpublish_microsite():
     log_event(logger, 'microsite_unpublished', session_id=session_id, reason=data.get('reason') or 'user_request')
     return jsonify({
         'status': 'unpublished',
-        'message': 'The donor page is no longer public.',
+        'message': 'The page has been removed. The link no longer works.',
     })
 
 
@@ -56,7 +56,7 @@ def delete_microsite():
 
     result = takedown.delete_session(session_id, reason=data.get('reason') or 'user_request', actor='patient')
     if not result:
-        return jsonify({'error': 'not_found', 'message': 'No donor page session was found.'}), 404
+        return jsonify({'error': 'not_found', 'message': 'No session was found.'}), 404
 
     log_event(
         logger,
@@ -68,6 +68,6 @@ def delete_microsite():
     )
     return jsonify({
         'status': 'deleted',
-        'message': 'The donor page and uploaded photos are no longer public.',
+        'message': 'The page has been removed and the uploaded photos are no longer shared.',
         'removed_html': result.get('removed_html', False),
     })

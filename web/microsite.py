@@ -269,7 +269,7 @@ def _normalize_content(content: dict, name: str) -> dict:
     if missing:
         raise MicrositeGenerationError(
             'draft_content_incomplete',
-            'The donor-page draft is missing required story sections. Please regenerate or edit the draft before publishing.',
+            'The page draft is missing required story sections. Please regenerate or edit the draft before finishing.',
             missing=missing,
         )
 
@@ -576,7 +576,7 @@ def revise(info_state, provider, instruction: str, edits: dict | None = None,
     draft = info_state.user.query('microsite_draft')
     instruction = _clean_text(instruction)
     if not draft:
-        raise MicrositeGenerationError('draft_not_ready', 'No donor-page draft is available to revise.', status_code=409)
+        raise MicrositeGenerationError('draft_not_ready', 'No page draft is available to revise.', status_code=409)
     if not instruction or len(instruction) > 500:
         raise MicrositeGenerationError(
             'invalid_revision_instruction',
@@ -656,7 +656,7 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
     """Publish the reviewed donor-page draft and return its public URL."""
     draft = info_state.user.query('microsite_draft')
     if not draft:
-        raise ValueError('No donor-page draft is available to publish.')
+        raise ValueError('No page draft is available yet.')
 
     edits = edits or {}
     name = _clean_text(edits.get('name')) or _clean_text(draft.get('name')) or 'Patient'
@@ -669,7 +669,7 @@ def publish(info_state, session_id: str, edits: dict | None = None, session: dic
     if not safe:
         raise MicrositeGenerationError(
             'public_content_blocked',
-            'Please review and edit the donor-page draft before publishing. It contains content that should not be public.',
+            'Please review and edit the page draft before finishing. It contains content that should not be shared.',
             missing=[issue['code'] for issue in issues],
             status_code=409,
         )

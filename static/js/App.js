@@ -630,8 +630,8 @@ class App {
                 if (status.ready) {
                     this.stopPhotoPolling();
                     ui.showGenerateSection();
-                    ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
-                    ui.setStatus(T('Review the photo slots, then draft your donor page.'));
+                    ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft your page.'), 'success');
+                    ui.setStatus(T('Review the photo slots, then draft your page.'));
                 } else if ((status.photo_count || 0) > this.lastPhotoCount) {
                     ui.setPhotoStatus(T(status.photo_count === 1 ? '{count} photo received. You can add more or continue with fewer.' : '{count} photos received. You can add more or continue with fewer.', { count: status.photo_count }), 'success');
                 } else if ((status.photo_count || 0) === 0) {
@@ -666,8 +666,8 @@ class App {
             if (status.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
-                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
-                ui.setStatus(T('Review the photo slots, then draft your donor page.'));
+                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft your page.'), 'success');
+                ui.setStatus(T('Review the photo slots, then draft your page.'));
             } else if ((status.photo_count || 0) > 0) {
                 this.startPhotoPolling();
                 ui.setPhotoStatus(T(status.photo_count === 1 ? '{count} photo received. Add more photos or continue with the uploaded photos.' : '{count} photos received. Add more photos or continue with the uploaded photos.', { count: status.photo_count }), 'info');
@@ -712,10 +712,10 @@ class App {
             if (latest?.ready) {
                 this.stopPhotoPolling();
                 ui.showGenerateSection();
-                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft the donor page.'), 'success');
-                ui.setStatus(T('Review the photo slots, then draft your donor page.'));
+                ui.setPhotoStatus(T('All photos are received. Review each photo slot, then draft your page.'), 'success');
+                ui.setStatus(T('Review the photo slots, then draft your page.'));
             } else if (latest?.replaced) {
-                ui.setPhotoStatus(T('Photo replaced. Review the photo slots before drafting the donor page.'), 'success');
+                ui.setPhotoStatus(T('Photo replaced. Review the photo slots before drafting your page.'), 'success');
             } else if (latest?.photo_count) {
                 ui.setPhotoStatus(T(latest.photo_count === 1 ? '{count} photo received. Add more photos or continue with the uploaded photos.' : '{count} photos received. Add more photos or continue with the uploaded photos.', { count: latest.photo_count }), 'success');
             }
@@ -763,7 +763,7 @@ class App {
             const data = await conversationAPI.generateMicrosite('');
             ui.showDraftReview(data);
             ui.setStatus(T('Review the private preview, then approve it when it looks right.'));
-            this._lastSpokenText = T('I prepared a private preview of your donor page, {name}. Please review it before approving the public page.', { name: data.name });
+            this._lastSpokenText = T('I prepared a preview of your page, {name}. Please review it, then choose Finish to get your link.', { name: data.name });
         } catch (err) {
             console.error('Auto-generation failed:', err);
             ui.showGenerateSection();
@@ -800,8 +800,8 @@ class App {
         const name = document.getElementById('patientName').value || 'Patient';
         ui.showGenerating();
         ui.setStatus(allowPartialPhotos
-            ? T('Preparing your donor page preview with the photos uploaded so far...')
-            : T('Preparing your donor page preview...'));
+            ? T('Preparing your page preview with the photos uploaded so far...')
+            : T('Preparing your page preview...'));
 
         try {
             await this.savePhotoMetadata();
@@ -820,28 +820,23 @@ class App {
     }
 
     async publish() {
-        const consent = ui.getPublicationConsent();
-        if (!consent.accepted) {
-            ui.setStatus(T('Please confirm that you understand this page may become public before approving it.'));
-            return;
-        }
         ui.showPublishing();
 
         try {
-            const data = await conversationAPI.publishMicrosite(ui.getDraftReviewEdits(), consent);
+            const data = await conversationAPI.publishMicrosite(ui.getDraftReviewEdits());
             const fullUrl = data.microsite_absolute_url || absoluteAppUrl(data.microsite_url);
             this.micrositeUrl = fullUrl;
             ui.showPublished();
             ui.showCelebration(fullUrl, data.public_qr_image);
             ui.showMicrositePreview(data);
-            ui.setStatus(T('Published.'));
+            ui.setStatus(T('Your link is ready.'));
         } catch (err) {
-            ui.setStatus(T('Publish failed. Please try again.'));
+            ui.setStatus(T('Could not create your link. Please try again.'));
             console.error(err);
             const btn = document.getElementById('publishBtn');
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = T('Approve and Create Public Page');
+                btn.textContent = T('Finish and get my link');
             }
         }
     }
@@ -880,7 +875,7 @@ class App {
             const sections = detail.missing_story_sections.map((section) => T(section)).join(', ');
             return sections
                 ? T('I need one more detail before I can draft the page. Missing section: {sections}.', { sections })
-                : T(detail.message || 'The donor page is not ready to generate yet.');
+                : T(detail.message || 'Your page is not ready to create yet.');
         }
         if (detail.error === 'invalid_draft_json' || detail.error === 'draft_content_incomplete') {
             return T(detail.message || 'The draft was incomplete. Please try generating again.');
@@ -897,7 +892,7 @@ class App {
     }
 
     async unpublish() {
-        const ok = window.confirm(T('Unpublish this donor page? The public link will stop working.'));
+        const ok = window.confirm(T('Remove this page? The link will stop working.'));
         if (!ok) return;
         const btn = document.getElementById('unpublishBtn');
         if (btn) {
@@ -907,13 +902,13 @@ class App {
         try {
             await conversationAPI.unpublishMicrosite();
             ui.showUnpublished();
-            ui.setStatus(T('The donor page is no longer public.'));
+            ui.setStatus(T('The page has been removed. The link no longer works.'));
         } catch (err) {
             console.error(err);
             ui.setStatus(T('Unpublish failed. Please try again.'));
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = T('Unpublish Page');
+                btn.textContent = T('Remove Page');
             }
         }
     }

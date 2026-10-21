@@ -148,12 +148,12 @@ PROGRESS_LABELS = {
     'STORY': 'Story interview',
     'FINAL_DETAILS': 'Final story details',
     'PHOTOS': 'Adding photos',
-    'COMPLETE': 'Review and publish',
+    'COMPLETE': 'Review and finish',
 }
 
 FINAL_PHOTOS_PROMPT = (
     "Thank you for sharing your story with me. "
-    "The story part is complete, and the next step is to add up to three photos that you may want on your donor page."
+    "The story part is complete, and the next step is to add up to three photos that you may want on your page."
 )
 
 NO_RESPONSE_SENTINEL = '[no speech detected]'

@@ -144,7 +144,7 @@ class ConversationAPI {
             try {
                 detail = await res.json();
             } catch (_) {}
-            const err = new Error(detail.message || 'Failed to generate microsite');
+            const err = new Error(detail.message || 'Failed to create the page');
             err.status = res.status;
             err.detail = detail;
             throw err;
@@ -153,15 +153,14 @@ class ConversationAPI {
     }
 
     /** Publish a reviewed donor-page draft. */
-    async publishMicrosite(edits, publicationConsent = {}) {
+    async publishMicrosite(edits) {
         if (!this.sessionId) throw new Error('No active session');
 
         const res = await fetch(this._url('/api/publish'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(this._authPayload({
-                edits: edits || {},
-                publication_consent: publicationConsent || {}
+                edits: edits || {}
             }))
         });
 
@@ -170,7 +169,7 @@ class ConversationAPI {
             try {
                 detail = await res.json();
             } catch (_) {}
-            const err = new Error(detail.message || 'Failed to publish microsite');
+            const err = new Error(detail.message || 'Failed to create your link');
             err.status = res.status;
             err.detail = detail;
             throw err;
@@ -188,7 +187,7 @@ class ConversationAPI {
         });
         const data = await res.json();
         if (!res.ok) {
-            const err = new Error(data.message || 'Failed to revise donor page');
+            const err = new Error(data.message || 'Failed to revise the page');
             err.detail = data;
             throw err;
         }
@@ -207,7 +206,7 @@ class ConversationAPI {
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || data.error || 'Failed to unpublish microsite');
+        if (!res.ok) throw new Error(data.message || data.error || 'Failed to remove the page');
         return data;
     }
 

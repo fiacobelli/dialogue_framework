@@ -9,7 +9,7 @@ import uuid
 
 from strings import MSG
 from .config import AVATAR_PROFILES, WELCOME_BACK, DEFAULT_AVATAR_ID, MAX_PHOTOS, avatar_profile_for
-from .i18n import supported_lang, tr
+from .i18n import supported_lang
 from .session import create_session
 from .session_store import ensure_session, get_session, persist_session_state, set_session
 from .interview_state import progress_snapshot
@@ -42,10 +42,10 @@ def _turn_meta(data: dict) -> dict:
 
 
 NO_RESPONSE_INPUT = '[no speech detected]'
-PUBLICATION_CONSENT_VERSION = 'publication-v1'
+PUBLICATION_CONSENT_VERSION = 'irb-consent-on-file-v1'
 PUBLICATION_CONSENT_TEXT = (
-    'I understand that publishing will create a public donor page that may include '
-    'the public name, story, and photos I reviewed.'
+    'Patient signed the study consent before the session; '
+    'the page link was created when the patient finished reviewing it.'
 )
 
 
@@ -81,7 +81,7 @@ def _progress(info_state, phase: str | None = None) -> dict:
 
 
 def validate_generation_ready(info_state, allow_partial_photos: bool = False) -> tuple[bool, dict]:
-    """Return whether the current session is allowed to generate a donor page."""
+    """Return whether the current session is allowed to generate a page."""
     state = info_state.user.query('interview_state') or {}
     phase = info_state.user.query('interview_phase') or state.get('phase')
     photos = info_state.user.query('photos') or []
@@ -108,7 +108,7 @@ def validate_generation_ready(info_state, allow_partial_photos: bool = False) ->
     if missing:
         return False, {
             'error': 'generation_not_ready',
-            'message': 'The donor page is not ready to generate yet.',
+            'message': 'Your page is not ready to create yet.',
             'missing': missing,
             'missing_story_sections': story_ready['missing'],
             'photo_count': photo_count,
@@ -122,39 +122,22 @@ def validate_generation_ready(info_state, allow_partial_photos: bool = False) ->
     }
 
 
-def validate_publication_consent(info_state, request_data: dict, user_agent: str = '') -> tuple[bool, dict]:
-    """Persist and validate explicit consent before public publication."""
+def record_publication_consent(info_state, user_agent: str = '') -> tuple[bool, dict]:
+    """Record publication against the study consent the patient already signed."""
     visit_id = info_state.user.query('visit_id')
-    consent = request_data.get('publication_consent') or {}
-    consented = bool(consent.get('accepted'))
-    if not consented:
-        return False, {
-            'error': 'publication_consent_required',
-            'message': 'Please confirm that you understand this donor page may become public before publishing.',
-            'consent_version': PUBLICATION_CONSENT_VERSION,
-        }
-
-    version = consent.get('version') or PUBLICATION_CONSENT_VERSION
-    if version != PUBLICATION_CONSENT_VERSION:
-        return False, {
-            'error': 'publication_consent_version_mismatch',
-            'message': 'Please review the latest publication consent before publishing.',
-            'consent_version': PUBLICATION_CONSENT_VERSION,
-        }
-
     consent_id = db.save_consent(
         visit_id,
         'publication',
         PUBLICATION_CONSENT_VERSION,
         True,
-        consent_text=tr(PUBLICATION_CONSENT_TEXT, info_state.user.query('language')),
-        actor='patient',
+        consent_text=PUBLICATION_CONSENT_TEXT,
+        actor='system',
         user_agent=user_agent,
     )
     if not consent_id:
         return False, {
             'error': 'publication_consent_not_saved',
-            'message': 'Publication consent could not be saved. Please try again.',
+            'message': 'Your page could not be saved. Please try again.',
         }
 
     now = datetime.utcnow().isoformat()
@@ -240,7 +223,7 @@ def new_session():
         task_type='opening',
         input_modality='system',
         outgoing_turn_id=(info_state.user.query('interview_state') or {}).get('current_outgoing_turn', {}).get('outgoing_turn_id'),
-        asked_question_text='What name would you like shown publicly on your donor page?',
+        asked_question_text='What name would you like shown on your page?',
         expected_answer_kind='name',
         delivery_validated=True,
     )
@@ -461,11 +444,8 @@ def publish_microsite():
     ready, detail = validate_generation_ready(info_state)
     if not ready:
         return jsonify(detail), 409
-    consent_ready, consent_detail = validate_publication_consent(
-        info_state,
-        data,
-        request.headers.get('User-Agent', ''),
-    )
+    consent_ready, consent_detail = record_publication_consent(
+        info_state, request.headers.get('User-Agent', ''))
     if not consent_ready:
         return jsonify(consent_detail), 409
 

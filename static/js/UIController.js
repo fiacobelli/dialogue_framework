@@ -419,7 +419,7 @@ class UIController {
         const btn = document.getElementById('generateBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = T('Preview My Donor Page');
+            btn.textContent = T('Preview My Page');
         }
     }
 
@@ -472,8 +472,6 @@ class UIController {
         if (editPanel) editPanel.open = false;
         const revisionInstruction = document.getElementById('revisionInstruction');
         if (revisionInstruction) revisionInstruction.value = '';
-        const publicationConsent = document.getElementById('publicationConsent');
-        if (publicationConsent) publicationConsent.checked = false;
     }
 
     showHeroPhotoPicker(data) {
@@ -553,18 +551,11 @@ class UIController {
         };
     }
 
-    getPublicationConsent() {
-        return {
-            accepted: Boolean(document.getElementById('publicationConsent')?.checked),
-            version: 'publication-v1',
-        };
-    }
-
     showPublishing() {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = T('Creating public page...');
+            btn.textContent = T('Creating your link...');
         }
         this.setStatus('');
     }
@@ -574,7 +565,7 @@ class UIController {
         const btn = document.getElementById('publishBtn');
         if (btn) {
             btn.disabled = false;
-            btn.textContent = T('Approve and Create Public Page');
+            btn.textContent = T('Finish and get my link');
         }
         if (this.elements.reviewSection) this.elements.reviewSection.style.display = 'none';
     }
@@ -583,17 +574,17 @@ class UIController {
         const btn = document.getElementById('unpublishBtn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = T('Page Unpublished');
+            btn.textContent = T('Page Removed');
         }
         const viewBtn = document.getElementById('viewBtn');
         if (viewBtn) {
             viewBtn.removeAttribute('href');
-            viewBtn.textContent = T('Page Unpublished');
+            viewBtn.textContent = T('Page Removed');
         }
         const cta = document.getElementById('viewPageCTA');
         if (cta) {
             cta.removeAttribute('href');
-            cta.textContent = T('Page Unpublished');
+            cta.textContent = T('Page Removed');
         }
     }
 

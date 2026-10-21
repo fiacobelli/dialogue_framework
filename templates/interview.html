@@ -3,7 +3,7 @@
 <head>
     <script>window.APP_LANG = {{ (lang or 'en') | tojson }}; window.I18N = {{ i18n | default({}) | tojson }};</script>
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
-    <title>{{ t('Create Your Donor Page') }}</title>
+    <title>{{ t('Find a Living Donor') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -99,7 +99,7 @@
             <div class="avatar-frame" id="avatarFrame">
                 <img id="avatarPreview" loading="eager"
                      src="{{ url_for('static', filename='photos/avatars/' ~ avatar_scene_id ~ '.png') }}"
-                     alt="{{ t('Your donor page guide') }}">
+                     alt="{{ t('Your guide') }}">
                 <div id="avatar">
                     <script type="text/javascript" src="//vhss-d.oddcast.com/vhost_embed_functions_v4.php?acc=8688641&js=0"></script>
                     <script type="text/javascript">
@@ -113,10 +113,10 @@
             <a class="hub-back-btn" id="hubBackBtn" href="{{ url_for('index') }}">{{ t('Back to avatar hub') }}</a>
 
             <div class="begin-overlay" id="beginOverlay" style="display:flex;">
-                <p class="eyebrow">{{ t('Donor page interview') }}</p>
+                <p class="eyebrow">{{ t('Your story interview') }}</p>
                 <h2>{{ t('Tell your story with Ludi') }}</h2>
                 <p class="begin-copy">
-                    {{ t('Ludi will ask a few questions, listen to your answers, then help you add photos for your donor page. You can speak or type, skip anything, and correct details at any time.') }}
+                    {{ t('Ludi will ask a few questions, listen to your answers, then help you add photos for your page. You can speak or type, skip anything, and correct details at any time.') }}
                 </p>
                 <div class="mic-preflight" id="micPreflightStatus" aria-live="polite"></div>
                 <button type="button" class="begin-btn" id="beginBtn" disabled>{{ t('Loading Ludi...') }}</button>
@@ -176,9 +176,9 @@
             <div class="photo-section" id="photoSection">
                 <p class="eyebrow">{{ t('Story complete') }}</p>
                 <h2>{{ t('Add Photos') }}</h2>
-                <p>{{ t('Add up to three public photos for the donor page.') }}</p>
+                <p>{{ t('Add up to three photos for your page.') }}</p>
                 <p class="photo-consent-note">
-                    {{ t('Only choose photos you are comfortable sharing publicly.') }}
+                    {{ t('Only choose photos you are comfortable sharing with others.') }}
                 </p>
 
                 <div id="qrSection" class="qr-section" style="display:none;">
@@ -215,15 +215,15 @@
 
             <div id="generateSection" class="generate-section" style="display:none;">
                 <div class="name-input">
-                    <label for="patientName">{{ t('Name to show on the donor page') }}</label>
+                    <label for="patientName">{{ t('Name to show on your page') }}</label>
                     <input type="text" id="patientName" placeholder="{{ t('Use the name you gave Ludi') }}">
                 </div>
-                <button id="generateBtn" type="button">{{ t('Preview My Donor Page') }}</button>
+                <button id="generateBtn" type="button">{{ t('Preview My Page') }}</button>
             </div>
 
             <div class="review-section" id="reviewSection" style="display:none;">
                 <p class="eyebrow">{{ t('Private preview') }}</p>
-                <h2>{{ t('Preview Your Donor Page') }}</h2>
+                <h2>{{ t('Preview Your Page') }}</h2>
                 <p class="review-copy">
                     {{ t('This preview is private. Review the page below, make corrections if needed, then approve it when it looks right.') }}
                 </p>
@@ -286,23 +286,20 @@
                     </div>
                 </details>
 
-                <label class="publication-consent" for="publicationConsent">
-                    <input type="checkbox" id="publicationConsent">
-                    <span>
-                        {{ t('I understand that approving this will create a public donor page using the name, story, and photos I reviewed here.') }}
-                    </span>
-                </label>
-                <button id="publishBtn" type="button">{{ t('Approve and Create Public Page') }}</button>
+                <p class="publication-consent">
+                    {{ t("You'll get a link to your page. Anyone you share the link with can see it.") }}
+                </p>
+                <button id="publishBtn" type="button">{{ t('Finish and get my link') }}</button>
             </div>
 
             <div class="celebration-section" id="celebrationSection" style="display:none;">
                 <h2>{{ t('Your Page is Ready') }}</h2>
                 <a href="javascript:void(0)" target="_blank" class="view-page-cta" id="viewPageCTA">
-                    {{ t('View Your Donor Page') }}
+                    {{ t('View Your Page') }}
                 </a>
                 <div class="public-page-qr">
-                    <p>{{ t('Scan to open or share your donor page.') }}</p>
-                    <img id="publicPageQr" alt="{{ t('QR code for the public donor page') }}">
+                    <p>{{ t('Scan to open or share your page.') }}</p>
+                    <img id="publicPageQr" alt="{{ t('QR code for your page') }}">
                 </div>
                 <p class="cta-hint">{{ t('Opens in a new tab') }}</p>
             </div>
@@ -320,7 +317,7 @@
                         <a href="#" target="_blank" class="share-btn wa" id="shareWa">WhatsApp</a>
                         <a href="#" class="share-btn email" id="shareEmail">{{ t('Email') }}</a>
                         <button class="share-btn copy" type="button" id="copyLinkBtn">{{ t('Copy Link') }}</button>
-                        <button class="share-btn danger" type="button" id="unpublishBtn">{{ t('Unpublish Page') }}</button>
+                        <button class="share-btn danger" type="button" id="unpublishBtn">{{ t('Remove Page') }}</button>
                     </div>
                 </div>
             </div>
