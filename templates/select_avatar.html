@@ -224,6 +224,8 @@
             const interviewUrl = new URL(appUrl('/interview'), window.location.origin);
             interviewUrl.searchParams.set('avatar', selectedAvatar);
             interviewUrl.searchParams.set('lang', window.APP_LANG);
+            interviewUrl.searchParams.set('latency', '3');   // seconds of silence before an answer is sent
+            interviewUrl.searchParams.set('text', '0');      // 1 = show helper text
             window.location.href = interviewUrl.toString();
         };
     </script>
