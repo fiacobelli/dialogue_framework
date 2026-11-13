@@ -1,0 +1,4 @@
+# Patient data and results stay local; only the R script is shared on GitHub
+*
+!.gitignore
+!ludi_engagement.R
