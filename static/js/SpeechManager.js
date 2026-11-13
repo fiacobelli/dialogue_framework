@@ -282,7 +282,7 @@ class SpeechManager {
                 baseAssetPath: vadAssetPath,
                 onnxWASMBasePath: vadAssetPath,
                 model: 'legacy',
-                redemptionFrames: 16,
+                redemptionFrames: VAD_REDEMPTION_FRAMES,
                 onSpeechStart: () => this._onVADSpeechStart(),
                 onSpeechEnd: (audio) => this._onVADSpeechEnd(audio),
                 onVADMisfire: () => this._onVADMisfire(),
@@ -468,6 +468,11 @@ class SpeechManager {
         this.voiceConfig = { ...this.voiceConfig, ...config };
     }
 
+    // The kind of answer LUDI's last question expects (e.g. 'readiness' = yes/no)
+    setExpectedAnswer(kind) {
+        this._expectedAnswerKind = kind || null;
+    }
+
     startListening() {
         if (!this._vadReady) {
             this._emit('error', { type: 'vad_unavailable', message: 'Voice detection unavailable on this device.' });
@@ -494,7 +499,8 @@ class SpeechManager {
         this._vad.start();
 
         this.recordEvent('listening_started');
-        this._finalizer.start();
+        const shortAnswer = SHORT_ANSWER_KINDS.includes(this._expectedAnswerKind);
+        this._finalizer.start({ postSpeechGraceMs: shortAnswer ? SHORT_ANSWER_GRACE_MS : TURN_POST_SPEECH_GRACE_MS });
         this._emit('listening', {});
         return true;
     }

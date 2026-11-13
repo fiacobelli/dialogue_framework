@@ -42,6 +42,9 @@
         let engine = avatarProfile.engine || 4;
 
         function vh_sceneLoaded() {
+            // Keep LUDI looking at the patient instead of following the mouse (SitePal API)
+            if (typeof followCursor === 'function') followCursor(0);
+            if (typeof recenter === 'function') recenter();
             window.sitePalReady = true;
             document.dispatchEvent(new Event('sitePalReady'));
         }

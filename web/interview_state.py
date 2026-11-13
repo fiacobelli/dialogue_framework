@@ -20,6 +20,8 @@ from .interview_flow_config import (
     INTERVIEW_STEPS,
     NO_RESPONSE_SENTINEL,
     PROGRESS_LABELS,
+    REPEAT_MAX_WORDS,
+    REPEAT_PATTERNS,
 )
 
 # --- Deterministic guards (run before the LLM; never depend on it) ---
@@ -61,6 +63,14 @@ def is_decline_answer(text: str, awaiting: str | None = None) -> bool:
     if len(normalized.split()) > DECLINE_MAX_WORDS:
         return False
     return any(re.search(pattern, normalized) for pattern in DECLINE_PATTERNS)
+
+
+def is_repeat_request(text: str) -> bool:
+    """A short "can you repeat the question?" reply: repeat the question instead of recording it."""
+    normalized = normalize_answer(text)
+    if len(normalized.split()) > REPEAT_MAX_WORDS:
+        return False
+    return any(re.search(pattern, normalized) for pattern in REPEAT_PATTERNS)
 
 
 def _crisis_detected(text: str, turn_meta: dict[str, Any] | None = None) -> bool:

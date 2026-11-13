@@ -237,6 +237,7 @@ def new_session():
         'avatar': avatar_profile,
         'progress': _progress(info_state, phase),
         'patient_token': patient_token,
+        'expected_answer_kind': 'name',
     })
 
 
@@ -339,6 +340,7 @@ def chat():
         'phase': phase,
         'done': done,
         'progress': _progress(info_state, phase),
+        'expected_answer_kind': (context.get('outgoing_turn') or {}).get('expected_answer_kind'),
     })
 
 

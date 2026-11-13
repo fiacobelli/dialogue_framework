@@ -123,6 +123,22 @@ DECLINE_PATTERNS = (
     r"\b(eso es todo|es todo)\b",
     r"\bsaltar\b",
 )
+# A short reply matching one of these asks LUDI to repeat the question: repeat it, record nothing.
+REPEAT_MAX_WORDS = 7
+REPEAT_PATTERNS = (
+    r"\brepeat\b",
+    r"\bsay (that|it) again\b",
+    r"\bwhat did you (say|ask)\b",
+    r"\bwhat (was|is) the question\b",
+    r"\bpardon\b",
+    r"\bcome again\b",
+    r"\b(didn'?t|did not|didn t) (hear|catch|understand)\b",
+    # Spanish (accents dropped)
+    r"\brepit",
+    r"\brepetir\b",
+    r"\b(que|como) (dijo|dice)\b",
+    r"\bno (le |lo )?(entendi|escuche|oi)\b",
+)
 # As the whole reply to a follow-up question, these also mean "no more to add".
 DECLINE_FOLLOWUP_REPLIES = {'no', 'nope', 'nah', 'no thanks', 'no thank you', 'no gracias'}
 

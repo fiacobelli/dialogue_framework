@@ -59,7 +59,8 @@ class ConversationAPI {
             patientToken: data.patient_token,
             phase: data.phase,
             prompt: data.prompt,
-            progress: data.progress
+            progress: data.progress,
+            expected_answer_kind: data.expected_answer_kind
         };
     }
 

@@ -83,16 +83,16 @@ class App {
 
         speechManager.on('listeningIdle', () => {
             ui.showListeningIdle();
-            ui.setStatus(T('Still listening. Take your time.'));
+            if (SHOW_HELPER_TEXT) ui.setStatus(T('Still listening. Take your time.'));
         });
 
         speechManager.on('postSpeechPause', () => {
             ui.showPostSpeechPause();
-            ui.setStatus(T('I am listening in case you want to add more.'));
+            if (SHOW_HELPER_TEXT) ui.setStatus(T('I am listening in case you want to add more.'));
         });
 
         speechManager.on('listeningAborted', ({ reason } = {}) => {
-            if (reason === 'max_wait_for_speech') {
+            if (reason === 'max_wait_for_speech' && SHOW_HELPER_TEXT) {
                 ui.setStatus(T('I paused listening so the microphone would not stay open too long. Tap the mic or type below when ready.'));
             }
             ui.showIdle();
@@ -268,6 +268,7 @@ class App {
             this.conversationActive = false;
             this._paused = false;
             this._lastSpokenText = data.prompt;
+            speechManager.setExpectedAnswer(data.expected_answer_kind);
             this._startupReady = true;
             ui.updateProgress(data.progress);
             ui.clearMessage();
@@ -573,6 +574,7 @@ class App {
 
             const data = await conversationAPI.sendMessage(text, this._buildTurnMetadata(inputModality, metadataExtra));
             this._lastSpokenText = data.prompt;
+            speechManager.setExpectedAnswer(data.expected_answer_kind);
             ui.updateProgress(data.progress);
             ui.showMessage(data.prompt);
             ui.setStatus('');

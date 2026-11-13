@@ -41,6 +41,8 @@ class UIController {
             progressFill: document.getElementById('progress-bar-fill'),
             progressText: document.getElementById('progressText'),
         };
+        // Helper hints under the mic ("Listening...", "Processing...") show only with ?text=1
+        if (!SHOW_HELPER_TEXT && this.elements.micHint) this.elements.micHint.style.display = 'none';
     }
 
     showBeginOverlay() {
@@ -229,7 +231,7 @@ class UIController {
         this.elements.avatarFrame?.classList.remove('speaking');
         this.elements.waveform?.classList.add('hidden');
         this.elements.messageBubble?.classList.add('pulsing');
-        this.setStatus(T('Processing what you said...'));
+        this.setStatus(SHOW_HELPER_TEXT ? T('Processing what you said...') : '');
     }
 
     showSpeaking() {

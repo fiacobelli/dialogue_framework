@@ -40,8 +40,10 @@ class TurnFinalizer {
         this.idlePromptCount = 0;
     }
 
-    start() {
+    start(options = {}) {
         this.reset();
+        // Per-turn silence wait after speech (shorter for yes/no questions)
+        this.graceMs = options.postSpeechGraceMs ?? this.config.postSpeechGraceMs;
         this.state = TurnFinalizerState.WAITING_FOR_SPEECH;
         this.startedAt = this._now();
         this._schedule(this.config.idlePromptMs, () => this._idlePrompt());
@@ -64,7 +66,7 @@ class TurnFinalizer {
         this._clearTimers();
 
         this._schedule(this.config.postSpeechPromptMs, () => this._postSpeechPrompt());
-        this._schedule(this.config.postSpeechGraceMs, () => this.commit('pause_elapsed'));
+        this._schedule(this.graceMs ?? this.config.postSpeechGraceMs, () => this.commit('pause_elapsed'));
     }
 
     commit(reason = 'pause_elapsed') {

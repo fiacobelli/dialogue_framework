@@ -40,6 +40,7 @@ from .interview_state import (
     current_step,
     input_guard_decision,
     is_decline_answer,
+    is_repeat_request,
     is_skip_intent,
     normalize_answer,
     normalize_state,
@@ -207,9 +208,12 @@ def instruction_for(state: dict, awaiting: str, step: dict | None, can_probe: bo
     LLM is told NOT to ask the next question itself.
     """
     if awaiting == 'name':
-        return ('The patient just told you their name. Greet them warmly by name in one short sentence, '
-                'and do NOT ask any question; the system will explain the interview. '
-                'Put the name they gave in the "name" field.')
+        return ('You asked the patient what name they would like shown on their page. '
+                'If they asked you a question instead (for example "what did you say?"), answer it briefly, '
+                'then ask again what name they would like shown on their page, and leave "name" empty. '
+                'Otherwise, treat what they said as their name: greet them warmly by name in one short sentence, '
+                'do NOT ask any question (the system will explain the interview), '
+                'and put the name in the "name" field.')
     next_q = _next_question(state.get('step_index') or 0)
     if can_probe and step:
         # Quoted in the patient's language so the model does not copy English text into its reply.
@@ -264,7 +268,12 @@ def apply_turn(
 ) -> tuple[str, dict]:
     """Apply the voiced turn to state; return (task_type, decision). One question per section."""
     if awaiting == 'name':
-        name = turn['name'] or (user_input or '').strip()[:80]
+        name = turn['name']
+        if not name and not state.get('name_reasked'):
+            # The patient asked a question instead of giving a name: LUDI answered it and asks again (once).
+            state.update(name_reasked=True, phase='INTRO', awaiting='name')
+            return 'ask_name', {'sufficient': False, 'reason': 'name_question_answered'}
+        name = name or (user_input or '').strip()[:80]
         state.update(patient_name=name or None,
                      patient_name_status='confirmed' if name else 'missing',
                      patient_name_source='user_explicit', phase='INTRO',
@@ -408,6 +417,13 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
                    "Would you like to pause here?", language)
         task_type, decision, store_user = 'safety_response', {'sufficient': False, 'reason': 'safety_crisis'}, False
         state['awaiting'], state['phase'] = awaiting, (step['phase'] if step else 'STORY')
+    elif story_phase and step and is_repeat_request(user_input):
+        # The patient asked to hear the question again: repeat it and stay on it (nothing recorded).
+        question = (state.get('followup_question') if awaiting == 'followup_answer' else None) \
+            or tr(step['question'], language)
+        reply = tr("Of course. {question}", language, question=question)
+        task_type, decision, store_user = 'repeat_question', {'sufficient': False, 'reason': 'repeat_requested'}, False
+        state['awaiting'], state['phase'] = awaiting, (step.get('phase') or 'STORY')
     elif story_phase and input_guard_decision(step, user_input, turn_meta)['repair']:
         reply = tr("I did not catch that clearly. {question}", language,
                    question=tr(step['question'], language) if step else '').strip()
@@ -461,7 +477,7 @@ def run_turn(msg: dict, info_state, llm, system_prompt: str) -> None:
         else:
             reply = turn.get('reply') or turn.get('ack') or ''
         task_type, decision = apply_turn(state, awaiting, step, user_input, turn, asked_followup=needs_followup)
-        if awaiting == 'name':
+        if awaiting == 'name' and task_type == 'ask_readiness':
             name = state.get('patient_name') or 'there'
             reply = tr("Thank you, {name}. We are about to begin the interview. "
                        "I will ask you {count} main questions about your story. {readiness}", language,
